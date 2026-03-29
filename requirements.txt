@@ -1,0 +1,6 @@
+Django==4.2.29
+djangorestframework
+dj-rest-auth
+django-allauth
+django-cors-headers
+djangorestframework-simplejwt
