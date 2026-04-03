@@ -1,31 +1,24 @@
 from rest_framework import permissions
 
+# These role-based classes are deprecated.
+# We now use Django's native Group and Permission models.
+# For generic views, use `rest_framework.permissions.DjangoModelPermissions`.
+# Or use `request.user.has_perm('app.action')`.
+
 class HasRolePermission(permissions.IsAuthenticated):
-    allowed_roles = []
-
-    def has_permission(self, request, view):
-        is_authenticated = super().has_permission(request, view)
-        if not is_authenticated:
-            return False
-            
-        # Superusers can bypass role checks
-        if request.user.is_superuser:
-            return True
-            
-        return request.user.role in self.allowed_roles
-
+    pass
 
 class IsOwner(HasRolePermission):
-    allowed_roles = ['owner']
+    pass
 
 class IsTenantAdmin(HasRolePermission):
-    allowed_roles = ['owner', 'admin']
+    pass
 
 class IsCoach(HasRolePermission):
-    allowed_roles = ['owner', 'admin', 'coach']
+    pass
 
 class IsTrainer(HasRolePermission):
-    allowed_roles = ['owner', 'admin', 'trainer']
+    pass
 
 class IsMarketing(HasRolePermission):
-    allowed_roles = ['owner', 'admin', 'marketing']
+    pass

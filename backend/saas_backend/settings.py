@@ -50,6 +50,11 @@ INSTALLED_APPS = [
     'core',
     'users',
     'authentication',
+    'billing',
+    'communications',
+    'orders',
+    'reports',
+    'payments',
 ]
 
 MIDDLEWARE = [
