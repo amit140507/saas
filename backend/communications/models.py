@@ -41,3 +41,28 @@ class EmailLog(TenantAwareModel):
 
     def __str__(self):
         return f"To: {self.recipient_email} - {self.status}"
+
+class WhatsAppTemplate(TenantAwareModel):
+    name = models.CharField(max_length=100, help_text="Template name from Meta dashboard")
+    category = models.CharField(max_length=50, blank=True)
+    language = models.CharField(max_length=10, default='en_US')
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.tenant.name})"
+
+class WhatsAppLog(TenantAwareModel):
+    class Status(models.TextChoices):
+        SUCCESS = 'success', 'Success'
+        FAILED = 'failed', 'Failed'
+        
+    recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    recipient_phone = models.CharField(max_length=20)
+    template = models.ForeignKey(WhatsAppTemplate, on_delete=models.SET_NULL, null=True, blank=True)
+    message_id = models.CharField(max_length=255, blank=True)
+    sent_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.SUCCESS)
+    error_message = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"To: {self.recipient_phone} - {self.status}"

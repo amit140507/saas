@@ -23,4 +23,11 @@ urlpatterns = [
     path('api/', include('orders.urls')),
     path('api/reports/', include('reports.urls')),
     path('api/payments/', include('payments.urls')),
+    path('api/metrics/', include('metrics.urls')),
 ]
+
+from django.conf import settings
+from django.conf.urls.static import static
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

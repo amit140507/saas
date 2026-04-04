@@ -27,6 +27,8 @@ class User(AbstractUser, TenantAwareModel):
     sex = models.CharField(max_length=1, choices=SexChoices.choices, null=True, blank=True)
     phone = models.CharField(max_length=20, null=True, blank=True)
     profile_picture = models.ImageField(upload_to='avatars/', null=True, blank=True)
+    date_of_joining = models.DateField(null=True, blank=True)
+    referral_source = models.CharField(max_length=255, null=True, blank=True)
 
     def __str__(self):
         return self.username

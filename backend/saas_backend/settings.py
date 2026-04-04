@@ -55,6 +55,8 @@ INSTALLED_APPS = [
     'orders',
     'reports',
     'payments',
+    'metrics',
+    'followups',
 ]
 
 MIDDLEWARE = [
@@ -142,6 +144,9 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 AUTH_USER_MODEL = 'users.User'
 CORS_ALLOW_ALL_ORIGINS = True
 
@@ -173,3 +178,9 @@ REST_AUTH = {
     'REGISTER_SERIALIZER': 'authentication.serializers.CustomRegisterSerializer',
     'USER_DETAILS_SERIALIZER': 'authentication.serializers.UserSerializer',
 }
+
+# WhatsApp Meta API Settings
+WHATSAPP_ACCESS_TOKEN = 'your_access_token_here'
+WHATSAPP_PHONE_NUMBER_ID = 'your_phone_number_id_here'
+WHATSAPP_BUSINESS_ACCOUNT_ID = 'your_business_account_id_here'
+WHATSAPP_API_VERSION = 'v22.0'

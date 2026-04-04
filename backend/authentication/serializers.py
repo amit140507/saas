@@ -13,7 +13,11 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ('pk', 'username', 'email', 'first_name', 'last_name', 'role', 'tenant_details')
+        fields = (
+            'pk', 'username', 'email', 'first_name', 'last_name', 
+            'role', 'phone', 'dob', 'sex', 'date_of_joining', 
+            'referral_source', 'tenant_details'
+        )
         read_only_fields = ('role', 'tenant_details')
 
 class CustomRegisterSerializer(RegisterSerializer):
