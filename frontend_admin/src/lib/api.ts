@@ -1,5 +1,5 @@
 import axios from "axios";
-import Cookies from "js-cookie";
+import { getSession } from "next-auth/react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/";
 
@@ -10,9 +10,11 @@ const api = axios.create({
     },
 });
 
+// Add a request interceptor to add the JWT token to headers
 api.interceptors.request.use(
-    (config) => {
-        const token = Cookies.get("admin_access_token");
+    async (config) => {
+        const session = await getSession();
+        const token = (session as any)?.accessToken;
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }

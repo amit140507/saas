@@ -11,7 +11,14 @@ class MeasurementViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Measurement.objects.filter(user=self.request.user)
+        user = self.request.user
+        qs = Measurement.objects.all()
+        if getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False):
+            user_id = self.request.query_params.get('user')
+            if user_id:
+                return qs.filter(user_id=user_id)
+            return qs
+        return qs.filter(user=user)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user, tenant=self.request.user.tenant)

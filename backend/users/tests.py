@@ -28,7 +28,8 @@ class AuthTests(TestCase):
         user = User.objects.first()
         self.assertEqual(user.username, 'testuser')
         self.assertEqual(user.tenant.name, 'Test Corp')
-        self.assertEqual(user.role, 'owner')
+        # Check roles using the new dynamic system
+        self.assertTrue(user.has_role('owner'))
 
     def test_login(self):
         # Create a user first

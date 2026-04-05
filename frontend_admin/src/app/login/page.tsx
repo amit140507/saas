@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import api from "@/lib/api";
-import Cookies from "js-cookie";
+import { signIn } from "next-auth/react";
 import { ShieldAlertIcon } from "lucide-react";
 
 export default function AdminLoginPage() {
@@ -18,17 +17,19 @@ export default function AdminLoginPage() {
         setLoading(true);
         setError("");
         try {
-            // Assuming same endpoint but maybe different role check on backend
-            const response = await api.post("auth/login/", { username: email, password });
-            const { access, refresh } = response.data;
+            const result = await signIn("credentials", {
+                email,
+                password,
+                redirect: false,
+            });
 
-            // We could check if the user is actually an admin here if the backend returns roles
-            // For now, we'll just set the admin tokens
-            Cookies.set("admin_access_token", access);
-            Cookies.set("admin_refresh_token", refresh);
-            router.push("/dashboard");
+            if (result?.error) {
+                setError("Invalid admin credentials");
+            } else {
+                router.push("/dashboard");
+            }
         } catch (err: any) {
-            setError(err.response?.data?.non_field_errors?.[0] || "Invalid admin credentials");
+            setError("Authentication service unavailable");
         } finally {
             setLoading(false);
         }

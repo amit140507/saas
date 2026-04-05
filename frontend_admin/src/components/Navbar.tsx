@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { BellIcon, SearchIcon, ShieldIcon, UserIcon, LogOutIcon, SettingsIcon, SunIcon, MoonIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import CookieManager from "js-cookie";
+import { signOut } from "next-auth/react";
 import api from "@/lib/api";
 
 export default function Navbar() {
@@ -51,9 +51,7 @@ export default function Navbar() {
     };
 
     const handleLogout = () => {
-        CookieManager.remove("access_token");
-        CookieManager.remove("refresh_token");
-        router.push("/login");
+        signOut({ callbackUrl: "/login" });
     };
 
     // Close dropdown when clicking outside

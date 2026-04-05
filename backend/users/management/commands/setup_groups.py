@@ -6,7 +6,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         # We define the default roles in our system
-        roles = ['admin', 'owner', 'coach', 'trainer', 'marketing']
+        roles = ['admin', 'owner', 'trainer', 'marketing']
         
         for role_name in roles:
             group, created = Group.objects.get_or_create(name=role_name)

@@ -2,21 +2,28 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import CookieManager from "js-cookie";
+import { signOut } from "next-auth/react";
 import {
     UsersIcon,
     SettingsIcon,
     LayoutDashboardIcon,
     CreditCardIcon,
     ShieldCheckIcon,
-    LogOutIcon
+    LogOutIcon,
+    CalculatorIcon,
+    ActivityIcon,
+    RulerIcon
 } from "lucide-react";
 
 const navigation = [
     { name: "Admin Dashboard", href: "/dashboard", icon: LayoutDashboardIcon },
-    { name: "Users", href: "/dashboard/users", icon: UsersIcon },
+    { name: "Staff Members", href: "/dashboard/staff-members", icon: ShieldCheckIcon },
+    { name: "Clients (Members)", href: "/dashboard/clients", icon: UsersIcon },
     { name: "Payments", href: "/dashboard/payments", icon: CreditCardIcon },
     { name: "Security", href: "/dashboard/security", icon: ShieldCheckIcon },
+    { name: "Macro Calculator", href: "/dashboard/macro-calculator", icon: CalculatorIcon },
+    { name: "Client Trackers", href: "/dashboard/check-in-tracker", icon: ActivityIcon },
+    { name: "Measurements", href: "/dashboard/measurements", icon: RulerIcon },
     { name: "Settings", href: "/dashboard/settings", icon: SettingsIcon },
 ];
 
@@ -25,9 +32,7 @@ export default function Sidebar() {
     const router = useRouter();
 
     const handleLogout = () => {
-        CookieManager.remove("access_token");
-        CookieManager.remove("refresh_token");
-        router.push("/login");
+        signOut({ callbackUrl: "/login" });
     };
 
     return (

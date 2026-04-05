@@ -15,10 +15,10 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = (
             'pk', 'username', 'email', 'first_name', 'last_name', 
-            'role', 'phone', 'dob', 'sex', 'date_of_joining', 
+            'phone', 'dob', 'sex', 'date_of_joining', 
             'referral_source', 'tenant_details'
         )
-        read_only_fields = ('role', 'tenant_details')
+        read_only_fields = ('tenant_details',)
 
 class CustomRegisterSerializer(RegisterSerializer):
     tenant_name = serializers.CharField(max_length=255, required=True)
@@ -33,5 +33,9 @@ class CustomRegisterSerializer(RegisterSerializer):
         if tenant_name:
             tenant = Tenant.objects.create(name=tenant_name)
             user.tenant = tenant
-            user.role = User.Roles.OWNER
             user.save()
+            
+            # Dynamically assign the 'owner' role
+            from users.models import Role
+            owner_role, _ = Role.objects.get_or_create(name='owner', tenant=tenant)
+            user.roles.add(owner_role)

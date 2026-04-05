@@ -57,6 +57,11 @@ INSTALLED_APPS = [
     'payments',
     'metrics',
     'followups',
+    'diet_plans',
+    'checkins',
+    'clients',
+    'axes',
+    'debug_toolbar',
 ]
 
 MIDDLEWARE = [
@@ -69,6 +74,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'allauth.account.middleware.AccountMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'axes.middleware.AxesMiddleware',
+    'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
 
 ROOT_URLCONF = 'saas_backend.urls'
@@ -151,8 +158,13 @@ AUTH_USER_MODEL = 'users.User'
 CORS_ALLOW_ALL_ORIGINS = True
 
 AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesBackend',
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+INTERNAL_IPS = [
+    "127.0.0.1",
 ]
 
 SITE_ID = 1

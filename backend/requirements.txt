@@ -7,3 +7,14 @@ djangorestframework-simplejwt
 requests
 cryptography
 Pillow
+razorpay
+fpdf2
+ruff
+django-axes[ipware]
+django-debug-toolbar
+pre-commit
+pytest
+factory-boy
+Faker
+pyinstrument
+celery

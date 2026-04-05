@@ -20,10 +20,15 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('authentication.urls')),
-    path('api/', include('orders.urls')),
+    path('api/orders/', include('orders.urls')),
     path('api/reports/', include('reports.urls')),
     path('api/payments/', include('payments.urls')),
     path('api/metrics/', include('metrics.urls')),
+    path('api/diet-plans/', include('diet_plans.urls')),
+    path('api/checkins/', include('checkins.urls')),
+    path('api/clients/', include('clients.urls')),
+    path('api/users/', include('users.urls')),
+    path('__debug__/', include('debug_toolbar.urls')),
 ]
 
 from django.conf import settings
