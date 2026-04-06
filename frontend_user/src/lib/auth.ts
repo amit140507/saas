@@ -1,5 +1,6 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import axios from "axios";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/";
@@ -35,9 +36,35 @@ export const authOptions: NextAuthOptions = {
         }
       },
     }),
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async signIn({ user, account, profile }) {
+      if (account?.provider === "google") {
+        try {
+          // Exchange Google access_token for Django JWT
+          const response = await axios.post(`${API_URL}auth/google/`, {
+            access_token: account.access_token,
+          });
+
+          if (response.data && response.data.access) {
+            // Attach Django tokens to the user object for the JWT callback
+            (user as any).accessToken = response.data.access;
+            (user as any).refreshToken = response.data.refresh;
+            return true;
+          }
+          return false;
+        } catch (error) {
+          console.error("Google login failed on backend", error);
+          return false;
+        }
+      }
+      return true;
+    },
+    async jwt({ token, user, account }) {
       if (user) {
         token.accessToken = (user as any).accessToken;
         token.refreshToken = (user as any).refreshToken;
@@ -55,4 +82,5 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET || "fallback-secret-change-this",
 };
 
-export default NextAuth(authOptions);
+// Remove redundant initialization
+// export default NextAuth(authOptions);

@@ -4,12 +4,13 @@ import { useState, useRef, useEffect } from "react";
 import { BellIcon, SearchIcon, UserIcon, LogOutIcon, SettingsIcon, SunIcon, MoonIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 
 export default function Navbar() {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isDarkMode, setIsDarkMode] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const { data: session } = useSession();
     const router = useRouter();
 
     const handleLogout = () => {
@@ -101,8 +102,8 @@ export default function Navbar() {
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                         >
                             <span className="hidden lg:flex lg:items-center">
-                                <span className="ml-4 text-sm font-semibold leading-6 text-zinc-900 dark:text-zinc-100" aria-hidden="true">
-                                    Account
+                                <span className="ml-4 text-sm font-semibold leading-6 text-zinc-900 dark:text-zinc-100 capitalize" aria-hidden="true">
+                                    {session?.user?.name || "Account"}
                                 </span>
                             </span>
                             <div className="h-8 w-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
@@ -118,7 +119,7 @@ export default function Navbar() {
                                     onClick={() => setIsDropdownOpen(false)}
                                 >
                                     <UserIcon className="h-4 w-4 text-zinc-400" />
-                                    Your Profile
+                                    My Profile
                                 </Link>
                                 <Link
                                     href="/dashboard/settings"
@@ -135,7 +136,7 @@ export default function Navbar() {
                                     onClick={handleLogout}
                                 >
                                     <LogOutIcon className="h-4 w-4 text-zinc-400" />
-                                    Sign out
+                                    Log out
                                 </button>
                             </div>
                         )}

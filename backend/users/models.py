@@ -7,6 +7,22 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class BaseProfile(models.Model):
+    class SexChoices(models.TextChoices):
+        MALE = 'M', 'Male'
+        FEMALE = 'F', 'Female'
+        OTHER = 'O', 'Other'
+
+    dob = models.DateField(null=True, blank=True)
+    sex = models.CharField(max_length=1, choices=SexChoices.choices, null=True, blank=True)
+    profile_picture = models.ImageField(upload_to='avatars/', null=True, blank=True)
+    date_of_joining = models.DateField(null=True, blank=True)
+    referral_source = models.CharField(max_length=255, null=True, blank=True)
+    phone = models.CharField(max_length=20, null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
 class Role(TenantAwareModel):
     name = models.CharField(max_length=50) # 'admin', 'owner', 'trainer', 'marketing', 'client'
     description = models.TextField(blank=True, null=True)
@@ -40,17 +56,43 @@ class User(AbstractUser, TenantAwareModel):
     # NEW: Multi-role support (Option 2)
     roles = models.ManyToManyField(Role, related_name='users', blank=True)
     
-    class SexChoices(models.TextChoices):
-        MALE = 'M', 'Male'
-        FEMALE = 'F', 'Female'
-        OTHER = 'O', 'Other'
+    # phone = models.CharField(max_length=20, null=True, blank=True)  # MOVED TO BASEPROFILE
+    public_id = models.CharField(max_length=6, unique=True, null=True, blank=True)
+ 
+    def _get_profile_field(self, field_name):
+        profile = getattr(self, 'staff_profile', None) or getattr(self, 'client_profile', None)
+        return getattr(profile, field_name, None) if profile else None
 
-    dob = models.DateField(null=True, blank=True)
-    sex = models.CharField(max_length=1, choices=SexChoices.choices, null=True, blank=True)
-    phone = models.CharField(max_length=20, null=True, blank=True)
-    profile_picture = models.ImageField(upload_to='avatars/', null=True, blank=True)
-    date_of_joining = models.DateField(null=True, blank=True)
-    referral_source = models.CharField(max_length=255, null=True, blank=True)
+    def _set_profile_field(self, field_name, value):
+        profile = getattr(self, 'staff_profile', None) or getattr(self, 'client_profile', None)
+        if profile:
+            setattr(profile, field_name, value)
+            profile.save()
+
+    @property
+    def phone(self): return self._get_profile_field('phone')
+    @phone.setter
+    def phone(self, value): self._set_profile_field('phone', value)
+
+    @property
+    def dob(self): return self._get_profile_field('dob')
+    @dob.setter
+    def dob(self, value): self._set_profile_field('dob', value)
+
+    @property
+    def sex(self): return self._get_profile_field('sex')
+    @sex.setter
+    def sex(self, value): self._set_profile_field('sex', value)
+
+    @property
+    def date_of_joining(self): return self._get_profile_field('date_of_joining')
+    @date_of_joining.setter
+    def date_of_joining(self, value): self._set_profile_field('date_of_joining', value)
+
+    @property
+    def referral_source(self): return self._get_profile_field('referral_source')
+    @referral_source.setter
+    def referral_source(self, value): self._set_profile_field('referral_source', value)
 
     def __str__(self):
         return self.username
@@ -80,9 +122,16 @@ class User(AbstractUser, TenantAwareModel):
         return self.has_role('trainer')
 
     def save(self, *args, **kwargs):
+        if not self.public_id:
+            from .helpers import generate_public_id
+            while True:
+                new_id = generate_public_id()
+                if not User.objects.filter(public_id=new_id).exists():
+                    self.public_id = new_id
+                    break
         super().save(*args, **kwargs)
 
-class StaffProfile(TenantAwareModel):
+class StaffProfile(TenantAwareModel, BaseProfile):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='staff_profile')
     bio = models.TextField(null=True, blank=True)
     specialization = models.CharField(max_length=100, null=True, blank=True)

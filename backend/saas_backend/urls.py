@@ -28,6 +28,7 @@ urlpatterns = [
     path('api/checkins/', include('checkins.urls')),
     path('api/clients/', include('clients.urls')),
     path('api/users/', include('users.urls')),
+    path('api/tenants/', include('core.urls')),
     path('__debug__/', include('debug_toolbar.urls')),
 ]
 

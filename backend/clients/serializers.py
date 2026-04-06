@@ -7,14 +7,14 @@ User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'first_name', 'last_name', 'email', 'phone']
+        fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'public_id']
 
 class ClientSerializer(serializers.ModelSerializer):
     user = UserSerializer()
 
     class Meta:
         model = Client
-        fields = ['id', 'user', 'assigned_trainer', 'status', 'goal', 'health_conditions']
+        fields = ['id', 'user', 'assigned_trainer', 'status', 'goal', 'health_conditions', 'dob', 'sex', 'profile_picture', 'date_of_joining', 'referral_source', 'phone']
         
     def create(self, validated_data):
         user_data = validated_data.pop('user')

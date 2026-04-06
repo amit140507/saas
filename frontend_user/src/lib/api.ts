@@ -25,30 +25,12 @@ api.interceptors.request.use(
     }
 );
 
-// Add a response interceptor to handle token refresh or redirect to login
+// Add a response interceptor to handle errors
 api.interceptors.response.use(
     (response) => response,
-    async (error) => {
-        const originalRequest = error.config;
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true;
-            try {
-                const refreshToken = Cookies.get("refresh_token");
-                const response = await axios.post(`${API_URL}auth/token/refresh/`, {
-                    refresh: refreshToken,
-                });
-                const { access } = response.data;
-                Cookies.set("access_token", access);
-                originalRequest.headers.Authorization = `Bearer ${access}`;
-                return axios(originalRequest);
-            } catch (refreshError) {
-                // Redirect to login or handle session expiration
-                Cookies.remove("access_token");
-                Cookies.remove("refresh_token");
-                if (typeof window !== "undefined") {
-                    window.location.href = "/login";
-                }
-            }
+    (error) => {
+        if (typeof window !== "undefined" && error.response?.status === 401) {
+            // NextAuth handles session expiration
         }
         return Promise.reject(error);
     }

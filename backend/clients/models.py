@@ -1,8 +1,9 @@
 from django.db import models
 from django.conf import settings
 from core.models import TenantAwareModel
+from users.models import BaseProfile
 
-class Client(TenantAwareModel):
+class Client(TenantAwareModel, BaseProfile):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='client_profile')
     assigned_trainer = models.ForeignKey(
         settings.AUTH_USER_MODEL, 

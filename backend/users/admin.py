@@ -12,16 +12,24 @@ class RoleAdmin(admin.ModelAdmin):
 class CustomUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
         ('Tenant Info', {'fields': ('tenant', 'roles')}),
+        ('Public ID', {'fields': ('public_id',)}),
     )
     add_fieldsets = UserAdmin.add_fieldsets + (
         ('Tenant Info', {'fields': ('tenant', 'roles')}),
+        ('Public ID', {'fields': ('public_id',)}),
     )
-    list_display = UserAdmin.list_display + ('tenant',)
+    list_display = UserAdmin.list_display + ('tenant', 'public_id')
+    readonly_fields = ('public_id',)
     list_filter = UserAdmin.list_filter + ('tenant',)
     filter_horizontal = ('roles',)
 
 @admin.register(StaffProfile)
 class StaffProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'tenant', 'specialization', 'rating')
-    list_filter = ('tenant', 'specialization')
+    list_display = ('user', 'tenant', 'phone', 'specialization', 'rating', 'sex', 'date_of_joining')
+    list_filter = ('tenant', 'specialization', 'sex', 'date_of_joining')
     search_fields = ('user__username', 'user__email', 'specialization')
+    fieldsets = (
+        (None, {'fields': ('user', 'tenant')}),
+        ('Professional Info', {'fields': ('specialization', 'rating', 'bio')}),
+        ('Personal Info', {'fields': ('phone', 'dob', 'sex', 'profile_picture', 'date_of_joining', 'referral_source')}),
+    )

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
-import { UserIcon, MailIcon, ShieldIcon, BuildingIcon, CheckCircleIcon, XCircleIcon } from "lucide-react";
+import { UserIcon, MailIcon, ShieldIcon, BuildingIcon, CheckCircleIcon, XCircleIcon, PhoneIcon } from "lucide-react";
 
 interface UserProfile {
     pk: number;
@@ -11,6 +11,7 @@ interface UserProfile {
     first_name: string;
     last_name: string;
     role: string;
+    phone: string;
     tenant_details?: {
         name: string;
     };
@@ -20,7 +21,7 @@ export default function ProfilePage() {
     const [user, setUser] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
-    const [editData, setEditData] = useState({ username: "", email: "", first_name: "", last_name: "" });
+    const [editData, setEditData] = useState({ username: "", email: "", first_name: "", last_name: "", phone: "" });
     const [availability, setAvailability] = useState<{
         username: boolean | null | 'loading',
         email: boolean | null | 'loading'
@@ -40,6 +41,7 @@ export default function ProfilePage() {
                 email: response.data.email || "",
                 first_name: response.data.first_name || "",
                 last_name: response.data.last_name || "",
+                phone: response.data.phone || "",
             });
         } catch (err: any) {
             setError("Failed to load profile. Please try again.");
@@ -262,6 +264,22 @@ export default function ProfilePage() {
                                     />
                                 </div>
                             </div>
+
+                            <div className="sm:col-span-3">
+                                <label htmlFor="phone" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                                    Phone number
+                                </label>
+                                <div className="mt-1">
+                                    <input
+                                        type="text"
+                                        name="phone"
+                                        id="phone"
+                                        value={editData.phone}
+                                        onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                                        className="block w-full rounded-md border-0 py-1.5 px-3 text-zinc-900 dark:text-zinc-100 bg-transparent shadow-sm ring-1 ring-inset ring-zinc-300 dark:ring-zinc-700 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                                    />
+                                </div>
+                            </div>
                         </div>
 
                         <div className="flex justify-end gap-x-3">
@@ -300,12 +318,10 @@ export default function ProfilePage() {
                             </div>
                             <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                                 <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
-                                    <ShieldIcon size={16} /> Role
+                                    <PhoneIcon size={16} /> Phone number
                                 </dt>
-                                <dd className="mt-1 text-sm text-zinc-900 dark:text-zinc-100 sm:mt-0 sm:col-span-2 capitalize">
-                                    <span className="inline-flex items-center rounded-md bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300 ring-1 ring-inset ring-indigo-700/10 dark:ring-indigo-400/20">
-                                        {user?.role || "user"}
-                                    </span>
+                                <dd className="mt-1 text-sm text-zinc-900 dark:text-zinc-100 sm:mt-0 sm:col-span-2">
+                                    {user?.phone || "Not provided"}
                                 </dd>
                             </div>
                             <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
