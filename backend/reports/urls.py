@@ -1,7 +1,12 @@
-from django.urls import path
-from .views import DashboardAnalyticsView, EmailHistoryView
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import DashboardAnalyticsView, EmailHistoryView, BloodReportViewSet
+
+router = DefaultRouter()
+router.register(r'blood-reports', BloodReportViewSet, basename='blood-report')
 
 urlpatterns = [
+    path('', include(router.urls)),
     path('dashboard/', DashboardAnalyticsView.as_view(), name='dashboard-reports'),
     path('emails/', EmailHistoryView.as_view(), name='email-history'),
 ]

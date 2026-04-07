@@ -222,6 +222,19 @@ REST_AUTH = {
     'JWT_AUTH_REFRESH_COOKIE': 'saas-refresh-token',
     'REGISTER_SERIALIZER': 'authentication.serializers.CustomRegisterSerializer',
     'USER_DETAILS_SERIALIZER': 'authentication.serializers.UserSerializer',
+    'PASSWORD_RESET_SERIALIZER': 'authentication.serializers.CustomPasswordResetSerializer',
+    'PASSWORD_RESET_CONFIRM_SERIALIZER': 'authentication.serializers.CustomPasswordResetConfirmSerializer',
+    'PASSWORD_RESET_CONFIRM_URL': 'http://localhost:3000/reset-password/{uid}/{token}/',
+}
+
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
 PASSWORD_RESET_CONFIRM_URL = 'http://localhost:3000/reset-password/{uid}/{token}/'

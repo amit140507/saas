@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import viewsets, permissions
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Sum
@@ -9,6 +10,22 @@ from users.models import User
 from billing.models import Subscription, Product
 from orders.models import Order
 from communications.models import EmailLog
+from .models import BloodReport
+from .serializers import BloodReportSerializer
+
+class BloodReportViewSet(viewsets.ModelViewSet):
+    serializer_class = BloodReportSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Users see their own reports, staff see all reports for their tenant
+        user = self.request.user
+        if user.is_staff:
+            return BloodReport.objects.filter(tenant=user.tenant)
+        return BloodReport.objects.filter(user=user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user, tenant=self.request.user.tenant)
 
 class DashboardAnalyticsView(APIView):
     permission_classes = [IsAuthenticated]

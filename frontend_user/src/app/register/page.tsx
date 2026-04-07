@@ -80,7 +80,7 @@ export default function RegisterPage() {
                     <button
                         type="button"
                         onClick={async () => {
-                            alert("Google Button Clicked!");
+                            // alert("Google Button Clicked!");
                             console.log("Google sign-in clicked");
                             try {
                                 await signIn('google');

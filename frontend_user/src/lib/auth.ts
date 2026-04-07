@@ -5,6 +5,42 @@ import axios from "axios";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/";
 
+/**
+ * Decodes the exp (expiration) claim from a JWT.
+ */
+function decodeJWTExp(token: string): number {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+    return payload.exp * 1000; // to milliseconds
+  } catch (error) {
+    return 0;
+  }
+}
+
+/**
+ * Exchanges a refresh token for a new access token.
+ */
+async function refreshAccessToken(token: any) {
+  try {
+    const response = await axios.post(`${API_URL}auth/token/refresh/`, {
+      refresh: token.refreshToken,
+    });
+
+    return {
+      ...token,
+      accessToken: response.data.access,
+      accessTokenExpires: decodeJWTExp(response.data.access),
+      // SimpleJWT might rotate the refresh token too
+      refreshToken: response.data.refresh ?? token.refreshToken,
+    };
+  } catch (error) {
+    return {
+      ...token,
+      error: "RefreshAccessTokenError",
+    };
+  }
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -21,7 +57,6 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (response.data && response.data.access) {
-            // Return user object + tokens
             return {
               id: response.data.user?.id || "user",
               email: credentials?.email,
@@ -31,7 +66,8 @@ export const authOptions: NextAuthOptions = {
             };
           }
           return null;
-        } catch (error) {
+        } catch (error: any) {
+          console.error("Login error response:", error.response?.data || error.message);
           return null;
         }
       },
@@ -45,13 +81,11 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account, profile }) {
       if (account?.provider === "google") {
         try {
-          // Exchange Google access_token for Django JWT
           const response = await axios.post(`${API_URL}auth/google/`, {
             access_token: account.access_token,
           });
 
           if (response.data && response.data.access) {
-            // Attach Django tokens to the user object for the JWT callback
             (user as any).accessToken = response.data.access;
             (user as any).refreshToken = response.data.refresh;
             return true;
@@ -64,15 +98,29 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }) {
+      // Initial sign in
       if (user) {
-        token.accessToken = (user as any).accessToken;
-        token.refreshToken = (user as any).refreshToken;
+        return {
+          accessToken: (user as any).accessToken,
+          accessTokenExpires: decodeJWTExp((user as any).accessToken),
+          refreshToken: (user as any).refreshToken,
+          user,
+        };
       }
-      return token;
+
+      // If token hasn't expired, return it
+      if (Date.now() < (token.accessTokenExpires as number)) {
+        return token;
+      }
+
+      // If token has expired, refresh it
+      return await refreshAccessToken(token);
     },
     async session({ session, token }) {
       (session as any).accessToken = token.accessToken;
+      (session as any).user = token.user;
+      (session as any).error = token.error;
       return session;
     },
   },
@@ -81,6 +129,3 @@ export const authOptions: NextAuthOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET || "fallback-secret-change-this",
 };
-
-// Remove redundant initialization
-// export default NextAuth(authOptions);

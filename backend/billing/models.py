@@ -59,8 +59,17 @@ class Coupon(TenantAwareModel):
 @receiver(post_save, sender=Tenant)
 def create_default_products(sender, instance, created, **kwargs):
     if created:
-        Product.objects.bulk_create([
-            Product(tenant=instance, name='Level 1', price=49.99, billing_cycle='monthly'),
-            Product(tenant=instance, name='Level 2', price=99.99, billing_cycle='monthly'),
-            Product(tenant=instance, name='Level 3', price=149.99, billing_cycle='monthly'),
-        ])
+        plans = [
+            ('Transformation', [(149.99, 'quarterly'), (249.99, 'half-yearly'), (399.99, 'yearly')]),
+            ('Excellence', [(199.99, 'quarterly'), (349.99, 'half-yearly'), (599.99, 'yearly')]),
+            ('Lifestyle', [(249.99, 'quarterly'), (449.99, 'half-yearly'), (799.99, 'yearly')]),
+        ]
+        
+        products_to_create = []
+        for name, tiers in plans:
+            for price, cycle in tiers:
+                products_to_create.append(
+                    Product(tenant=instance, name=name, price=price, billing_cycle=cycle)
+                )
+        
+        Product.objects.bulk_create(products_to_create)

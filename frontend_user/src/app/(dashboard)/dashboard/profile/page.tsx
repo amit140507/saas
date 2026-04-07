@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import api from "@/lib/api";
 import { UserIcon, MailIcon, ShieldIcon, BuildingIcon, CheckCircleIcon, XCircleIcon, PhoneIcon } from "lucide-react";
 
@@ -330,6 +331,19 @@ export default function ProfilePage() {
                                 </dt>
                                 <dd className="mt-1 text-sm text-zinc-900 dark:text-zinc-100 sm:mt-0 sm:col-span-2">
                                     {user?.tenant_details?.name || "Independent Account"}
+                                </dd>
+                            </div>
+                            <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                                <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+                                    <ShieldIcon size={16} /> Password
+                                </dt>
+                                <dd className="mt-1 text-sm text-zinc-900 dark:text-zinc-100 sm:mt-0 sm:col-span-2">
+                                    <Link
+                                        href="/dashboard/profile/change-password"
+                                        className="inline-flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 font-medium transition"
+                                    >
+                                        Change Password →
+                                    </Link>
                                 </dd>
                             </div>
                         </dl>

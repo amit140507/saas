@@ -18,3 +18,4 @@ factory-boy
 Faker
 pyinstrument
 celery
+python-dotenv
