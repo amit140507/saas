@@ -12,13 +12,15 @@ import {
     LogOutIcon,
     CalculatorIcon,
     ActivityIcon,
-    RulerIcon
+    RulerIcon,
+    ShoppingCartIcon
 } from "lucide-react";
 
 const navigation = [
     { name: "Admin Dashboard", href: "/dashboard", icon: LayoutDashboardIcon },
     { name: "Staff Members", href: "/dashboard/staff-members", icon: ShieldCheckIcon },
     { name: "Clients (Members)", href: "/dashboard/clients", icon: UsersIcon },
+    { name: "Orders", href: "/dashboard/orders", icon: ShoppingCartIcon },
     { name: "Payments", href: "/dashboard/payments", icon: CreditCardIcon },
     { name: "Security", href: "/dashboard/security", icon: ShieldCheckIcon },
     { name: "Macro Calculator", href: "/dashboard/macro-calculator", icon: CalculatorIcon },

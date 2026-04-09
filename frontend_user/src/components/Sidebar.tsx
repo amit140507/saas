@@ -9,6 +9,7 @@ import {
     SettingsIcon,
     LayoutDashboardIcon,
     ShoppingBagIcon,
+    PackageIcon,
     LogOutIcon,
     ActivityIcon,
     CalendarIcon,
@@ -20,7 +21,7 @@ import {
 const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboardIcon },
     { name: "Shop", href: "/dashboard/shop", icon: ShoppingBagIcon },
-    { name: "My Orders", href: "/dashboard/orders", icon: ShoppingBagIcon },
+    { name: "My Orders", href: "/dashboard/orders", icon: PackageIcon },
     { name: "My Subscription", href: "/dashboard/subscription", icon: CalendarIcon },
     { name: "My Plan", href: "/dashboard/my-plan", icon: FileTextIcon },
     { name: "Check-In Tracker", href: "/dashboard/check-in-tracker", icon: ActivityIcon },

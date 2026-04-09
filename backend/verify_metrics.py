@@ -5,7 +5,7 @@ from django.utils import timezone
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'saas_backend.settings')
 django.setup()
 
-from metrics.models import Measurement, MeasurementGoal
+from measurement.models import Measurement, MeasurementGoal
 from users.models import User
 from core.models import Tenant
 from communications.models import WhatsAppLog, WhatsAppTemplate, EmailTemplate

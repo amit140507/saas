@@ -32,6 +32,7 @@ class Migration(migrations.Migration):
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='measurements', to=settings.AUTH_USER_MODEL)),
             ],
             options={
+                'db_table': 'metrics_measurement',
                 'ordering': ['-date', '-created_at'],
             },
         ),
@@ -49,7 +50,7 @@ class Migration(migrations.Migration):
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='measurement_goals', to=settings.AUTH_USER_MODEL)),
             ],
             options={
-                'abstract': False,
+                'db_table': 'metrics_measurementgoal',
             },
         ),
     ]

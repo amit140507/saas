@@ -20,7 +20,19 @@ class BloodReport(TenantAwareModel):
 class BloodMarkerReading(TenantAwareModel):
     report = models.ForeignKey(BloodReport, on_delete=models.CASCADE, related_name='readings')
     marker_name = models.CharField(max_length=100) # e.g., HbA1c, Cholesterol
-    marker_type = models.CharField(max_length=50, blank=True, null=True) # key for easier filtering/charting
+    MARKER_CHOICES = [
+        ('hba1c', 'HbA1c'),
+        ('glucose_fasting', 'Glucose (Fasting)'),
+        ('glucose_pp', 'Glucose (Post Prandial)'),
+        ('cholesterol_total', 'Total Cholesterol'),
+        ('hdl', 'HDL Cholesterol'),
+        ('ldl', 'LDL Cholesterol'),
+        ('triglycerides', 'Triglycerides'),
+        ('hemoglobin', 'Hemoglobin'),
+        ('vitamin_d', 'Vitamin D'),
+        ('vitamin_b12', 'Vitamin B12'),
+    ]
+    marker_type = models.CharField(max_length=50, choices=MARKER_CHOICES, blank=True, null=True) # key for easier filtering/charting
     value = models.DecimalField(max_digits=10, decimal_places=3)
     unit = models.CharField(max_length=20, blank=True, null=True) # e.g., mg/dL, %
     reference_range = models.CharField(max_length=100, blank=True, null=True) # e.g., 70-100

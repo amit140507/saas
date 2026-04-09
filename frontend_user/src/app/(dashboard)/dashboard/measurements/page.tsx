@@ -20,7 +20,7 @@ export default function CustMeasurementsPage() {
 
   useEffect(() => {
     // In a real scenario:
-    // axios.get("/api/metrics/measurements/").then(res => setHistory(res.data));
+    // axios.get("/api/measurement/measurements/").then(res => setHistory(res.data));
     setHistory([
       { id: 1, date: "2024-01-01", weight: 80.5, chest: 102, hips: 98, biceps: 38, thighs: 60, waist: 85 },
       { id: 2, date: "2024-01-15", weight: 79.2, chest: 101, hips: 97, biceps: 38.5, thighs: 59, waist: 83 },
@@ -35,7 +35,7 @@ export default function CustMeasurementsPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      // const res = await axios.post("/api/metrics/measurements/", form);
+      // const res = await axios.post("/api/measurement/measurements/", form);
       // setHistory([res.data, ...history]);
       alert("Measurement saved successfully!");
       setForm({ ...form, weight: "", chest: "", hips: "", biceps: "", thighs: "", waist: "" });

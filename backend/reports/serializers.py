@@ -5,6 +5,12 @@ class BloodMarkerReadingSerializer(serializers.ModelSerializer):
     class Meta:
         model = BloodMarkerReading
         fields = ('id', 'marker_name', 'marker_type', 'value', 'unit', 'reference_range', 'is_normal')
+        extra_kwargs = {
+            'is_normal': {'required': False},
+            'marker_type': {'required': False},
+            'unit': {'required': False},
+            'reference_range': {'required': False},
+        }
 
 class BloodReportSerializer(serializers.ModelSerializer):
     readings = BloodMarkerReadingSerializer(many=True, required=False)
@@ -17,13 +23,19 @@ class BloodReportSerializer(serializers.ModelSerializer):
     def to_internal_value(self, data):
         # When using FormData, things like 'readings' might be a JSON string.
         # We need to parse it back into a list/dict structure for DRF to handle it.
-        ret = data.copy()
-        if isinstance(ret.get('readings'), str):
+        if hasattr(data, 'copy'):
+            ret = data.copy()
+        else:
+            ret = data
+
+        readings = ret.get('readings')
+        if isinstance(readings, str):
             import json
             try:
-                ret['readings'] = json.loads(ret['readings'])
+                ret['readings'] = json.loads(readings)
             except (ValueError, TypeError):
-                pass
+                ret['readings'] = []
+        
         return super().to_internal_value(ret)
 
     def create(self, validated_data):

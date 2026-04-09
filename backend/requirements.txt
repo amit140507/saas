@@ -19,3 +19,5 @@ Faker
 pyinstrument
 celery
 python-dotenv
+weasyprint
+boto3

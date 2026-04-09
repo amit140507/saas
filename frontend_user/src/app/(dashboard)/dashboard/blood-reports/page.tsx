@@ -1,20 +1,44 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { DropletIcon, SaveIcon, HistoryIcon, PlusIcon, TrashIcon, FileTextIcon, DownloadIcon } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { DropletIcon, SaveIcon, HistoryIcon, PlusIcon, TrashIcon, FileTextIcon, DownloadIcon, BarChart3Icon } from "lucide-react";
 import api from "@/lib/api";
+import {
+    Chart as ChartJS,
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Legend,
+    Filler
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
+
+ChartJS.register(
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Legend,
+    Filler
+);
 
 export default function BloodReportsPage() {
     const [loading, setLoading] = useState(false);
     const [reports, setReports] = useState<any[]>([]);
     const [reportFile, setReportFile] = useState<File | null>(null);
+    const [selectedMarker, setSelectedMarker] = useState<string>("hba1c");
     const [form, setForm] = useState({
         date: new Date().toISOString().split("T")[0],
         lab_name: "",
         notes: "",
         readings: [
             { marker_name: "HbA1c", marker_type: "hba1c", value: "", unit: "%", reference_range: "< 5.7" },
-            { marker_name: "Glucose (Fasting)", marker_type: "glucose", value: "", unit: "mg/dL", reference_range: "70-99" },
+            { marker_name: "Glucose (Fasting)", marker_type: "glucose_fasting", value: "", unit: "mg/dL", reference_range: "70-99" },
             { marker_name: "Total Cholesterol", marker_type: "cholesterol_total", value: "", unit: "mg/dL", reference_range: "< 200" },
         ]
     });
@@ -26,23 +50,92 @@ export default function BloodReportsPage() {
     const fetchReports = async () => {
         try {
             const res = await api.get("reports/blood-reports/");
-            setReports(res.data);
+            // Sort by date descending for the list
+            const sorted = [...res.data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setReports(sorted);
         } catch (err) {
             console.error("Failed to fetch reports:", err);
             // Fallback dummy data for preview
-            setReports([
+            const dummy = [
                 {
                     id: 1,
                     date: "2024-02-15",
                     lab_name: "City Diagnostics",
                     readings: [
-                        { marker_name: "HbA1c", value: "5.4", unit: "%" },
-                        { marker_name: "Glucose", value: "92", unit: "mg/dL" }
+                        { marker_name: "HbA1c", marker_type: "hba1c", value: "5.4", unit: "%" },
+                        { marker_name: "Glucose", marker_type: "glucose_fasting", value: "92", unit: "mg/dL" },
+                        { marker_name: "Total Cholesterol", marker_type: "cholesterol_total", value: "180", unit: "mg/dL" }
                     ]
                 },
-            ]);
+                {
+                    id: 2,
+                    date: "2023-11-10",
+                    lab_name: "City Diagnostics",
+                    readings: [
+                        { marker_name: "HbA1c", marker_type: "hba1c", value: "5.8", unit: "%" },
+                        { marker_name: "Glucose", marker_type: "glucose_fasting", value: "105", unit: "mg/dL" },
+                        { marker_name: "Total Cholesterol", marker_type: "cholesterol_total", value: "210", unit: "mg/dL" }
+                    ]
+                },
+                {
+                    id: 3,
+                    date: "2023-08-05",
+                    lab_name: "Health Clinic",
+                    readings: [
+                        { marker_name: "HbA1c", marker_type: "hba1c", value: "6.1", unit: "%" },
+                        { marker_name: "Glucose", marker_type: "glucose_fasting", value: "115", unit: "mg/dL" },
+                        { marker_name: "Total Cholesterol", marker_type: "cholesterol_total", value: "225", unit: "mg/dL" }
+                    ]
+                },
+            ];
+            setReports(dummy);
         }
     };
+
+    // Prepare chart data
+    const chartData = useMemo(() => {
+        // Sort chronologically for chart
+        const sortedReports = [...reports].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        const labels = sortedReports.map(r => r.date);
+        const dataPoints = sortedReports.map(r => {
+            const reading = r.readings?.find((rd: any) => 
+                rd.marker_type === selectedMarker || rd.marker_name?.toLowerCase().includes(selectedMarker.toLowerCase())
+            );
+            return reading ? parseFloat(reading.value) : null;
+        });
+
+        const currentMarkerName = sortedReports[0]?.readings?.find((rd: any) => 
+            rd.marker_type === selectedMarker || rd.marker_name?.toLowerCase().includes(selectedMarker.toLowerCase())
+        )?.marker_name || selectedMarker;
+
+        return {
+            labels,
+            datasets: [{
+                label: currentMarkerName,
+                data: dataPoints,
+                borderColor: 'rgb(239, 68, 68)',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                tension: 0.3,
+                fill: true,
+                pointRadius: 6,
+                pointHoverRadius: 8,
+            }]
+        };
+    }, [reports, selectedMarker]);
+
+    const availableMarkers = useMemo(() => {
+        const markerMap = new Map();
+        reports.forEach(report => {
+            report.readings?.forEach((reading: any) => {
+                const key = reading.marker_type || reading.marker_name;
+                if (key && !markerMap.has(key)) {
+                    markerMap.set(key, reading.marker_name);
+                }
+            });
+        });
+        return Array.from(markerMap.entries()).map(([type, name]) => ({ type, name }));
+    }, [reports]);
 
     const handleFormChange = (e: any) => {
         setForm({ ...form, [e.target.name]: e.target.value });
@@ -80,7 +173,11 @@ export default function BloodReportsPage() {
         formData.append("date", form.date);
         formData.append("lab_name", form.lab_name);
         formData.append("notes", form.notes);
-        formData.append("readings", JSON.stringify(form.readings));
+        
+        // Filter out empty readings before sending
+        const filteredReadings = form.readings.filter(r => r.marker_name.trim() !== "" && r.value !== "");
+        formData.append("readings", JSON.stringify(filteredReadings));
+        
         if (reportFile) {
             formData.append("report_file", reportFile);
         }
@@ -213,8 +310,58 @@ export default function BloodReportsPage() {
                     </div>
                 </div>
 
-                {/* Right Column: History */}
-                <div className="lg:col-span-2">
+                {/* Right Column: Analytics & History */}
+                <div className="lg:col-span-2 space-y-8">
+                    {/* Chart Card */}
+                    {reports.length > 0 && (
+                        <div className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-6">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                                <div className="flex items-center gap-2">
+                                    <BarChart3Icon className="w-5 h-5 text-red-500" />
+                                    <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Marker Comparison</h2>
+                                </div>
+                                <select 
+                                    value={selectedMarker} 
+                                    onChange={(e) => setSelectedMarker(e.target.value)}
+                                    className="bg-zinc-50 border border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800 rounded-md px-3 py-1.5 text-sm outline-none focus:border-red-500 transition-colors capitalize"
+                                >
+                                    {availableMarkers.map(m => (
+                                        <option key={m.type} value={m.type}>{m.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="h-[300px] w-full">
+                                <Line 
+                                    data={chartData} 
+                                    options={{
+                                        responsive: true,
+                                        maintainAspectRatio: false,
+                                        scales: {
+                                            y: {
+                                                beginAtZero: false,
+                                                grid: { color: 'rgba(0,0,0,0.05)' }
+                                            },
+                                            x: {
+                                                grid: { display: false }
+                                            }
+                                        },
+                                        plugins: {
+                                            legend: { display: false },
+                                            tooltip: {
+                                                backgroundColor: '#18181b',
+                                                titleFont: { size: 12, weight: 'bold' },
+                                                bodyFont: { size: 12 },
+                                                padding: 10,
+                                                cornerRadius: 8,
+                                                displayColors: false
+                                            }
+                                        }
+                                    }} 
+                                />
+                            </div>
+                        </div>
+                    )}
+
                     <div className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
                         <div className="flex items-center gap-2 p-5 border-b border-zinc-200 dark:border-zinc-800">
                             <HistoryIcon className="w-5 h-5 text-zinc-500" />
@@ -228,30 +375,58 @@ export default function BloodReportsPage() {
                                 reports.map(report => (
                                     <div key={report.id} className="p-5 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
                                         <div className="flex justify-between items-start mb-3">
-                                            <div>
-                                                <h3 className="font-bold text-zinc-900 dark:text-white">{report.date}</h3>
-                                                <p className="text-xs text-zinc-500">{report.lab_name || "Unknown Lab"}</p>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="font-bold text-zinc-900 dark:text-white">{report.date}</h3>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {report.readings?.map((r: any, idx: number) => (
+                                                            <span 
+                                                                key={idx} 
+                                                                className={`text-[8px] px-1.5 py-0.5 rounded-full border ${
+                                                                    (r.marker_type === selectedMarker || r.marker_name === selectedMarker)
+                                                                    ? 'bg-red-100 text-red-600 border-red-200 dark:bg-red-500/20 dark:text-red-400 dark:border-red-500/30' 
+                                                                    : 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
+                                                                }`}
+                                                            >
+                                                                {r.marker_name}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <p className="text-xs text-zinc-500 mt-0.5">{report.lab_name || "Unknown Lab"}</p>
                                             </div>
                                             {report.report_file && (
                                                 <a
                                                     href={report.report_file}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="flex items-center gap-1 text-xs font-bold text-red-500 hover:text-red-400 bg-red-50 dark:bg-red-500/10 px-3 py-1.5 rounded-full transition-colors"
+                                                    className="flex items-center gap-1 text-xs font-bold text-red-500 hover:text-red-400 bg-red-50 dark:bg-red-500/10 px-3 py-1.5 rounded-full transition-colors shrink-0"
                                                 >
                                                     <DownloadIcon className="w-3 h-3" />
-                                                    Download PDF
+                                                    PDF
                                                 </a>
                                             )}
                                         </div>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                             {report.readings?.map((reading: any, rIdx: number) => (
-                                                <div key={rIdx} className="bg-white dark:bg-zinc-900 p-2 rounded border border-zinc-100 dark:border-zinc-800">
+                                                <button 
+                                                    key={rIdx} 
+                                                    onClick={() => setSelectedMarker(reading.marker_type || reading.marker_name)}
+                                                    className={`p-2 rounded border text-left transition-all ${
+                                                        (reading.marker_type === selectedMarker || reading.marker_name === selectedMarker)
+                                                        ? 'bg-red-50 border-red-200 dark:bg-red-500/10 dark:border-red-500/30' 
+                                                        : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+                                                    }`}
+                                                >
                                                     <p className="text-[10px] uppercase font-bold text-zinc-400 truncate">{reading.marker_name}</p>
-                                                    <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
+                                                    <p className={`text-sm font-bold ${
+                                                        (reading.marker_type === selectedMarker || reading.marker_name === selectedMarker)
+                                                        ? 'text-red-600 dark:text-red-400'
+                                                        : 'text-zinc-800 dark:text-zinc-200'
+                                                    }`}>
                                                         {reading.value} <span className="text-[10px] font-normal text-zinc-500">{reading.unit}</span>
                                                     </p>
-                                                </div>
+                                                </button>
                                             ))}
                                         </div>
                                     </div>

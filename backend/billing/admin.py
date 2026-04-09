@@ -1,11 +1,21 @@
 from django.contrib import admin
-from .models import Product, Subscription, Coupon
+from .models import Product, ProductPlan, Subscription, Coupon
+
+class ProductPlanInline(admin.TabularInline):
+    model = ProductPlan
+    extra = 1
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'price', 'billing_cycle', 'duration_in_days', 'is_active')
-    list_filter = ('billing_cycle', 'is_active')
+    list_display = ('name', 'is_active')
     search_fields = ('name',)
+    inlines = [ProductPlanInline]
+
+@admin.register(ProductPlan)
+class ProductPlanAdmin(admin.ModelAdmin):
+    list_display = ('product', 'name', 'price', 'billing_cycle', 'is_active')
+    list_filter = ('billing_cycle', 'is_active', 'product')
+    search_fields = ('name', 'product__name')
 
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):

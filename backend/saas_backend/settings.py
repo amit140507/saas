@@ -60,7 +60,7 @@ INSTALLED_APPS = [
     'orders',
     'reports',
     'payments',
-    'metrics',
+    'measurement',
     'followups',
     'diet_plans',
     'checkins',
@@ -244,3 +244,33 @@ WHATSAPP_ACCESS_TOKEN = 'your_access_token_here'
 WHATSAPP_PHONE_NUMBER_ID = 'your_phone_number_id_here'
 WHATSAPP_BUSINESS_ACCOUNT_ID = 'your_business_account_id_here'
 WHATSAPP_API_VERSION = 'v22.0'
+
+# Celery
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
+CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', '').lower() in (
+    '1',
+    'true',
+    'yes',
+)
+CELERY_TASK_EAGER_PROPAGATES = True
+
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {}
+if os.environ.get('CELERY_BEAT_INVOICE_ENABLED', 'true').lower() in ('1', 'true', 'yes'):
+    CELERY_BEAT_SCHEDULE['enqueue-missing-invoices'] = {
+        'task': 'orders.tasks.enqueue_missing_invoice_tasks',
+        'schedule': crontab(minute='*/15'),
+    }
+
+# Cloudflare R2 (S3-compatible API)
+R2_ACCOUNT_ID = os.environ.get('R2_ACCOUNT_ID', '')
+R2_ACCESS_KEY_ID = os.environ.get('R2_ACCESS_KEY_ID', '')
+R2_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY', '')
+R2_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME', '')
+R2_PUBLIC_BASE_URL = os.environ.get('R2_PUBLIC_BASE_URL', '').rstrip('/')
+R2_REGION = os.environ.get('R2_REGION', 'auto')
+R2_ENDPOINT_URL = os.environ.get('R2_ENDPOINT_URL', '')
+R2_INVOICE_KEY_PREFIX = os.environ.get('R2_INVOICE_KEY_PREFIX', 'invoices')
+INVOICE_CURRENCY_LABEL = os.environ.get('INVOICE_CURRENCY_LABEL', 'USD')

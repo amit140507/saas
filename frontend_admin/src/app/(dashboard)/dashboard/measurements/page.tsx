@@ -26,7 +26,7 @@ export default function AdminMeasurementsPage() {
     }
     setLoading(true);
     // In real app:
-    // axios.get(`/api/metrics/measurements/?user=${selectedClientId}`)
+    // axios.get(`/api/measurement/measurements/?user=${selectedClientId}`)
     //   .then(res => setHistory(res.data)).finally(() => setLoading(false));
 
     setTimeout(() => {

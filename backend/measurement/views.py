@@ -1,10 +1,11 @@
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, permissions
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.db.models import Avg
 from django.db.models.functions import TruncWeek
 from .models import Measurement, MeasurementGoal
 from .serializers import MeasurementSerializer, MeasurementGoalSerializer
+
 
 class MeasurementViewSet(viewsets.ModelViewSet):
     serializer_class = MeasurementSerializer
@@ -26,7 +27,7 @@ class MeasurementViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def weekly_stats(self, request):
         """
-        Returns average weight and other metrics grouped by week for charts.
+        Returns average weight and other body measurements grouped by week for charts.
         """
         stats = (
             self.get_queryset()
@@ -43,6 +44,7 @@ class MeasurementViewSet(viewsets.ModelViewSet):
             .order_by('week')
         )
         return Response(stats)
+
 
 class MeasurementGoalViewSet(viewsets.ModelViewSet):
     serializer_class = MeasurementGoalSerializer
