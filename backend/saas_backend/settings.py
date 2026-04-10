@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'diet_plans',
     'checkins',
     'clients',
+    'support',
     'axes',
     'debug_toolbar',
 ]

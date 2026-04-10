@@ -18,14 +18,19 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if not user.tenant:
-            return Order.objects.none()
-
-        # Admins and Owners can see all orders in their tenant, standard users see their own
-        if getattr(user, 'role', None) in ['admin', 'owner'] or user.is_staff:
-            qs = Order.objects.filter(tenant=user.tenant)
+        
+        # Superusers can see all orders
+        if user.is_superuser:
+            qs = Order.objects.all()
+        # Normal users need a tenant
+        elif user.tenant:
+            # Admins, Owners, and staff can see all orders in their tenant
+            if user.has_role('admin') or user.has_role('owner') or user.is_staff:
+                qs = Order.objects.filter(tenant=user.tenant)
+            else:
+                qs = Order.objects.filter(user=user, tenant=user.tenant)
         else:
-            qs = Order.objects.filter(user=user, tenant=user.tenant)
+            return Order.objects.none()
         
         # Optional status filter
         status_filter = self.request.query_params.get('status')
@@ -65,7 +70,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     def admin_create(self, request):
         """Admin endpoint to create an order on behalf of a client."""
         user = request.user
-        if not user.is_staff and not user.has_role('admin') and not user.has_role('owner'):
+        if not user.is_superuser and not user.is_staff and not user.has_role('admin') and not user.has_role('owner'):
             return Response({"error": "Admin access required."}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = AdminOrderSerializer(data=request.data, context={'request': request})

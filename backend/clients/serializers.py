@@ -24,27 +24,35 @@ class ClientSerializer(serializers.ModelSerializer):
         # Ensure email is used as username if missing
         email = user_data.get('email', '')
         
-        user = User.objects.create(
+        user, created = User.objects.get_or_create(
             username=email,
-            email=email,
-            first_name=user_data.get('first_name', ''),
-            last_name=user_data.get('last_name', ''),
-            phone=user_data.get('phone', ''),
-            tenant=tenant
+            defaults={
+                'email': email,
+                'tenant': tenant,
+                'first_name': user_data.get('first_name', ''),
+                'last_name': user_data.get('last_name', ''),
+            }
         )
+        if not created:
+            user.first_name = user_data.get('first_name', user.first_name)
+            user.last_name = user_data.get('last_name', user.last_name)
+            user.tenant = tenant
+            user.save()
         
         # Dynamically assign 'client' role
         from users.models import Role
         client_role, _ = Role.objects.get_or_create(name='client', tenant=tenant)
         user.roles.add(client_role)
+        # Set phone now that profile is guaranteed to exist (via signal)
+        user.phone = user_data.get('phone', user.phone)
         # Random secure password for clients initially
         user.set_unusable_password() 
         user.save()
 
-        client = Client.objects.create(
+        client, _ = Client.objects.update_or_create(
             user=user, 
             tenant=tenant, 
-            **validated_data
+            defaults=validated_data
         )
         return client
 
