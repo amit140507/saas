@@ -21,3 +21,7 @@ celery
 python-dotenv
 weasyprint
 boto3
+psycopg
+psycopg2-binary
+django-unfold
+Faker

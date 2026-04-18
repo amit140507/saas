@@ -3,7 +3,7 @@ import django
 from django.utils import timezone
 from datetime import timedelta
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'saas_backend.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
 from billing.models import Subscription, Product

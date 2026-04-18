@@ -2,11 +2,11 @@ import os
 import django
 import sys
 
-# Add the current directory to sys.path so saas_backend can be found
+# Add the current directory to sys.path so config can be found
 sys.path.append(os.getcwd())
 
 # Initialize Django environment
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'saas_backend.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
 from django.core.mail import send_mail

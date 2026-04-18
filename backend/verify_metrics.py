@@ -2,7 +2,7 @@ import os
 import django
 from django.utils import timezone
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'saas_backend.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
 from measurement.models import Measurement, MeasurementGoal
