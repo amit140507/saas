@@ -4,6 +4,7 @@ from rest_framework.decorators import action
 from .models import CheckInPlan, DailyLog
 from .serializers import CheckInPlanSerializer, DailyLogSerializer
 from core.models import Tenant
+from .services.checkin_service import CheckInService
 
 class CheckInPlanViewSet(viewsets.ModelViewSet):
     queryset = CheckInPlan.objects.all()
@@ -33,23 +34,10 @@ class DailyLogViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def bulk_update_logs(self, request):
         """
-        Receives an array of DailyLogs and updates or creates them.
+        Receives an array of DailyLogs and updates or creates them via the service layer.
         """
-        logs_data = request.data
-        if not isinstance(logs_data, list):
-            return Response({"error": "Expected a list of logs"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        updated_logs = []
-        for data in logs_data:
-            log_id = data.get('id')
-            if log_id:
-                log = DailyLog.objects.get(id=log_id)
-                serializer = self.get_serializer(log, data=data, partial=True)
-            else:
-                serializer = self.get_serializer(data=data)
-                
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            updated_logs.append(serializer.data)
-            
-        return Response(updated_logs, status=status.HTTP_200_OK)
+        try:
+            updated_logs = CheckInService.bulk_update_logs(request.data)
+            return Response(updated_logs, status=status.HTTP_200_OK)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

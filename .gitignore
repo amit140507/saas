@@ -1,6 +1,89 @@
-.venv/
+# =========================
+# 🔐 ENV / SECRETS
+# =========================
+.env
+.env.*
+*.env
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
+
+# Never commit tokens / keys
+secrets.json
+*.pem
+*.key
+
+# =========================
+# 🐍 DJANGO / PYTHON
+# =========================
 __pycache__/
 *.py[cod]
-.env*
-**/.env, 
-**/.env.*
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Django specific
+*.log
+db.sqlite3
+media/
+staticfiles/
+
+# Migrations (optional - depends on your workflow)
+# */migrations/*
+# !*/migrations/__init__.py
+
+# =========================
+# ⚛️ NEXT.JS / NODE
+# =========================
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# 🧪 TEST / COVERAGE
+# =========================
+coverage/
+htmlcov/
+*.cover
+.pytest_cache/
+
+# =========================
+# 🧰 IDE / OS
+# =========================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# =========================
+# 📦 PACKAGE LOCKS (OPTIONAL)
+# =========================
+# Uncomment if you don't want lock files
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# =========================
+# 🐳 DOCKER (IF USED)
+# =========================
+docker-compose.override.yml
+
+# =========================
+# 📁 MISC
+# =========================
+*.swp
+*.bak
+*.tmp

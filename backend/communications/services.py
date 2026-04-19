@@ -122,3 +122,23 @@ def send_whatsapp_message(user, template, components=None):
             error_message=str(e)
         )
         return False
+
+class CommunicationService:
+    @staticmethod
+    def launch_promo(promo):
+        """
+        Business logic to launch a promotional campaign.
+        """
+        if promo.status == 'draft':
+            promo.status = 'scheduled'
+            promo.save(update_fields=['status'])
+            # Here we would enqueue a Celery task to process the promo
+            pass
+        return promo
+
+    @staticmethod
+    def queue_notification(notification_data):
+        """
+        Logic to queue a new notification.
+        """
+        pass

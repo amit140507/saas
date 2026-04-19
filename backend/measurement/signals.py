@@ -1,48 +1,9 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Measurement, MeasurementGoal
+from .models import Measurement
 from communications.services import send_whatsapp_message, send_transactional_email
 from communications.models import EmailTemplate, WhatsAppTemplate
 from django.utils import timezone
-
-
-@receiver(post_save, sender=Measurement)
-def check_measurement_goals(sender, instance, created, **kwargs):
-    if not created:
-        return
-
-    user = instance.user
-    goals = MeasurementGoal.objects.filter(user=user, is_achieved=False)
-
-    for goal in goals:
-        current_value = getattr(instance, goal.metric, None)
-        if current_value is None:
-            continue
-
-        goal.current_value = current_value
-
-        # Check if achieved (Weight could be loss or gain, but let's assume if it hits target exactly or passes it in the direction of the goal)
-        # For simplicity, let's assume we compare current vs target.
-        # Ideally we'd know if it's a 'decrease' or 'increase' goal.
-        # Let's just do a simple comparison for now or assume most are 'lose' for waist/weight and 'gain' for others?
-        # Actually, let's just mark as achieved if it meets or exceeds target (or goes below target for weight/waist).
-
-        achieved = False
-        if goal.metric in ['weight', 'waist']:
-            if current_value <= goal.target_value:
-                achieved = True
-        else:
-            if current_value >= goal.target_value:
-                achieved = True
-
-        if achieved:
-            goal.is_achieved = True
-            goal.achieved_at = timezone.now()
-
-            # Send notification
-            send_goal_notification(user, goal)
-
-        goal.save()
 
 
 def send_goal_notification(user, goal):

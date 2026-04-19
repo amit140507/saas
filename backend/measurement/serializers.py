@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Measurement, MeasurementGoal
+from .models import Measurement
 
 
 class MeasurementSerializer(serializers.ModelSerializer):
@@ -11,16 +11,4 @@ class MeasurementSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
         validated_data['tenant'] = self.context['request'].user.tenant  # Assuming user has a tenant
-        return super().create(validated_data)
-
-
-class MeasurementGoalSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = MeasurementGoal
-        fields = ['id', 'metric', 'target_value', 'current_value', 'is_achieved', 'achieved_at', 'created_at']
-        read_only_fields = ['id', 'is_achieved', 'achieved_at', 'created_at']
-
-    def create(self, validated_data):
-        validated_data['user'] = self.context['request'].user
-        validated_data['tenant'] = self.context['request'].user.tenant
         return super().create(validated_data)

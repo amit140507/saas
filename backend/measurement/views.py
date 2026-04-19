@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.db.models import Avg
 from django.db.models.functions import TruncWeek
-from .models import Measurement, MeasurementGoal
-from .serializers import MeasurementSerializer, MeasurementGoalSerializer
+from .models import Measurement
+from .serializers import MeasurementSerializer
 
 
 class MeasurementViewSet(viewsets.ModelViewSet):
@@ -44,14 +44,3 @@ class MeasurementViewSet(viewsets.ModelViewSet):
             .order_by('week')
         )
         return Response(stats)
-
-
-class MeasurementGoalViewSet(viewsets.ModelViewSet):
-    serializer_class = MeasurementGoalSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return MeasurementGoal.objects.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user, tenant=self.request.user.tenant)

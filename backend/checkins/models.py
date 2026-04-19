@@ -3,13 +3,16 @@ from django.conf import settings
 from core.models import TenantAwareModel
 
 class CheckInPlan(TenantAwareModel):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='checkin_plans')
+    client = models.ForeignKey(
+        'clients.Client', on_delete=models.CASCADE, related_name='checkin_plans'
+    )
+    # user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='checkin_plans')
     start_date = models.DateField()
     duration_weeks = models.IntegerField(default=12)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Plan for {self.user.username} starting {self.start_date} ({self.duration_weeks} weeks)"
+        return f"Plan for {self.client.user.username} starting {self.start_date} ({self.duration_weeks} weeks)"
 
 class DailyLog(TenantAwareModel):
     plan = models.ForeignKey(CheckInPlan, on_delete=models.CASCADE, related_name='daily_logs')
