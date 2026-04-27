@@ -26,7 +26,7 @@ User — All users
 Staff  — staff for the tenant (owner/coach/trainer).
 Client — actual gym member / online client (belongs to Tenant).
 Order - Order Details and Invoices
-Membership/packages — Gold/Platinum/Silver, start_date, end_date, package.
+Packages — Gold/Platinum/Silver, start_date, end_date, package.
 Coupon - 
 CheckIn - For daily Checkins
 Measurement — timestamped body measurements.

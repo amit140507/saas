@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, StaffProfile, Role
+from .models import User, Role
 
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
@@ -22,14 +22,3 @@ class CustomUserAdmin(UserAdmin):
     readonly_fields = ('public_id',)
     list_filter = UserAdmin.list_filter + ('tenant',)
     filter_horizontal = ('roles',)
-
-@admin.register(StaffProfile)
-class StaffProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'tenant', 'phone', 'specialization', 'rating', 'sex', 'date_of_joining')
-    list_filter = ('tenant', 'specialization', 'sex', 'date_of_joining')
-    search_fields = ('user__username', 'user__email', 'specialization')
-    fieldsets = (
-        (None, {'fields': ('user', 'tenant')}),
-        ('Professional Info', {'fields': ('specialization', 'rating', 'bio')}),
-        ('Personal Info', {'fields': ('phone', 'dob', 'sex', 'profile_picture', 'date_of_joining', 'referral_source')}),
-    )

@@ -1,17 +1,16 @@
 import uuid
 from django.db import models
-from django.conf import settings
 from django.core.exceptions import ValidationError
-from core.models import TenantAwareModel
-from users.models import BaseProfile
+from core.tenants.models import TenantAwareModel,OrganizationMember
+from core.common.models import BaseProfile
 
 class Client(TenantAwareModel, BaseProfile):
     # Rule Followed: Use UUIDs
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='client_profile')
+    org_client = models.OneToOneField(OrganizationMember, on_delete=models.CASCADE, related_name='client_profile')
     assigned_trainer = models.ForeignKey(
-        'users.StaffProfile', 
+        'staff.StaffProfile', 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True, 
@@ -24,7 +23,7 @@ class Client(TenantAwareModel, BaseProfile):
         LEAD = 'lead', 'Lead'
 
     status = models.CharField(max_length=20, choices=StatusChoices.choices, default=StatusChoices.LEAD)
-    
+    referral_source = models.CharField(max_length=255, null=True, blank=True)
     joined_at = models.DateTimeField(auto_now_add=True)
     activated_at = models.DateTimeField(null=True, blank=True)
     
@@ -48,10 +47,11 @@ class Client(TenantAwareModel, BaseProfile):
 
     def clean(self):
         super().clean()
-        if self.user_id and self.tenant_id:
-            if getattr(self.user, 'tenant_id', None) != self.tenant_id:
-                raise ValidationError({"user": "Client user must belong to the same tenant."})
-                
+        # Validate org_member belongs to the same tenant
+        if self.org_member_id and self.tenant_id:
+            if self.org_member.tenant_id != self.tenant_id:
+                raise ValidationError({"org_member": "Member must belong to the same tenant."})
+
         if self.assigned_trainer_id and self.tenant_id:
             if getattr(self.assigned_trainer, 'tenant_id', None) != self.tenant_id:
                 raise ValidationError({"assigned_trainer": "Assigned trainer must belong to the same tenant."})

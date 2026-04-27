@@ -1,6 +1,6 @@
 from rest_framework import serializers
-from users.models import User
-from core.models import Tenant
+from core.accounts.models import User
+from core.tenants.models import Tenant
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from dj_rest_auth.serializers import PasswordResetSerializer, PasswordResetConfirmSerializer
 from django.conf import settings
@@ -10,8 +10,6 @@ from django.utils.encoding import force_bytes
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 
-from core.serializers import TenantSerializer
-from users.serializers import UserSerializer
 
 class CustomRegisterSerializer(RegisterSerializer):
     tenant_name = serializers.CharField(max_length=255, required=True)
@@ -31,7 +29,7 @@ class CustomRegisterSerializer(RegisterSerializer):
             user.save()
             
             # Dynamically assign the 'owner' role
-            from users.models import Role
+            from core.tenants.models import Role
             owner_role, _ = Role.objects.get_or_create(name='owner', tenant=tenant)
             user.roles.add(owner_role)
             
@@ -115,3 +113,5 @@ class CustomPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
         password = self.validated_data.get('new_password1')
         self.user.set_password(password)
         self.user.save()
+
+

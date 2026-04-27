@@ -53,26 +53,28 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     'corsheaders',
-    'core',
-    'users',
+    'core.tenants',
+    'core.accounts',
+    'core.staff',
+    'core.clients',
     'authentication',
-    'packages',
-    'communications',
-    'orders',
-    'reports',
-    'measurement',
-    'followups',
-    'clients',
-    'support',
-    'plans',
-    'workouts',
-    'diet',
-    'diet_plans',
-    'checkins',
-    'logs',
-    'payments',
-    'axes',
-    'debug_toolbar',
+    # 'packages',
+    # 'communications',
+    # 'orders',
+    # 'reports',
+    # 'measurement',
+    # 'followups',
+    # 'clients',
+    # 'support',
+    # 'plans',
+    # 'workouts',
+    # 'diet',
+    # 'diet_plans',
+    # 'checkins',
+    # 'logs',
+    # 'payments',
+    # 'axes',
+    # 'debug_toolbar',
     
 ]
 
@@ -171,7 +173,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-AUTH_USER_MODEL = 'users.User'
+AUTH_USER_MODEL = 'accounts.User'
 CORS_ALLOW_ALL_ORIGINS = True
 
 AUTHENTICATION_BACKENDS = [
