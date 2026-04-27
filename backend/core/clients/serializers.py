@@ -4,13 +4,13 @@ from .models import Client
 
 User = get_user_model()
 
-class UserSerializer(serializers.ModelSerializer):
+class ClientUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'public_id']
 
 class ClientSerializer(serializers.ModelSerializer):
-    user = UserSerializer()
+    user = ClientUserSerializer()
 
     class Meta:
         model = Client

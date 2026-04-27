@@ -45,12 +45,16 @@ class Client(TenantAwareModel, BaseProfile):
             models.Index(fields=['tenant', 'status']),
         ]
 
+    @property
+    def user(self):
+        return self.org_client.user
+
     def clean(self):
         super().clean()
-        # Validate org_member belongs to the same tenant
-        if self.org_member_id and self.tenant_id:
-            if self.org_member.tenant_id != self.tenant_id:
-                raise ValidationError({"org_member": "Member must belong to the same tenant."})
+        # Validate org_client belongs to the same tenant
+        if self.org_client_id and self.tenant_id:
+            if self.org_client.tenant_id != self.tenant_id:
+                raise ValidationError({"org_client": "Member must belong to the same tenant."})
 
         if self.assigned_trainer_id and self.tenant_id:
             if getattr(self.assigned_trainer, 'tenant_id', None) != self.tenant_id:

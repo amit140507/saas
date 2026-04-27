@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, Role
+from .models import User
+from core.tenants.models import OrganizationMember, Role
 
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
@@ -11,14 +12,19 @@ class RoleAdmin(admin.ModelAdmin):
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
-        ('Tenant Info', {'fields': ('tenant', 'roles')}),
         ('Public ID', {'fields': ('public_id',)}),
     )
     add_fieldsets = UserAdmin.add_fieldsets + (
-        ('Tenant Info', {'fields': ('tenant', 'roles')}),
         ('Public ID', {'fields': ('public_id',)}),
     )
-    list_display = UserAdmin.list_display + ('tenant', 'public_id')
+    list_display = UserAdmin.list_display + ('tenants', 'public_id')
     readonly_fields = ('public_id',)
-    list_filter = UserAdmin.list_filter + ('tenant',)
-    filter_horizontal = ('roles',)
+    list_filter = UserAdmin.list_filter
+
+    @admin.display(description='Tenants')
+    def tenants(self, obj):
+        return ', '.join(
+            obj.org_memberships.filter(status=OrganizationMember.StatusChoices.ACTIVE)
+            .select_related('tenant')
+            .values_list('tenant__name', flat=True)
+        )

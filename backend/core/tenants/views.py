@@ -1,14 +1,38 @@
-from rest_framework import generics, viewsets
+from rest_framework import generics, status, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
 from .models import Organization, Role, Permission, OrganizationMember
-from authentication.serializers import TenantSerializer # as per existing view
+from core.tenants.serializers import TenantSerializer, TenantCreateSerializer # as per existing view
+from core.tenants.services import create_tenant
 from .serializers import RoleSerializer, PermissionSerializer, OrganizationMemberSerializer
 from .permissions import IsTenantOwner, HasPermission
 
-class OrganizationListView(generics.ListAPIView):
+class OrganizationListView(generics.ListCreateAPIView):
     queryset = Organization.objects.all()
-    serializer_class = TenantSerializer
-    permission_classes = [AllowAny]
+
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsAuthenticated()]
+        return [AllowAny()]
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return TenantCreateSerializer
+        return TenantSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        tenant = create_tenant(
+            user=request.user,
+            name=serializer.validated_data['name'],
+        )
+
+        return Response(
+            TenantSerializer(tenant, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 class RoleViewSet(viewsets.ModelViewSet):
     """CRUD for Roles. Only org owners can manage roles."""
@@ -44,12 +68,3 @@ class OrganizationMemberViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(tenant=self.request.tenant)
-
-
-serializer = TenantCreateSerializer(data=request.data)
-serializer.is_valid(raise_exception=True)
-
-tenant = create_tenant(
-    user=request.user,
-    name=serializer.validated_data['name']
-)

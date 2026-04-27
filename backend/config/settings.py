@@ -73,8 +73,8 @@ INSTALLED_APPS = [
     # 'checkins',
     # 'logs',
     # 'payments',
-    # 'axes',
-    # 'debug_toolbar',
+    'axes',
+    'debug_toolbar',
     
 ]
 
@@ -235,7 +235,7 @@ REST_AUTH = {
     'JWT_AUTH_COOKIE': 'saas-auth',
     'JWT_AUTH_REFRESH_COOKIE': 'saas-refresh-token',
     'REGISTER_SERIALIZER': 'authentication.serializers.CustomRegisterSerializer',
-    'USER_DETAILS_SERIALIZER': 'authentication.serializers.UserSerializer',
+    'USER_DETAILS_SERIALIZER': 'core.accounts.serializers.UserSerializer',
     'PASSWORD_RESET_SERIALIZER': 'authentication.serializers.CustomPasswordResetSerializer',
     'PASSWORD_RESET_CONFIRM_SERIALIZER': 'authentication.serializers.CustomPasswordResetConfirmSerializer',
     'PASSWORD_RESET_CONFIRM_URL': 'http://localhost:3000/reset-password/{uid}/{token}/',
