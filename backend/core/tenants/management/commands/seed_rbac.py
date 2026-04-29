@@ -27,12 +27,12 @@ class Command(BaseCommand):
         # 2. Seed roles for orgs
         org_id = options.get('org')
         if org_id:
-            orgs = Organization.objects.filter(id=org_id)
+            orgs = list(Organization.objects.filter(id=org_id))
         else:
-            orgs = Organization.objects.all()
-            
+            orgs = list(Organization.objects.all())
+
         for org in orgs:
             seed_default_roles(org)
-            self.stdout.write(f"Seeded default roles for org {org.name}")
-            
-        self.stdout.write(self.style.SUCCESS(f'Successfully seeded RBAC for {orgs.count()} organizations.'))
+            self.stdout.write(f"Seeded default roles for org: {org.name}")
+
+        self.stdout.write(self.style.SUCCESS(f'Successfully seeded RBAC for {len(orgs)} organizations.'))

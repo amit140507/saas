@@ -61,14 +61,6 @@ class Client(TenantAwareModel, BaseProfile):
                 raise ValidationError({"assigned_trainer": "Assigned trainer must belong to the same tenant."})
 
     def save(self, *args, **kwargs):
-        # We handle activating the status automatically
-        if self.pk is not None:
-             orig = Client.objects.get(pk=self.pk)
-             if orig.status != self.StatusChoices.ACTIVE and self.status == self.StatusChoices.ACTIVE:
-                 from django.utils import timezone
-                 if not self.activated_at:
-                     self.activated_at = timezone.now()
-                     
         self.full_clean()
         super().save(*args, **kwargs)
 

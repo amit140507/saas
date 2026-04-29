@@ -1,13 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import User
-from core.tenants.models import OrganizationMember, Role
+from core.tenants.models import OrganizationMember
 
-@admin.register(Role)
-class RoleAdmin(admin.ModelAdmin):
-    list_display = ('name', 'tenant')
-    list_filter = ('tenant', 'name')
-    search_fields = ('name', 'tenant__name')
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
@@ -24,7 +19,8 @@ class CustomUserAdmin(UserAdmin):
     @admin.display(description='Tenants')
     def tenants(self, obj):
         return ', '.join(
-            obj.org_memberships.filter(status=OrganizationMember.StatusChoices.ACTIVE)
+            obj.org_memberships
+            .filter(status=OrganizationMember.StatusChoices.ACTIVE)
             .select_related('tenant')
             .values_list('tenant__name', flat=True)
         )

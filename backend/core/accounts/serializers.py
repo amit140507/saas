@@ -1,27 +1,30 @@
 from rest_framework import serializers
-from core.tenants.serializers import TenantSerializer
 from core.accounts.models import User
 
+
+class MembershipSerializer(serializers.Serializer):
+    """Read-only summary of one org membership, returned inline on the User."""
+    tenant_id = serializers.UUIDField(source='tenant.id')
+    tenant_name = serializers.CharField(source='tenant.name')
+    role = serializers.CharField(source='role.name', default=None)
+    is_owner = serializers.BooleanField()
+
+
 class UserSerializer(serializers.ModelSerializer):
-    tenant_details = TenantSerializer(source='tenant', read_only=True)
-    phone = serializers.CharField(required=False, allow_blank=True)
-    dob = serializers.DateField(required=False, allow_null=True)
-    sex = serializers.CharField(required=False, allow_blank=True)
-    date_of_joining = serializers.DateField(required=False, allow_null=True)
-    referral_source = serializers.CharField(required=False, allow_blank=True)
-    
+    """
+    Represents the global User object.
+    Profile-level fields (phone, dob, etc.) live on Client/StaffProfile — not here.
+    """
+    memberships = MembershipSerializer(
+        source='org_memberships',
+        many=True,
+        read_only=True,
+    )
+
     class Meta:
         model = User
         fields = (
-            'pk', 'username', 'email', 'first_name', 'last_name', 
-            'phone', 'dob', 'sex', 'date_of_joining', 
-            'referral_source', 'tenant_details'
+            'pk', 'username', 'email', 'first_name', 'last_name',
+            'public_id', 'is_active', 'memberships',
         )
-        read_only_fields = ('tenant_details',)
-
-    def update(self, instance, validated_data):
-        # Handle all property-based profile fields
-        for field in ['phone', 'dob', 'sex', 'date_of_joining', 'referral_source']:
-            if field in validated_data:
-                setattr(instance, field, validated_data.pop(field))
-        return super().update(instance, validated_data)
+        read_only_fields = ('public_id', 'memberships')

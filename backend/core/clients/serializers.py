@@ -1,71 +1,49 @@
+from django.db import transaction
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+
 from .models import Client
+from .services import create_client
 
 User = get_user_model()
+
 
 class ClientUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'public_id']
+        fields = ['id', 'first_name', 'last_name', 'email', 'public_id']
+
 
 class ClientSerializer(serializers.ModelSerializer):
-    user = ClientUserSerializer()
+    user = ClientUserSerializer(read_only=True)
 
     class Meta:
         model = Client
-        fields = ['id', 'user', 'assigned_trainer', 'status', 'goal', 'health_conditions', 'dob', 'sex', 'profile_picture', 'date_of_joining', 'referral_source', 'phone']
-        
+        fields = [
+            'id', 'user', 'assigned_trainer', 'status', 'goal',
+            'health_and_fitness_data', 'dob', 'sex', 'profile_picture',
+            'date_of_joining', 'phone', 'referral_source',
+            'joined_at', 'activated_at',
+        ]
+        read_only_fields = ['joined_at', 'activated_at']
+
     def create(self, validated_data):
-        user_data = validated_data.pop('user')
-        request = self.context.get('request')
-        tenant = request.user.tenant if request and hasattr(request.user, 'tenant') else None
-        
-        # Ensure email is used as username if missing
-        email = user_data.get('email', '')
-        
-        user, created = User.objects.get_or_create(
-            username=email,
-            defaults={
-                'email': email,
-                'tenant': tenant,
-                'first_name': user_data.get('first_name', ''),
-                'last_name': user_data.get('last_name', ''),
-            }
-        )
-        if not created:
-            user.first_name = user_data.get('first_name', user.first_name)
-            user.last_name = user_data.get('last_name', user.last_name)
-            user.tenant = tenant
-            user.save()
-        
-        # Dynamically assign 'client' role
-        from users.models import Role
-        client_role, _ = Role.objects.get_or_create(name='client', tenant=tenant)
-        user.roles.add(client_role)
-        # Set phone now that profile is guaranteed to exist (via signal)
-        user.phone = user_data.get('phone', user.phone)
-        # Random secure password for clients initially
-        user.set_unusable_password() 
-        user.save()
+        request = self.context['request']
+        tenant = request.tenant  # set by TenantMiddleware
+        user_data = self.initial_data.get('user', {})
+        return create_client(tenant, user_data, validated_data)
 
-        client, _ = Client.objects.update_or_create(
-            user=user, 
-            tenant=tenant, 
-            defaults=validated_data
-        )
-        return client
-
+    @transaction.atomic
     def update(self, instance, validated_data):
-        if 'user' in validated_data:
-            user_data = validated_data.pop('user')
+        # Update nested user fields if provided in initial_data
+        user_data = self.initial_data.get('user', {})
+        if user_data:
             user = instance.user
-            user.first_name = user_data.get('first_name', user.first_name)
-            user.last_name = user_data.get('last_name', user.last_name)
-            user.email = user_data.get('email', user.email)
-            user.phone = user_data.get('phone', user.phone)
-            user.save()
-            
+            for field in ('first_name', 'last_name', 'email'):
+                if field in user_data:
+                    setattr(user, field, user_data[field])
+            user.save(update_fields=[f for f in ('first_name', 'last_name', 'email') if f in user_data])
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()

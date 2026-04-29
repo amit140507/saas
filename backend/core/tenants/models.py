@@ -84,11 +84,17 @@ class Permission(models.Model):
     """Global permission catalog — shared across all tenants."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(max_length=100, unique=True)  # e.g. "manage_clients"
+    category = models.CharField(max_length=50,blank=True,null=True)
     description = models.CharField(max_length=255)
-
+    is_active = models.BooleanField(default=True)
+    
     def __str__(self):
         return self.code
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['code']),
+        ]
 
 class Role(TenantAwareModel):
     """
@@ -97,12 +103,13 @@ class Role(TenantAwareModel):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50)  # e.g. 'owner', 'trainer', 'marketing', 'client'
+    code = models.CharField(max_length=50, unique=True, db_index=True)
     description = models.TextField(blank=True, null=True)
 
     # Fast-check flags — denormalised for performance, no join needed
     is_system = models.BooleanField(default=False, help_text="System roles cannot be deleted")
     is_default = models.BooleanField(default=False, help_text="Assigned to new members by default")
-
+    is_active = models.BooleanField(default=True)
     permissions = models.ManyToManyField(
         Permission,
         through='RolePermission',
@@ -116,6 +123,10 @@ class Role(TenantAwareModel):
                 fields=['tenant', 'name'],
                 name='unique_role_name_per_tenant'
             ),
+             models.UniqueConstraint(
+                fields=['tenant', 'code'], 
+                name='unique_role_code_per_tenant'
+            )
         ]
         verbose_name = "Role"
         verbose_name_plural = "Roles"
@@ -123,7 +134,18 @@ class Role(TenantAwareModel):
     def __str__(self):
         return f"{self.name} ({self.tenant.name if getattr(self, 'tenant', None) else 'Global'})"
 
-
+# class UserRole(models.Model):
+#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+#     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+#     role = models.ForeignKey(Role, on_delete=models.CASCADE)
+#     organization = models.ForeignKey(Organization, on_delete=models.CASCADE)  # ← CRITICAL
+    
+#     class Meta:
+#         unique_together = ('user', 'role', 'organization')
+#         indexes = [
+#             models.Index(fields=['user', 'organization']),
+#         ]
+        
 class RolePermission(models.Model):
     """Explicit M2M through table for Role <-> Permission."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -144,6 +166,10 @@ class RolePermission(models.Model):
                 fields=['role', 'permission'],
                 name='unique_role_permission'
             )
+        ]
+        indexes = [
+            models.Index(fields=['role', 'permission']),
+            models.Index(fields=['permission']),
         ]
 
 
@@ -189,7 +215,7 @@ class OrganizationMember(TenantAwareModel):
             ),
             models.UniqueConstraint(
                 fields=['tenant'],
-                condition=models.Q(role__is_owner=True),
+                condition=models.Q(is_owner=True),
                 name='one_owner_per_tenant'
             )
         ]

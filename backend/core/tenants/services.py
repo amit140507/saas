@@ -2,6 +2,7 @@ from django.db import transaction
 from django.utils.text import slugify
 
 from core.tenants.models import OrganizationMember, Role, Tenant
+from core.tenants.rbac_service import seed_default_roles
 
 
 def _unique_slug(name):
@@ -20,14 +21,11 @@ def _unique_slug(name):
 def create_tenant(*, user, name):
     tenant = Tenant.objects.create(name=name, slug=_unique_slug(name))
 
-    owner_role, _ = Role.objects.get_or_create(
-        tenant=tenant,
-        name='owner',
-        defaults={
-            'description': 'Organization owner',
-            'is_system': True,
-        },
-    )
+    # Seed all default roles (owner, trainer, marketing, client)
+    # Done here in the service — NOT via post_save signal (signal is disabled)
+    seed_default_roles(tenant)
+
+    owner_role = Role.objects.get(tenant=tenant, name='owner')
 
     OrganizationMember.objects.create(
         user=user,

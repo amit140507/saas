@@ -21,7 +21,7 @@ celery
 python-dotenv
 weasyprint
 boto3
-psycopg
+psycopg[binary]
 # psycopg2-binary
 django-unfold
 Faker

@@ -9,5 +9,5 @@ class StaffProfileAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {'fields': ('user', 'tenant')}),
         ('Professional Info', {'fields': ('specialization', 'rating', 'bio')}),
-        ('Personal Info', {'fields': ('phone', 'dob', 'sex', 'profile_picture', 'date_of_joining', 'referral_source')}),
+        ('Personal Info', {'fields': ('phone', 'dob', 'sex', 'profile_picture', 'date_of_joining')}),
     )

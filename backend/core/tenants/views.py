@@ -1,5 +1,5 @@
 from rest_framework import generics, status, viewsets
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import Organization, Role, Permission, OrganizationMember
 from core.tenants.serializers import TenantSerializer, TenantCreateSerializer # as per existing view
@@ -8,12 +8,16 @@ from .serializers import RoleSerializer, PermissionSerializer, OrganizationMembe
 from .permissions import IsTenantOwner, HasPermission
 
 class OrganizationListView(generics.ListCreateAPIView):
-    queryset = Organization.objects.all()
 
     def get_permissions(self):
-        if self.request.method == 'POST':
-            return [IsAuthenticated()]
-        return [AllowAny()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        # Users only see orgs they are a member of
+        return Organization.objects.filter(
+            organizationmember__user=self.request.user,
+            organizationmember__status='active',
+        ).distinct()
 
     def get_serializer_class(self):
         if self.request.method == 'POST':

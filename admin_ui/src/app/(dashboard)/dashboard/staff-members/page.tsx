@@ -38,7 +38,7 @@ export default function StaffMembersPage() {
     const [memberToDelete, setMemberToDelete] = useState<StaffMember | null>(null);
 
     const { data: staff, isLoading, error } = useQuery<StaffMember[]>({
-        queryKey: ["staff-members"],
+        queryKey: ["staff-profiles"],
         queryFn: async () => {
             const response = await api.get("/users/staff/");
             return response.data;
@@ -52,7 +52,7 @@ export default function StaffMembersPage() {
             return res.data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["staff-members"] });
+            queryClient.invalidateQueries({ queryKey: ["staff-profiles"] });
             setIsModalOpen(false);
         }
     });
@@ -63,7 +63,7 @@ export default function StaffMembersPage() {
             return res.data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["staff-members"] });
+            queryClient.invalidateQueries({ queryKey: ["staff-profiles"] });
             setIsModalOpen(false);
         }
     });
@@ -73,7 +73,7 @@ export default function StaffMembersPage() {
             await api.delete(`/users/staff/${id}/`);
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["staff-members"] });
+            queryClient.invalidateQueries({ queryKey: ["staff-profiles"] });
             setMemberToDelete(null);
         }
     });

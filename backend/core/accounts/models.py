@@ -1,7 +1,5 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager, UserManager as DjangoUserManager
 from django.db import models, IntegrityError, transaction
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 import logging
 
 logger = logging.getLogger(__name__)
@@ -66,7 +64,7 @@ class User(AbstractUser):
         return self.org_memberships.filter(
             tenant=tenant,
             status='active',
-            role__is_owner=True
+            is_owner=True
         ).exists()
 
     # ------------------------------------------------------------------
@@ -76,29 +74,5 @@ class User(AbstractUser):
     def save(self, *args, **kwargs):
         if not self.public_id:
             from .helpers import generate_unique_public_id
-            for _ in range(10):  # limit retries
-                self.public_id = generate_unique_public_id()
-                try:
-                    with transaction.atomic():
-                        return super().save(*args, **kwargs)
-                except IntegrityError:
-                    self.public_id = None  # retry
-            raise Exception("Could not generate unique public_id after retries")
-
+            self.public_id = generate_unique_public_id(User, 'public_id', length=6)
         return super().save(*args, **kwargs)
-
-
-# ------------------------------------------------------------------
-# Signals
-# ------------------------------------------------------------------
-
-@receiver(post_save, sender=User)
-def create_user_profiles(sender, instance, created=False, **kwargs):
-    """
-    Profile creation is now triggered when OrganizationMember is created,
-    not on User save — because User has no tenant context at creation time.
-
-    This signal is intentionally a no-op; kept as a hook for future use.
-    See OrganizationMember post_save signal in tenants/signals.py.
-    """
-    pass

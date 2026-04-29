@@ -1,9 +1,11 @@
+import uuid
 from django.db import models
 from django.conf import settings
 from core.tenants.models import TenantAwareModel, OrganizationMember
 from core.common.models import BaseProfile
 
 class StaffProfile(TenantAwareModel, BaseProfile):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     org_staff = models.OneToOneField(
         OrganizationMember,
         on_delete=models.CASCADE,
@@ -18,12 +20,15 @@ class StaffProfile(TenantAwareModel, BaseProfile):
     
     @property
     def user(self):
-        return self.org_member.user
+        return self.org_staff.user
+    @property
+    def role(self):
+        return self.org_staff.role
     
     def save(self, *args, **kwargs):
         # Sync tenant from org_member if not set
-        if self.org_member_id and not self.tenant_id:
-            self.tenant = self.org_member.tenant
+        if self.org_staff_id and not self.tenant_id:
+            self.tenant = self.org_staff.tenant
         super().save(*args, **kwargs)
         
     @property

@@ -1,22 +1,27 @@
-from rest_framework import viewsets, permissions
-from core.accounts.models import User
-from .serializers import StaffMemberSerializer
+from rest_framework import viewsets
+from .models import StaffProfile
+from .serializers import StaffProfileSerializer
+from core.tenants.permissions import IsTenantMember, HasPermission
 
-class StaffMemberViewSet(viewsets.ModelViewSet):
-    serializer_class = StaffMemberSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+class StaffProfileViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for StaffProfiles scoped to the current tenant.
+    Coaches see all staff; only owners/admins with manage_staff can create/update/delete.
+    """
+    serializer_class = StaffProfileSerializer
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsTenantMember()]
+        return [HasPermission('manage_staff')()]
 
     def get_queryset(self):
-        # Only return staff for the current tenant
-        user = self.request.user
-        if not hasattr(user, 'tenant') or not user.tenant:
-            return User.objects.none()
-        
-        # Staff roles excluding 'client'
-        staff_roles = [
-            'admin',
-            'owner',
-            'trainer',
-            'marketing',
-        ]
-        return User.objects.filter(tenant=user.tenant, roles__name__in=staff_roles).distinct().select_related('staff_profile')
+        tenant = getattr(self.request, 'tenant', None)
+        if not tenant:
+            return StaffProfile.objects.none()
+        return (
+            StaffProfile.objects
+            .filter(tenant=tenant)
+            .select_related('org_staff__user', 'org_staff__role')
+        )

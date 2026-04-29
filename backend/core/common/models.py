@@ -1,6 +1,6 @@
 from django.db import models
-
-class BaseProfile(models.Model):
+from core.tenants.models import TimeAwareModel
+class BaseProfile(TimeAwareModel):
     class SexChoices(models.TextChoices):
         MALE = 'M', 'Male'
         FEMALE = 'F', 'Female'
