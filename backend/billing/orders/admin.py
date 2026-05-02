@@ -1,11 +1,12 @@
 from django.contrib import admin
-from .models import Invoice, Order
+from .models import Order
+from billing.invoices.models import Invoice
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'product', 'total', 'status', 'payment_method', 'created_at')
+    list_display = ('id','order_number','client', 'order_type', 'product', 'total', 'status', 'payment_method', 'created_at')
     list_filter = ('status', 'payment_method', 'created_at')
-    search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name')
+    search_fields = ('order_number','client__name', 'order_type__name', 'product__name', 'product__description', 'product__created_at', 'product__updated_at')
     readonly_fields = ('payment_link_token',)
 
 

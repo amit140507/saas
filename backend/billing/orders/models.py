@@ -1,33 +1,28 @@
 import uuid
 from django.db import models
 from django.conf import settings
-from core.models import TenantAwareModel
-from packages.models import ProductPlan
-
+from core.tenants.models import TenantAwareModel
+from billing.packages.models import PackagePlan
+from core.accounts.helpers import generate_unique_public_id
 class Order(TenantAwareModel):
+    
     """Represents a purchase — membership, package, product, etc."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='orders')
-    product = models.ForeignKey(ProductPlan, on_delete=models.RESTRICT)
-    class OrderType(models.TextChoices):
-        MEMBERSHIP = 'membership', 'Membership'
-        PLAN = 'plan', 'Plan Package'
-        SUPPLEMENT = 'supplement', 'Supplement'
-        SESSION = 'session', 'PT Session'
-        OTHER = 'other', 'Other'
-
+    # product = models.ForeignKey(PackagePlan, on_delete=models.RESTRICT, null=True, blank=True)
+    
     class StatusChoices(models.TextChoices):
         PENDING = 'pending', 'Pending'
         CONFIRMED = 'confirmed', 'Confirmed'
         CANCELLED = 'cancelled', 'Cancelled'
         REFUNDED = 'refunded', 'Refunded'
 
-    order_number = models.CharField(max_length=20, unique=True, null=True, blank=True)   # e.g. ORD-00123
+    order_number = models.CharField(max_length=20, unique=True)   # e.g. ORD-12345678
     client = models.ForeignKey(
         'clients.Client', on_delete=models.PROTECT, related_name='orders'
     )
-    order_type = models.CharField(max_length=20, choices=OrderType.choices, null=True, blank=True)
+    
     status = models.CharField(
         max_length=20, choices=StatusChoices.choices, default=StatusChoices.PENDING
     )
@@ -50,7 +45,7 @@ class Order(TenantAwareModel):
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
 
     coupon = models.ForeignKey(
-        'packages.Coupon', on_delete=models.SET_NULL, null=True, blank=True,
+        'coupons.Coupon', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='orders'
     )
     notes = models.TextField(null=True, blank=True)
@@ -82,9 +77,7 @@ class Order(TenantAwareModel):
 
     def save(self, *args, **kwargs):
         if not self.order_number:
-            # Auto-generate: ORD-XXXX (UUID-based suffix, unique enough)
-            import random, string
-            suffix = ''.join(random.choices(string.digits, k=5))
+            suffix = generate_unique_public_id(model=self.__class__, field_name='order_number', length=8)
             self.order_number = f"ORD-{suffix}"
         super().save(*args, **kwargs)
 
@@ -94,7 +87,8 @@ class OrderItem(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
-    description = models.CharField(max_length=255)
+    product_id = models.UUIDField(null=True, blank=True)
+    product_type = models.CharField(max_length=50)
     quantity = models.PositiveIntegerField(default=1)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)

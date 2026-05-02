@@ -1,16 +1,16 @@
 import uuid
 from django.db import models
 from django.conf import settings
-from core.models import TenantAwareModel
+from core.tenants.models import TenantAwareModel
 
 
 # ---------------------------------------------------------------------------
-# Product (Legacy / Alternative Billing Structure)
+# Package
 # ---------------------------------------------------------------------------
 
 class Package(TenantAwareModel):
     """
-    Base product for billing (e.g. 'Gym Membership', 'Personal Training').
+    Base Package for billing (e.g. 'Gym Membership', 'Personal Training').
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
@@ -20,8 +20,8 @@ class Package(TenantAwareModel):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = 'Product'
-        verbose_name_plural = 'Products'
+        verbose_name = 'Package'
+        verbose_name_plural = 'Packages'
         indexes = [
             models.Index(fields=['tenant', 'is_active']),
         ]
@@ -31,12 +31,12 @@ class Package(TenantAwareModel):
 
 
 # ---------------------------------------------------------------------------
-# ProductPlan (Variations of a Product)
+# PackagePlan (Variations of a Package)
 # ---------------------------------------------------------------------------
 
 class PackagePlan(TenantAwareModel):
     """
-    Specific pricing and duration for a Product (e.g. '3 Months Plan').
+    Specific pricing and duration for a Package (e.g. '3 Months Plan').
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
@@ -66,4 +66,4 @@ class PackagePlan(TenantAwareModel):
         ]
 
     def __str__(self):
-        return f"{self.product.name} - {self.name}"
+        return f"{self.package.name} - {self.name}"

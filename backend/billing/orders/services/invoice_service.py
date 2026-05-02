@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
-
+from weasyprint import HTML
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -45,16 +45,16 @@ def build_invoice_context(order: Order) -> dict:
     return {
         'order': order,
         'invoice_title': 'Invoice',
-        'invoice_number': f'INV-{order.id:08d}',
+        'invoice_number': order.order_number,
         'issued_at': timezone.now(),
         'customer_name': customer_name,
         'customer_email': user.email or '',
         'line_description': line_description,
         'subtotal': order.subtotal,
-        'discount': order.discount,
-        'total': order.total,
-        'currency': getattr(settings, 'INVOICE_CURRENCY_LABEL', 'USD'),
-        'has_discount': order.discount and order.discount > 0,
+        'discount': order.discount_amount,
+        'total': order.total_amount,
+        'currency': getattr(settings, 'INVOICE_CURRENCY_LABEL', 'INR'),
+        'has_discount': order.discount_amount and order.discount_amount > 0,
     }
 
 

@@ -3,8 +3,10 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
 from orders.models import Order
-from .models import Transaction, PaymentGatewayConfig
-from .gateway import GatewayFactory
+from django.utils import timezone
+from .models import Payment, Transaction, PaymentGatewayConfig
+from .gateway import GatewayFactory, RazorpayAdapter, TestGatewayAdapter
+from orders.services import OrderService
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,10 +20,7 @@ class CreateCheckoutSessionView(APIView):
             return Response({"error": "order_id is required"}, status=400)
             
         # Ensure user actually owns this order
-        order = get_object_or_404(Order, id=order_id, user=request.user)
-        
-        if order.status == 'paid':
-            return Response({"error": "Order is already paid"}, status=400)
+        order = get_object_or_404(Order, id=order_id, client=request.user.client)
             
         try:
             # 1. Fetch the correct gateway adapter based on Tenant settings
@@ -35,7 +34,7 @@ class CreateCheckoutSessionView(APIView):
                 status='pending'
             )
             
-            # 3. Create the checkout session via the Provider (Razorpay, BillDesk, Stripe)
+            # 3. Create the checkout session via the Provider (Razorpay, BillDesk, Stripe, Test)
             checkout_data = adapter.create_checkout_session(transaction)
             
             # 4. Save the gateway's specific tracking ID
@@ -56,17 +55,21 @@ class UniversalWebhookView(APIView):
     permission_classes = [AllowAny]
     
     def post(self, request):
-        # We look up the transaction automatically from the payload
         data = request.data
+        provider_order_id = None
+        adapter_class_used = None
         
-        razorpay_order_id = data.get('razorpay_order_id')
-        
-        if razorpay_order_id:
-            return self.handle_razorpay(data, razorpay_order_id)
+        # Try to extract from known adapters
+        for AdapterClass in [RazorpayAdapter, TestGatewayAdapter]:
+            order_id = AdapterClass.extract_order_id(data)
+            if order_id:
+                provider_order_id = order_id
+                adapter_class_used = AdapterClass
+                break
+                
+        if not provider_order_id:
+            return Response({"error": "Unrecognized webhook payload"}, status=400)
             
-        return Response({"error": "Unrecognized webhook payload"}, status=400)
-        
-    def handle_razorpay(self, data, provider_order_id):
         transaction = get_object_or_404(Transaction, gateway_transaction_id=provider_order_id)
         
         try:
@@ -77,12 +80,31 @@ class UniversalWebhookView(APIView):
             is_valid = adapter.verify_payment(data)
             
             if is_valid:
+                if transaction.status == 'successful':
+                    return Response({"status": "Already processed"})  # idempotency
+
                 transaction.status = 'successful'
                 transaction.save()
-                
-                # Fulfil the actual order!
-                transaction.order.status = 'paid'
-                transaction.order.save()
+
+                # Determine gateway payment id (e.g. razorpay_payment_id or generic)
+                payment_id = data.get('razorpay_payment_id') or data.get('test_payment_id') or provider_order_id
+
+                # ✅ Create Payment record
+                Payment.objects.create(
+                    tenant=transaction.tenant,
+                    order=transaction.order,
+                    client=transaction.order.client,
+                    gateway=adapter.provider_name,
+                    gateway_payment_id=payment_id,
+                    gateway_order_id=provider_order_id,
+                    amount=transaction.amount,
+                    status=Payment.StatusChoices.SUCCESS,
+                    paid_at=timezone.now(),
+                    gateway_response=data
+                )
+
+                # ✅ Call business logic
+                OrderService.mark_as_paid(transaction.order)
                 
                 return Response({"status": "Payment successfully verified"})
             else:

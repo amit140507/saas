@@ -1,6 +1,6 @@
 import uuid
 from django.db import models
-from core.models import TenantAwareModel
+from core.tenants.models import TenantAwareModel
 from billing.orders.models import Order
 
 class Invoice(TenantAwareModel):
@@ -23,9 +23,6 @@ class Invoice(TenantAwareModel):
     pdf_url = models.URLField(max_length=500, null=True, blank=True)
     storage_key = models.CharField(max_length=255, null=True, blank=True)
     
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         verbose_name = 'Invoice'
         verbose_name_plural = 'Invoices'
@@ -34,5 +31,12 @@ class Invoice(TenantAwareModel):
             models.Index(fields=['invoice_number']),
         ]
 
+    def save(self, *args, **kwargs):
+        if not self.invoice_number:
+            from core.accounts.helpers import generate_unique_public_id
+            suffix = generate_unique_public_id(model=self.__class__, field_name='invoice_number', length=8)
+            self.invoice_number = f"INV-{suffix}"
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"Invoice {self.invoice_number}"
+        return f"{self.invoice_number} ({self.get_status_display()})"

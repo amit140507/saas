@@ -11,12 +11,17 @@ class BasePaymentAdapter:
         
     def verify_payment(self, verification_data):
         raise NotImplementedError("Each adapter must implement verify_payment")
+        
+    @staticmethod
+    def extract_order_id(payload):
+        raise NotImplementedError("Each adapter must implement extract_order_id")
 
 
 class RazorpayAdapter(BasePaymentAdapter):
     def __init__(self, api_key, api_secret):
         super().__init__(api_key, api_secret)
         self.client = razorpay.Client(auth=(self.api_key, self.api_secret))
+        self.provider_name = 'razorpay'
         
     def create_checkout_session(self, transaction):
         """
@@ -31,7 +36,7 @@ class RazorpayAdapter(BasePaymentAdapter):
         }
         razorpay_order = self.client.order.create(data=data)
         return {
-            "provider": "razorpay",
+            "provider": self.provider_name,
             "provider_order_id": razorpay_order['id'],
             "key": self.api_key,
             "amount": razorpay_order['amount'],
@@ -49,6 +54,39 @@ class RazorpayAdapter(BasePaymentAdapter):
         except razorpay.errors.SignatureVerificationError:
             return False
 
+    @staticmethod
+    def extract_order_id(payload):
+        return payload.get('razorpay_order_id')
+
+
+class TestGatewayAdapter(BasePaymentAdapter):
+    def __init__(self, api_key, api_secret):
+        super().__init__(api_key, api_secret)
+        self.provider_name = 'test'
+        
+    def create_checkout_session(self, transaction):
+        """
+        Mocks a checkout session for the test gateway.
+        """
+        return {
+            "provider": self.provider_name,
+            "provider_order_id": f"test_order_{transaction.id}",
+            "key": self.api_key,
+            "amount": int(transaction.amount * 100),
+            "currency": "INR",
+            "test_checkout_url": f"/api/v1/payments/test-checkout/{transaction.id}/"
+        }
+        
+    def verify_payment(self, verification_data):
+        """
+        For testing, we verify payment based on a simple 'status' parameter.
+        """
+        return verification_data.get('status') == 'success'
+        
+    @staticmethod
+    def extract_order_id(payload):
+        return payload.get('test_order_id')
+
 
 class GatewayFactory:
     """
@@ -63,6 +101,8 @@ class GatewayFactory:
             
         if config.provider_name == 'razorpay':
             return RazorpayAdapter(config.api_key, config.api_secret)
+        elif config.provider_name == 'test':
+            return TestGatewayAdapter(config.api_key, config.api_secret)
         elif config.provider_name == 'billdesk':
             # return BillDeskAdapter(...)  # Future adapter skeleton
             pass

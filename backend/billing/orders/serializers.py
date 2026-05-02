@@ -10,7 +10,7 @@ from .models import Order, OrderItem
 class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
-        fields = ['id', 'description', 'quantity', 'unit_price', 'total_price']
+        fields = ['id', 'order', 'product_id', 'product_type', 'quantity', 'unit_price', 'total_price']
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -19,7 +19,7 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            'id', 'order_number', 'client', 'order_type', 'status',
+            'id','client', 'tenant', 'order_number','status',
             'subtotal', 'discount_amount', 'tax_amount', 'total_amount',
             'coupon', 'notes', 'payment_link_token', 'payment_method',
             'created_by', 'created_at', 'updated_at',

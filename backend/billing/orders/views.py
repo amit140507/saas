@@ -4,8 +4,11 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
-from payments.models import Transaction
-from payments.gateway import GatewayFactory
+from core.tenants.permissions import IsTenantMember, HasPermission
+from core.tenants.rbac_service import get_member, user_has_permission
+from core.tenants.permission_codes import Perms
+from billing.payments.models import Transaction
+from billing.payments.gateway import GatewayFactory
 from .models import Order
 from .serializers import OrderSerializer
 
@@ -16,21 +19,30 @@ logger = logging.getLogger(__name__)
 
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_permissions(self):
+        if self.action in ['destroy', 'update', 'partial_update']:
+            return [HasPermission(Perms.MANAGE_ORDERS)()]
+        return [IsTenantMember()]
 
     def get_queryset(self):
-        user = self.request.user
-        tenant = getattr(user, 'tenant', None)
+        tenant = getattr(self.request, 'tenant', None)
         if not tenant:
             return Order.objects.none()
 
-        if user.is_superuser:
-            return Order.objects.all()
+        qs = Order.objects.filter(tenant=tenant)
+        
+        member = get_member(self.request.user, tenant)
+        if not member:
+            return Order.objects.none()
 
-        if user.has_role('admin') or user.has_role('owner') or user.is_staff:
-            qs = Order.objects.filter(tenant=tenant)
-        elif hasattr(user, 'client_profile'):
-            qs = Order.objects.filter(tenant=tenant, client=user.client_profile)
+        if self.request.user.is_superuser or member.is_owner:
+            pass
+        elif user_has_permission(self.request.user, tenant, Perms.VIEW_ORDERS) or \
+             user_has_permission(self.request.user, tenant, Perms.MANAGE_ORDERS):
+            pass
+        elif hasattr(member, 'client_profile'):
+            qs = qs.filter(client=member.client_profile)
         else:
             return Order.objects.none()
 
@@ -42,7 +54,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(
-            tenant=self.request.user.tenant,
+            tenant=getattr(self.request, 'tenant', None),
             created_by=self.request.user,
         )
 

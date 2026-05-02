@@ -73,7 +73,7 @@ INSTALLED_APPS = [
     # 'diet_plans',
     # 'checkins',
     # 'logs',
-    # 'payments',
+    'billing.coupons',
     'axes',
     'debug_toolbar',
     

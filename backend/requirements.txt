@@ -26,3 +26,4 @@ psycopg[binary]
 django-unfold
 Faker
 django-silk
+weasyprint

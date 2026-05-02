@@ -1,6 +1,7 @@
+import uuid
 from django.db import models
-from core.models import TenantAwareModel
-from orders.models import Order
+from core.tenants.models import TenantAwareModel
+from billing.orders.models import Order
 
 # ---------------------------------------------------------------------------
 # Payment — Stripe / Razorpay / manual payment record
@@ -58,6 +59,12 @@ class Payment(TenantAwareModel):
             models.Index(fields=['tenant', 'client', 'status']),
             models.Index(fields=['gateway_payment_id']),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['gateway_payment_id'],
+                name='unique_gateway_payment'
+            )
+        ]
 
     def __str__(self):
         return f"Payment {self.id} — {self.amount} {self.currency} ({self.status})"
@@ -69,9 +76,9 @@ class PaymentGatewayConfig(TenantAwareModel):
         ('razorpay', 'Razorpay'),
         ('billdesk', 'BillDesk'),
         ('stripe', 'Stripe'),
-        ('dummy', 'Dummy Gateway'),
+        ('test', 'Test Gateway'),
     )
-    provider_name = models.CharField(max_length=50, choices=PROVIDER_CHOICES, default='razorpay')
+    provider_name = models.CharField(max_length=50, choices=PROVIDER_CHOICES, default='test')
     api_key = models.CharField(max_length=255, blank=True)
     api_secret = models.CharField(max_length=255, blank=True)
     is_active = models.BooleanField(default=True)
@@ -80,6 +87,10 @@ class PaymentGatewayConfig(TenantAwareModel):
         return f"{self.tenant.name} -> {self.provider_name}"
 
 class Transaction(TenantAwareModel):
+    """
+    Represents a temporary payment attempt (checkout session).
+    Used only for initiating checkout and tracking gateway order id.
+    """
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='transactions')
     gateway_transaction_id = models.CharField(max_length=255, blank=True, help_text="e.g. razorpay order_id")
     amount = models.DecimalField(max_digits=10, decimal_places=2)
