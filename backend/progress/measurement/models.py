@@ -4,40 +4,27 @@ from django.conf import settings
 from core.models import TenantAwareModel
 
 
-class Measurement(TenantAwareModel):
+class WeeklyMeasurement(TenantAwareModel):
     """Timestamped body measurements for a client."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
     client = models.ForeignKey(
         'clients.Client', on_delete=models.CASCADE, related_name='measurements'
     )
-    # user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='measurements')
-    measured_at = models.DateField()
-    recorded_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='recorded_measurements'
-    )
-
     # Body metrics (all in cm unless noted)
-    weight = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    height = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    body_fat_percent = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
-    bmi = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    abdomen = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    arm_left = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    arm_right = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    calf_left = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    calf_right = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     chest = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    waist = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    hips = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    biceps = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    thighs = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    calf = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    shoulder = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    neck = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    glutes = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    thighs_left = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    thighs_right = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    weight = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     notes = models.TextField(null=True, blank=True)
-    photo = models.ImageField(upload_to='measurements/', null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+
+    measured_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = 'Measurement'
@@ -46,6 +33,40 @@ class Measurement(TenantAwareModel):
         indexes = [
             models.Index(fields=['tenant', 'measured_at']),
         ]
-
+    def validate(self, data):
+        measurement = self.context.get('measurement')
+        if measurement.photos.count() >= 4:
+            raise serializers.ValidationError("Maximum 4 photos allowed.")
+        return data
+    def clean(self):
+        if self.measurement.photos.count() >= 4:
+            raise ValidationError("Only 4 photos allowed per measurement.")
+        
     def __str__(self):
         return f"{self.client} — {self.measured_at}"
+
+
+class MeasurementPhoto(TenantAwareModel):
+    measurement = models.ForeignKey(
+        'WeeklyMeasurement',
+        on_delete=models.CASCADE,
+        related_name='photos'
+    )
+    class PhotoType(models.TextChoices):
+        FRONT = 'front', 'Front'
+        LEFT = 'left_side', 'Left Side'
+        RIGHT = 'right_side', 'Right Side'
+        BACK = 'back', 'Back'
+
+    photo_type = models.CharField(max_length=10, choices=PhotoType.choices, default=PhotoType.FRONT)
+    image = models.ImageField(upload_to='measurements/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['uploaded_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['measurement', 'photo_type'],
+                name='unique_measurement_photo_per_type'
+            )
+        ]

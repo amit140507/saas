@@ -2,60 +2,131 @@ from django.db import models
 from django.conf import settings
 from core.models import TenantAwareModel
 
-class CheckInPlan(TenantAwareModel):
+class DailyCheckIn(TenantAwareModel):
     client = models.ForeignKey(
-        'clients.Client', on_delete=models.CASCADE, related_name='checkin_plans'
+        'clients.Client', on_delete=models.CASCADE, related_name='checkins'
     )
-    # user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='checkin_plans')
     start_date = models.DateField()
-    duration_weeks = models.IntegerField(default=12)
+    # duration_weeks = models.IntegerField(default=12)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Plan for {self.client.user.username} starting {self.start_date} ({self.duration_weeks} weeks)"
+        return f"Check-in for {self.client.name} starting {self.start_date}"
 
-class DailyLog(TenantAwareModel):
-    plan = models.ForeignKey(CheckInPlan, on_delete=models.CASCADE, related_name='daily_logs')
+class DailyCheckinLog(TenantAwareModel):
+    class Rating(models.IntegerChoices):
+        VERY_LOW = 1, "Very Low"
+        LOW = 2, "Low"
+        MEDIUM = 3, "Medium"
+        HIGH = 4, "High"
+        VERY_HIGH = 5, "Very High"
+    plan = models.ForeignKey(CheckIn, on_delete=models.CASCADE, related_name='daily_logs')
     week_number = models.IntegerField()
     # 0=Sunday, 1=Monday, ..., 6=Saturday
-    day_of_week = models.IntegerField() 
+    # day_of_week = models.IntegerField() # week starts with monday
     date = models.DateField()
 
     # Table 1: General
-    weight = models.FloatField(null=True, blank=True)
+    # weight = models.FloatField(null=True, blank=True)
 
     # Table 2: Nutrition
-    fluid_intake = models.FloatField(null=True, blank=True, help_text="Litres")
-    hunger_level = models.IntegerField(null=True, blank=True, help_text="1-5")
-    craving_level = models.IntegerField(null=True, blank=True, help_text="1-5")
+    fluid_intake = models.FloatField(help_text="In Litres")
+    hunger_level = models.PositiveSmallIntegerField(
+    choices=Rating.choices
+)
+    craving_level = models.PositiveSmallIntegerField(
+    choices=Rating.choices
+)
+    off_plan_meal = models.BooleanField(default=False)
+    off_plan_meal_details = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Describe the off-plan meal if applicable"
+    )
 
     # Table 3: Training & Cardio
-    steps = models.IntegerField(null=True, blank=True)
-    cardio_mins = models.IntegerField(null=True, blank=True)
-    session_completed = models.BooleanField(default=False)
-    motivation = models.IntegerField(null=True, blank=True, help_text="1-5")
-    performance = models.IntegerField(null=True, blank=True, help_text="1-5")
+    steps = models.IntegerField(help_text="In Steps")
+    cardio = models.BooleanField(default=False)
+    cardio_duration = models.IntegerField(help_text="In Minutes")
+    strength_training = models.BooleanField(default=False)
+    strength_training_details = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Describe the strength training if applicable"
+    )
+    motivation = models.PositiveSmallIntegerField(
+    choices=Rating.choices
+)
+    performance = models.PositiveSmallIntegerField(
+    choices=Rating.choices
+)
 
     # Table 4: Recovery & Stress
-    muscle_soreness = models.IntegerField(null=True, blank=True, help_text="1-5")
-    energy_levels = models.IntegerField(null=True, blank=True, help_text="1-5")
-    stress_levels = models.IntegerField(null=True, blank=True, help_text="1-5")
+    muscle_soreness = models.PositiveSmallIntegerField(
+        choices=Rating.choices,
+        null=True,
+        blank=True
+    )
+
+    energy_levels = models.PositiveSmallIntegerField(
+        choices=Rating.choices,
+        null=True,
+        blank=True
+    )
+
+    stress_levels = models.PositiveSmallIntegerField(
+        choices=Rating.choices,
+        null=True,
+        blank=True
+    )
 
     # Table 5: Digestion
     stool_frequency = models.IntegerField(null=True, blank=True)
-    stool_quality = models.CharField(max_length=50, blank=True, null=True)
-    gi_distress = models.CharField(max_length=100, blank=True, null=True)
+    STOOL_QUALITY_CHOICES = [
+        ('loose', 'Loose'),
+        ('regular', 'Regular'),
+        ('hard', 'Hard'),
+    ]
+    stool_quality = models.CharField(
+        max_length=10,
+        choices=STOOL_QUALITY_CHOICES,
+    )
+    gi_distress = models.CharField(max_length=100, blank=True, null=True, help_text="BLOATING, CONSTIPATION, DIARRHEA, ETC")
 
     # Table 6: Sleep
     sleep_duration = models.FloatField(null=True, blank=True, help_text="Hours")
-    sleep_quality = models.IntegerField(null=True, blank=True, help_text="1-5")
+    sleep_quality = models.PositiveSmallIntegerField(
+        choices=Rating.choices,
+        null=True,
+        blank=True
+    )
 
     # Table 7: Notes
-    notes = models.TextField(blank=True, null=True)
+    notes = models.TextField(blank=True, null=True, help_text="MENTION ANY ACCOMPLISHMENT YOU'RE PROUD AND/OR HURDLES YOU MIGHT HAVE FACED TODAY & WOULD LIKE TO SHARE")
 
     class Meta:
-        unique_together = ('plan', 'week_number', 'day_of_week')
-        ordering = ['week_number', 'day_of_week']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['plan', 'date'],
+                name='unique_daily_log_per_plan_per_date'
+            )
+        ]
+        indexes = [
+            models.Index(fields=['plan', 'date']),
+        ]
+        ordering = ['date']
 
     def __str__(self):
-        return f"W{self.week_number} D{self.day_of_week} ({self.date})"
+        return f"{self.plan.client.name} - {self.date}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if not self.off_plan_meal and self.off_plan_meal_details:
+            raise ValidationError("Off-plan details provided but flag is false")
+
+        if self.cardio is False and self.cardio_duration:
+            raise ValidationError("Cardio duration provided but cardio is false")
+
+        if self.strength_training is False and self.strength_training_details:
+            raise ValidationError("Strength details provided but flag is false")
