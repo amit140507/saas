@@ -109,7 +109,7 @@ class WorkoutDay(TenantAwareModel):
     plan_assignment = models.ForeignKey(
         WorkoutPlanAssignment,
         on_delete=models.CASCADE,
-        related_name='days'
+        related_name='workout_day'
     )
     name = models.CharField(max_length=100)  # e.g. Push Day, Day 1
     day_number = models.PositiveSmallIntegerField()  # order
@@ -127,8 +127,9 @@ class Exercise(TenantAwareModel):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
-    muscle_group = models.CharField(max_length=100)
-    equipment = models.CharField(max_length=100, blank=True, null=True)
+    muscle_group = models.ForeignKey(
+        'MuscleGroup', on_delete=models.CASCADE, null=True, blank=True)
+    equipment_required = models.BooleanField(default=False)
     instructions = models.TextField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
 

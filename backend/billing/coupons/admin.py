@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import Coupon, CouponRule, CouponUsage
 
+
 class CouponRuleInline(admin.StackedInline):
     model = CouponRule
     can_delete = False
@@ -9,8 +10,10 @@ class CouponRuleInline(admin.StackedInline):
 
 @admin.register(Coupon)
 class CouponAdmin(admin.ModelAdmin):
-    list_display = ['code', 'category', 'discount_type', 'discount_value', 'is_active', 'times_used', 'valid_to']
-    list_filter  = ['category', 'discount_type', 'is_active', 'is_auto_applied', 'user_segment']
+    list_display = ['code', 'category', 'discount_type',
+                    'discount_value', 'is_active', 'times_used', 'valid_to']
+    list_filter = ['category', 'discount_type',
+                   'is_active', 'is_auto_applied', 'user_segment']
     search_fields = ['code', 'description']
     inlines = [CouponRuleInline]
 

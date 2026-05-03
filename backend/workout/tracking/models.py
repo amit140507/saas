@@ -3,6 +3,7 @@ from django.db import models
 from core.tenants.models import TenantAwareModel
 from workout.planning.models import WorkoutDay, Exercise, WorkoutPlanAssignment, WorkoutExercise
 
+
 class WorkoutSession(TenantAwareModel):
     """
     A single workout session for a client on a given day.
@@ -21,7 +22,8 @@ class WorkoutSession(TenantAwareModel):
         blank=True,
         related_name='sessions'
     )
-    workout_day = models.ForeignKey(WorkoutDay, on_delete=models.SET_NULL, null=True, blank=True)
+    workout_day = models.ForeignKey(
+        WorkoutDay, on_delete=models.SET_NULL, null=True, blank=True)
     session_date = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -58,7 +60,7 @@ class WorkoutLog(TenantAwareModel):
     planned_reps = models.IntegerField(null=True, blank=True)
     planned_weight = models.FloatField(null=True, blank=True)
     notes = models.TextField(blank=True)
-    
+
     class Meta:
         verbose_name = 'Workout Log'
         verbose_name_plural = 'Workout Logs'
@@ -79,6 +81,6 @@ class SetLog(TenantAwareModel):
     weight = models.FloatField()
     rest_sec = models.IntegerField()
     is_pr = models.BooleanField(default=False)
-    
+
     class Meta:
         ordering = ['set_number']

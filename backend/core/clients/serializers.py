@@ -21,7 +21,7 @@ class ClientSerializer(serializers.ModelSerializer):
         model = Client
         fields = [
             'id', 'user', 'assigned_trainer', 'status', 'goal',
-            'health_and_fitness_data', 'dob', 'sex', 'profile_picture',
+            'dob', 'sex', 'profile_picture',
             'date_of_joining', 'phone', 'referral_source',
             'joined_at', 'activated_at',
         ]
@@ -42,7 +42,8 @@ class ClientSerializer(serializers.ModelSerializer):
             for field in ('first_name', 'last_name', 'email'):
                 if field in user_data:
                     setattr(user, field, user_data[field])
-            user.save(update_fields=[f for f in ('first_name', 'last_name', 'email') if f in user_data])
+            user.save(update_fields=[f for f in (
+                'first_name', 'last_name', 'email') if f in user_data])
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
