@@ -1,7 +1,13 @@
 import io
 from fpdf import FPDF
+from django.core.mail import EmailMessage
+from django.conf import settings
+
 
 def create_diet_plan_pdf(data):
+    """
+    Generates a PDF byte string for a diet plan based on provided data.
+    """
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
@@ -95,5 +101,18 @@ def create_diet_plan_pdf(data):
                 
         pdf.ln(5)
 
-    # fpdf2 output() returns a bytearray
     return bytes(pdf.output())
+
+
+def send_diet_plan_email(client_email, pdf_bytes):
+    """
+    Sends an email to the client with the attached diet plan PDF.
+    """
+    msg = EmailMessage(
+        'Your Customized Diet Plan',
+        'Please find your new personalized diet plan attached.',
+        getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@gymsaas.com'),
+        [client_email]
+    )
+    msg.attach('diet_plan.pdf', pdf_bytes, 'application/pdf')
+    msg.send(fail_silently=False)

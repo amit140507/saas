@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
-from core.models import TenantAwareModel
+from core.tenants.models import TenantAwareModel
 
 # ---------------------------------------------------------------------------
 # Coupon — Discount / promo code

@@ -3,7 +3,8 @@ from django.apps import AppConfig
 
 class MeasurementConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'measurement'
+    name = 'progress.measurement'
+    verbose_name = 'Measurements'
 
     def ready(self):
-        import measurement.signals  # noqa: F401
+        import progress.measurement.signals  # noqa: F401

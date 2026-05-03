@@ -1,31 +1,16 @@
 from django.contrib import admin
-from .models import MembershipPackage, Membership, Coupon, Payment
+from .models import Package, PackagePlan
 
 
-@admin.register(MembershipPackage)
-class MembershipPackageAdmin(admin.ModelAdmin):
-    list_display = ('name', 'tier', 'duration_days', 'price', 'max_freezes', 'is_active', 'tenant')
-    list_filter = ('tier', 'is_active')
+@admin.register(Package)
+class PackageAdmin(admin.ModelAdmin):
+    list_display = ('name', 'is_active', 'tenant')
+    list_filter = ('is_active', 'tenant')
     search_fields = ('name',)
 
 
-@admin.register(Membership)
-class MembershipAdmin(admin.ModelAdmin):
-    list_display = ('client', 'package', 'status', 'start_date', 'end_date', 'freeze_days_used')
-    list_filter = ('status',)
-    search_fields = ('client__user__username', 'client__user__email')
-    date_hierarchy = 'start_date'
-
-
-@admin.register(Coupon)
-class CouponAdmin(admin.ModelAdmin):
-    list_display = ('code', 'discount_type', 'discount_value', 'valid_from', 'valid_to', 'times_used', 'max_uses', 'is_active')
-    list_filter = ('discount_type', 'is_active')
-    search_fields = ('code',)
-
-
-@admin.register(Payment)
-class PaymentAdmin(admin.ModelAdmin):
-    list_display = ('id', 'client', 'gateway', 'amount', 'currency', 'status', 'paid_at')
-    list_filter = ('gateway', 'status')
-    search_fields = ('gateway_payment_id', 'client__user__username')
+@admin.register(PackagePlan)
+class PackagePlanAdmin(admin.ModelAdmin):
+    list_display = ('name', 'package', 'price', 'billing_cycle', 'duration_in_days', 'is_active')
+    list_filter = ('billing_cycle', 'is_active', 'tenant')
+    search_fields = ('name', 'package__name')

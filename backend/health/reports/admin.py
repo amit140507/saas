@@ -7,9 +7,9 @@ class BloodMarkerInline(admin.StackedInline):
 
 @admin.register(BloodReport)
 class BloodReportAdmin(admin.ModelAdmin):
-    list_display = ('user', 'report_date', 'lab_name', 'has_file')
+    list_display = ('client', 'report_date', 'lab_name', 'has_file')
     list_filter = ('report_date', 'lab_name')
-    search_fields = ('user__email', 'lab_name', 'notes')
+    search_fields = ('client__user__email', 'lab_name', 'notes')
     inlines = [BloodMarkerInline]
     readonly_fields = ('created_at', 'reviewed_at')
 
@@ -22,4 +22,4 @@ class BloodReportAdmin(admin.ModelAdmin):
 class BloodMarkerAdmin(admin.ModelAdmin):
     list_display = ('report', 'marker_name', 'value', 'unit', 'is_abnormal')
     list_filter = ('is_abnormal',)
-    search_fields = ('report__user__email', 'marker_name')
+    search_fields = ('report__client__user__email', 'marker_name')

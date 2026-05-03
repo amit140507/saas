@@ -1,10 +1,7 @@
 import uuid
 from django.db import models
-from core.models import TenantAwareModel
-
-# WorkoutSession
-# ExerciseLog
-# WorkoutLog
+from core.tenants.models import TenantAwareModel
+from workout.planning.models import WorkoutDay, Exercise, WorkoutPlanAssignment, WorkoutExercise
 
 class WorkoutSession(TenantAwareModel):
     """
@@ -18,13 +15,13 @@ class WorkoutSession(TenantAwareModel):
         'clients.Client', on_delete=models.CASCADE, related_name='workout_sessions'
     )
     plan_assignment = models.ForeignKey(
-        'plans.PlanAssignment',
+        WorkoutPlanAssignment,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='sessions'
     )
-    workout_day = models.ForeignKey('WorkoutDay', null=True, blank=True)
+    workout_day = models.ForeignKey(WorkoutDay, on_delete=models.SET_NULL, null=True, blank=True)
     session_date = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -52,7 +49,7 @@ class WorkoutLog(TenantAwareModel):
         Exercise, on_delete=models.PROTECT, related_name='logs'
     )
     plan_exercise = models.ForeignKey(
-        'plans.WorkoutExercise',
+        WorkoutExercise,
         on_delete=models.SET_NULL,
         null=True,
         blank=True

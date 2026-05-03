@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
 from django.conf import settings
-from core.models import TenantAwareModel
+from core.tenants.models import TenantAwareModel
 
 
 # WorkoutPlan
@@ -34,7 +34,8 @@ class WorkoutPlan(TenantAwareModel):
         default=DifficultyLevel.BEGINNER
     )
     description = models.TextField(null=True, blank=True)
-    goal = models.CharField(max_length=100, null=True, blank=True)  # e.g. 'Fat Loss'
+    goal = models.CharField(max_length=100, null=True,
+                            blank=True)  # e.g. 'Fat Loss'
     duration_weeks = models.PositiveIntegerField(default=12)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -116,10 +117,10 @@ class WorkoutDay(TenantAwareModel):
 
     class Meta:
         ordering = ['day_number']
-        unique_together = ('plan', 'day_number')
+        unique_together = ('plan_assignment', 'day_number')
 
     def __str__(self):
-        return f"{self.plan.title} - {self.name}"
+        return f"{self.plan_assignment.plan.title} - {self.name}"
 
 
 class Exercise(TenantAwareModel):
@@ -139,6 +140,7 @@ class Exercise(TenantAwareModel):
     def __str__(self):
         return self.name
 
+
 class MuscleGroup(models.Model):
     name = models.CharField(max_length=100)
     is_primary = models.BooleanField(default=True)
@@ -146,16 +148,20 @@ class MuscleGroup(models.Model):
     def __str__(self):
         return self.name
 
+
 class ExerciseMuscle(models.Model):
-    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='muscles')
+    exercise = models.ForeignKey(
+        Exercise, on_delete=models.CASCADE, related_name='muscles')
     muscle = models.ForeignKey(MuscleGroup, on_delete=models.CASCADE)
 
     is_primary = models.BooleanField(default=True)
 
 
 class ExerciseMedia(models.Model):
-    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='media')
+    exercise = models.ForeignKey(
+        Exercise, on_delete=models.CASCADE, related_name='media')
     youtube_url = models.URLField(blank=True, null=True)
+
 
 class WorkoutExercise(models.Model):
     workout_day = models.ForeignKey(WorkoutDay, on_delete=models.CASCADE)
@@ -165,3 +171,12 @@ class WorkoutExercise(models.Model):
     reps = models.CharField(max_length=50)  # e.g. "8-12"
     rest = models.IntegerField(help_text='rest in minutes')
     notes = models.TextField(blank=True, null=True)
+
+    class ExerciseType(models.IntegerChoices):
+        BODY_WEIGHT = 1, 'Body Weight'
+        PIN_LOADED = 2, 'Pin Loaded Machine'
+        FREE_WEIGHT = 3, 'Free Weight'
+    exercise_type = models.IntegerField(
+        choices=ExerciseType.choices,
+        default=ExerciseType.FREE_WEIGHT
+    )

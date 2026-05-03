@@ -1,7 +1,8 @@
 import uuid
 from django.db import models
 from django.conf import settings
-from core.models import TenantAwareModel
+from core.tenants.models import TenantAwareModel
+from django.core.exceptions import ValidationError
 
 
 class WeeklyMeasurement(TenantAwareModel):
@@ -12,16 +13,26 @@ class WeeklyMeasurement(TenantAwareModel):
         'clients.Client', on_delete=models.CASCADE, related_name='measurements'
     )
     # Body metrics (all in cm unless noted)
-    abdomen = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    arm_left = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    arm_right = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    calf_left = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    calf_right = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    chest = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    glutes = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    thighs_left = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    thighs_right = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    weight = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    abdomen = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True)
+    arm_left = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True)
+    arm_right = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True)
+    calf_left = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True)
+    calf_right = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True)
+    chest = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True)
+    glutes = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True)
+    thighs_left = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True)
+    thighs_right = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True)
+    weight = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True)
     notes = models.TextField(null=True, blank=True)
 
     measured_at = models.DateTimeField(auto_now_add=True)
@@ -33,15 +44,11 @@ class WeeklyMeasurement(TenantAwareModel):
         indexes = [
             models.Index(fields=['tenant', 'measured_at']),
         ]
-    def validate(self, data):
-        measurement = self.context.get('measurement')
-        if measurement.photos.count() >= 4:
-            raise serializers.ValidationError("Maximum 4 photos allowed.")
-        return data
+
     def clean(self):
-        if self.measurement.photos.count() >= 4:
+        if self.pk and self.photos.count() > 4:
             raise ValidationError("Only 4 photos allowed per measurement.")
-        
+
     def __str__(self):
         return f"{self.client} — {self.measured_at}"
 
@@ -52,13 +59,15 @@ class MeasurementPhoto(TenantAwareModel):
         on_delete=models.CASCADE,
         related_name='photos'
     )
+
     class PhotoType(models.TextChoices):
         FRONT = 'front', 'Front'
         LEFT = 'left_side', 'Left Side'
         RIGHT = 'right_side', 'Right Side'
         BACK = 'back', 'Back'
 
-    photo_type = models.CharField(max_length=10, choices=PhotoType.choices, default=PhotoType.FRONT)
+    photo_type = models.CharField(
+        max_length=10, choices=PhotoType.choices, default=PhotoType.FRONT)
     image = models.ImageField(upload_to='measurements/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 

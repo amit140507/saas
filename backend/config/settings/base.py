@@ -10,27 +10,32 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+from celery.schedules import crontab
+from datetime import timedelta
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+app_env = os.environ.get('APP_ENV', 'local')
+env_file = f'.env.{app_env}'
+
+if os.path.exists(env_file):
+    load_dotenv(env_file)
+else:
+    load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-o5hof50-*b#6njiyeukly4&g8h)=tmi&+exdlkkwvp9gs1)$b7'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
+# Environment-specific settings (DEBUG, ALLOWED_HOSTS) moved to local.py/prod.py
 
 
 # Application definition
@@ -59,24 +64,19 @@ INSTALLED_APPS = [
     'core.staff',
     'core.clients',
     'authentication',
-    # 'packages',
-    # 'communications',
-    # 'orders',
-    # 'reports',
-    # 'measurement',
-    # 'followups',
-    # 'clients',
-    # 'support',
-    # 'plans',
-    # 'workouts',
-    # 'diet',
-    # 'diet_plans',
-    # 'checkins',
-    # 'logs',
+    'health.reports',
+    'meal',
+    'workout.planning',
+    'workout.tracking',
+    'progress.checkins',
+    'progress.measurement',
+    'billing.packages',
+    'billing.orders',
     'billing.coupons',
+    'billing.subscriptions',
+    'billing.payments',
+    'billing.invoices',
     'axes',
-    'debug_toolbar',
-    
 ]
 
 MIDDLEWARE = [
@@ -90,7 +90,6 @@ MIDDLEWARE = [
     'allauth.account.middleware.AccountMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'axes.middleware.AxesMiddleware',
-    'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -123,8 +122,8 @@ DATABASES = {
         'NAME': os.environ.get('DB_NAME'),
         'USER': os.environ.get('DB_USER'),
         'PASSWORD': os.environ.get('DB_PASSWORD'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': '5432',
+        'HOST': os.environ.get('DB_HOST'),
+        'PORT': os.environ.get('DB_PORT'),
         'CONN_MAX_AGE': 600,
     }
 }
@@ -175,7 +174,9 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 AUTH_USER_MODEL = 'accounts.User'
-CORS_ALLOW_ALL_ORIGINS = True
+
+# CORS Settings
+CORS_ALLOW_CREDENTIALS = True
 
 AUTHENTICATION_BACKENDS = [
     'axes.backends.AxesBackend',
@@ -187,7 +188,7 @@ INTERNAL_IPS = [
     "127.0.0.1",
 ]
 
-SITE_ID = 2
+SITE_ID = 1
 REST_USE_JWT = True
 JWT_AUTH_COOKIE = 'saas-auth'
 JWT_AUTH_REFRESH_COOKIE = 'saas-refresh-token'
@@ -217,8 +218,8 @@ SOCIALACCOUNT_EMAIL_REQUIRED = True
 
 # Email Config (Gmail SMTP)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 465
+EMAIL_HOST = os.environ.get('EMAIL_HOST')
+EMAIL_PORT = os.environ.get('EMAIL_PORT')
 EMAIL_USE_TLS = False
 EMAIL_USE_SSL = True
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
@@ -230,19 +231,21 @@ REST_FRAMEWORK = {
         'dj_rest_auth.jwt_auth.JWTCookieAuthentication',
     ],
 }
-
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 REST_AUTH = {
     'USE_JWT': True,
+    # 'JWT_AUTH_SECURE': True,        # only over HTTPS (prod)
+    # 'JWT_AUTH_HTTPONLY': True,
     'JWT_AUTH_COOKIE': 'saas-auth',
     'JWT_AUTH_REFRESH_COOKIE': 'saas-refresh-token',
     'REGISTER_SERIALIZER': 'authentication.serializers.CustomRegisterSerializer',
     'USER_DETAILS_SERIALIZER': 'core.accounts.serializers.UserSerializer',
     'PASSWORD_RESET_SERIALIZER': 'authentication.serializers.CustomPasswordResetSerializer',
     'PASSWORD_RESET_CONFIRM_SERIALIZER': 'authentication.serializers.CustomPasswordResetConfirmSerializer',
-    'PASSWORD_RESET_CONFIRM_URL': 'http://localhost:3000/reset-password/{uid}/{token}/',
+    # 'PASSWORD_RESET_CONFIRM_URL': 'http://localhost:3000/reset-password/{uid}/{token}/',
+    'PASSWORD_RESET_CONFIRM_URL': f"{FRONTEND_URL}/reset-password/{{uid}}/{{token}}/",
 }
 
-from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
@@ -252,17 +255,17 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-PASSWORD_RESET_CONFIRM_URL = 'http://localhost:3000/reset-password/{uid}/{token}/'
-
 # WhatsApp Meta API Settings
-WHATSAPP_ACCESS_TOKEN = 'your_access_token_here'
-WHATSAPP_PHONE_NUMBER_ID = 'your_phone_number_id_here'
-WHATSAPP_BUSINESS_ACCOUNT_ID = 'your_business_account_id_here'
-WHATSAPP_API_VERSION = 'v22.0'
+WHATSAPP_ACCESS_TOKEN = os.environ.get('WHATSAPP_ACCESS_TOKEN')
+WHATSAPP_PHONE_NUMBER_ID = os.environ.get('WHATSAPP_PHONE_NUMBER_ID')
+WHATSAPP_BUSINESS_ACCOUNT_ID = os.environ.get('WHATSAPP_BUSINESS_ACCOUNT_ID')
+WHATSAPP_API_VERSION = os.environ.get('WHATSAPP_API_VERSION')
 
 # Celery
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
+CELERY_BROKER_URL = os.environ.get(
+    'CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get(
+    'CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
 CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', '').lower() in (
     '1',
     'true',
@@ -270,7 +273,6 @@ CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', '').lower(
 )
 CELERY_TASK_EAGER_PROPAGATES = True
 
-from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {}
 if os.environ.get('CELERY_BEAT_INVOICE_ENABLED', 'true').lower() in ('1', 'true', 'yes'):

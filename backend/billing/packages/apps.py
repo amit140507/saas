@@ -2,5 +2,5 @@ from django.apps import AppConfig
 
 
 class PackagesConfig(AppConfig):
-    name = 'packages'
+    name = 'billing.packages'
     verbose_name = 'Packages'
