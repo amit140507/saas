@@ -41,7 +41,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '')
 # Application definition
 
 INSTALLED_APPS = [
-    # 'unfold',
+    'unfold',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -188,7 +188,7 @@ INTERNAL_IPS = [
     "127.0.0.1",
 ]
 
-SITE_ID = 1
+SITE_ID = 2
 REST_USE_JWT = True
 JWT_AUTH_COOKIE = 'saas-auth'
 JWT_AUTH_REFRESH_COOKIE = 'saas-refresh-token'

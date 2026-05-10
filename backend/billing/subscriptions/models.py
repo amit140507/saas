@@ -10,12 +10,15 @@ from core.tenants.models import TenantAwareModel
 class Feature(TenantAwareModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
-    code = models.CharField(max_length=50, unique=True)
+    code = models.CharField(max_length=50)
     description = models.TextField(blank=True)
     
     class Meta:
         verbose_name = 'Feature'
         verbose_name_plural = 'Features'
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'code'], name='unique_feature_code_per_tenant')
+        ]
         indexes = [
             models.Index(fields=['tenant', 'name']),
         ]

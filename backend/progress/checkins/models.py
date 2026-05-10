@@ -12,7 +12,7 @@ class CheckIn(TenantAwareModel):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Check-in for {self.client.name} starting {self.start_date}"
+        return f"Check-in for {self.client.user.get_full_name()} starting {self.start_date}"
 
 
 class CheckinLog(TenantAwareModel):
