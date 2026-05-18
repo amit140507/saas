@@ -29,7 +29,7 @@ class Migration(migrations.Migration):
                 ('notes', models.TextField(blank=True, null=True)),
                 ('reviewed_at', models.DateTimeField(blank=True, null=True)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('client', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='blood_reports', to='clients.client')),
+                ('client', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='blood_reports', to='clients.clientprofile')),
                 ('reviewed_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='reviewed_reports', to=settings.AUTH_USER_MODEL)),
                 ('tenant', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+', to='tenants.organization')),
             ],

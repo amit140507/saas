@@ -1,16 +1,14 @@
-import uuid
 import random
 from datetime import date, timedelta
-from django.core.management.base import BaseCommand
 from django.utils import timezone
+from django.core.management.base import BaseCommand
 from django.db import transaction
 from core.accounts.models import User
 from core.tenants.models import Organization, Role, OrganizationMember, Permission
 from core.tenants.permission_codes import Perms
-from core.clients.models import Client
+from core.clients.models import ClientProfile
 from core.staff.models import StaffProfile
 from workout.planning.models import MuscleGroup, Exercise, WorkoutPlan, WorkoutDay, WorkoutExercise, WorkoutPlanAssignment
-from workout.tracking.models import WorkoutSession, WorkoutLog, SetLog
 from meal.models.planning import FoodItem, DietPlan, DietPlanAssignment, PlannedMeal, PlannedMealItem, MealSlot
 from progress.checkins.models import CheckIn, CheckinLog
 from progress.measurement.models import WeeklyMeasurement
@@ -22,6 +20,90 @@ fake = Faker()
 
 class Command(BaseCommand):
     help = 'Seeds the database with sample tenant, users, and workout data for 5 gyms'
+
+    def build_client_profile_defaults(self, tenant, assigned_trainer):
+        goal = random.choice(
+            [
+                ClientProfile.GoalChoices.FAT_LOSS,
+                ClientProfile.GoalChoices.MUSCLE_GAIN,
+                ClientProfile.GoalChoices.MAINTENANCE,
+            ]
+        )
+        return {
+            'tenant': tenant,
+            'assigned_trainer': assigned_trainer,
+            'status': ClientProfile.StatusChoices.ACTIVE,
+            'goal': goal,
+            'referral_source': random.choice(['instagram', 'website', 'walk_in', 'friend']),
+            'dob': fake.date_of_birth(minimum_age=18, maximum_age=55),
+            'sex': random.choice(
+                [
+                    ClientProfile.SexChoices.MALE,
+                    ClientProfile.SexChoices.FEMALE,
+                    ClientProfile.SexChoices.OTHER,
+                ]
+            ),
+            'phone': fake.msisdn()[:15],
+            'date_of_joining': date.today() - timedelta(days=random.randint(15, 180)),
+            'activated_at': timezone.now() - timedelta(days=random.randint(1, 60)),
+        }
+
+    def seed_checkin_logs(self, tenant, client_profile):
+        start_date = date.today() - timedelta(days=6)
+        checkin_root, _ = CheckIn.objects.get_or_create(
+            tenant=tenant,
+            client=client_profile,
+            start_date=start_date,
+        )
+
+        stool_choices = [choice[0] for choice in CheckinLog.STOOL_QUALITY_CHOICES]
+        for offset in range(7):
+            log_date = start_date + timedelta(days=offset)
+            did_cardio = random.choice([True, False])
+            did_strength_training = random.choice([True, False])
+            had_off_plan_meal = random.choice([True, False])
+
+            CheckinLog.objects.update_or_create(
+                tenant=tenant,
+                plan=checkin_root,
+                date=log_date,
+                defaults={
+                    'week_number': 1,
+                    'fluid_intake': round(random.uniform(2.0, 4.5), 1),
+                    'hunger_level': random.choice(CheckinLog.Rating.values),
+                    'craving_level': random.choice(CheckinLog.Rating.values),
+                    'off_plan_meal': had_off_plan_meal,
+                    'off_plan_meal_details': (
+                        random.choice(['dessert', 'pizza night', 'late-night snacking'])
+                        if had_off_plan_meal else None
+                    ),
+                    'steps': random.randint(5000, 14000),
+                    'cardio': did_cardio,
+                    'cardio_duration': random.randint(20, 45) if did_cardio else 0,
+                    'strength_training': did_strength_training,
+                    'strength_training_details': (
+                        random.choice(['upper body session', 'leg day', 'full body workout'])
+                        if did_strength_training else None
+                    ),
+                    'motivation': random.choice(CheckinLog.Rating.values),
+                    'performance': random.choice(CheckinLog.Rating.values),
+                    'muscle_soreness': random.choice(CheckinLog.Rating.values),
+                    'energy_levels': random.choice(CheckinLog.Rating.values),
+                    'stress_levels': random.choice(CheckinLog.Rating.values),
+                    'stool_frequency': random.randint(1, 3),
+                    'stool_quality': random.choice(stool_choices),
+                    'gi_distress': random.choice([None, 'bloating', 'constipation']),
+                    'sleep_duration': round(random.uniform(6.0, 8.5), 1),
+                    'sleep_quality': random.choice(CheckinLog.Rating.values),
+                    'notes': random.choice([
+                        'Stayed consistent with meals and training.',
+                        'Energy dipped in the afternoon but finished the workout.',
+                        'Recovered well and hit step goal.',
+                    ]),
+                },
+            )
+
+        return checkin_root
 
     def handle(self, *args, **options):
         self.stdout.write("Starting data seeding for 5 gyms...")
@@ -172,51 +254,112 @@ class Command(BaseCommand):
                 )
                 
                 assigned_trainer = random.choice(trainers)
-                client_profile, _ = Client.objects.get_or_create(
+                client_profile, _ = ClientProfile.objects.update_or_create(
                     org_client=client_membership,
-                    defaults={
-                        'tenant': tenant,
-                        'assigned_trainer': assigned_trainer,
-                        'status': Client.StatusChoices.ACTIVE,
-                        'goal': random.choice([Client.GoalChoices.FAT_LOSS, Client.GoalChoices.MUSCLE_GAIN]),
-                    }
+                    defaults=self.build_client_profile_defaults(
+                        tenant=tenant,
+                        assigned_trainer=assigned_trainer,
+                    ),
                 )
 
                 # 6. Workout Plan for Client
-                w_plan = WorkoutPlan.objects.create(
-                    tenant=tenant, title=f"Plan for {client_user.first_name}", 
-                    plan_type=WorkoutPlan.PlanType.WORKOUT, created_by=assigned_trainer.user
+                w_plan = (
+                    WorkoutPlan.objects
+                    .filter(
+                        tenant=tenant,
+                        title=f"Plan for {client_user.first_name}",
+                        plan_type=WorkoutPlan.PlanType.WORKOUT,
+                    )
+                    .order_by('created_at')
+                    .first()
                 )
-                w_assignment = WorkoutPlanAssignment.objects.create(
-                    tenant=tenant, client=client_profile, plan=w_plan, start_date=date.today()
+                if w_plan is None:
+                    w_plan = WorkoutPlan.objects.create(
+                        tenant=tenant,
+                        title=f"Plan for {client_user.first_name}",
+                        plan_type=WorkoutPlan.PlanType.WORKOUT,
+                        created_by=assigned_trainer.user,
+                    )
+
+                w_assignment = (
+                    WorkoutPlanAssignment.objects
+                    .filter(tenant=tenant, client=client_profile, plan=w_plan)
+                    .order_by('created_at')
+                    .first()
                 )
+                if w_assignment is None:
+                    w_assignment = WorkoutPlanAssignment.objects.create(
+                        tenant=tenant,
+                        client=client_profile,
+                        plan=w_plan,
+                        assigned_by=assigned_trainer.user,
+                        start_date=date.today(),
+                    )
                 for d in range(1, 4):
-                    day = WorkoutDay.objects.create(tenant=tenant, plan_assignment=w_assignment, name=f"Day {d}", day_number=d)
+                    day, _ = WorkoutDay.objects.get_or_create(
+                        tenant=tenant,
+                        plan_assignment=w_assignment,
+                        day_number=d,
+                        defaults={'name': f"Day {d}"}
+                    )
                     for ex in random.sample(exercises, 2):
-                        WorkoutExercise.objects.create(workout_day=day, exercise=ex, sets=3, reps='12', rest=90)
+                        WorkoutExercise.objects.get_or_create(
+                            workout_day=day,
+                            exercise=ex,
+                            defaults={'sets': 3, 'reps': '12', 'rest': 90}
+                        )
 
                 # 7. Diet Plan for Client
-                d_plan = DietPlan.objects.create(
-                    tenant=tenant, title=f"Diet for {client_user.first_name}", 
-                    calories_target=2500, created_by=assigned_trainer
+                d_plan = (
+                    DietPlan.objects
+                    .filter(tenant=tenant, title=f"Diet for {client_user.first_name}")
+                    .order_by('created_at')
+                    .first()
                 )
-                DietPlanAssignment.objects.create(tenant=tenant, client=client_profile, plan=d_plan, start_date=date.today())
+                if d_plan is None:
+                    d_plan = DietPlan.objects.create(
+                        tenant=tenant,
+                        title=f"Diet for {client_user.first_name}",
+                        calories_target=2500,
+                        created_by=assigned_trainer,
+                    )
+
+                diet_assignment = (
+                    DietPlanAssignment.objects
+                    .filter(tenant=tenant, client=client_profile, plan=d_plan)
+                    .order_by('created_at')
+                    .first()
+                )
+                if diet_assignment is None:
+                    DietPlanAssignment.objects.create(
+                        tenant=tenant,
+                        client=client_profile,
+                        plan=d_plan,
+                        start_date=date.today(),
+                    )
                 for d in range(1, 2): # Just 1 day for seed
                     for slot in [MealSlot.BREAKFAST, MealSlot.LUNCH, MealSlot.DINNER]:
-                        meal = PlannedMeal.objects.create(tenant=tenant, plan=d_plan, day_number=d, meal_slot=slot)
-                        PlannedMealItem.objects.create(tenant=tenant, meal=meal, food_item=random.choice(food_objs), quantity_g=150)
+                        meal, _ = PlannedMeal.objects.get_or_create(
+                            tenant=tenant,
+                            plan=d_plan,
+                            day_number=d,
+                            meal_slot=slot
+                        )
+                        PlannedMealItem.objects.get_or_create(
+                            tenant=tenant,
+                            meal=meal,
+                            food_item=random.choice(food_objs),
+                            defaults={'quantity_g': 150}
+                        )
 
                 # 8. Check-ins & Measurements
-                checkin_root = CheckIn.objects.create(tenant=tenant, client=client_profile, start_date=date.today() - timedelta(days=7))
-                CheckinLog.objects.create(
-                    tenant=tenant, plan=checkin_root, week_number=1, date=date.today(),
-                    fluid_intake=3.0, hunger_level=3, craving_level=2, steps=10000, 
-                    cardio=True, cardio_duration=30, motivation=4, performance=4,
-                    stool_quality='regular', sleep_duration=8
-                )
-                WeeklyMeasurement.objects.create(
-                    tenant=tenant, client=client_profile, weight=random.randint(60, 90), 
-                    chest=random.randint(90, 110), abdomen=random.randint(70, 90)
+                self.seed_checkin_logs(tenant=tenant, client_profile=client_profile)
+                WeeklyMeasurement.objects.get_or_create(
+                    tenant=tenant,
+                    client=client_profile,
+                    weight=random.randint(60, 90),
+                    chest=random.randint(90, 110),
+                    abdomen=random.randint(70, 90)
                 )
 
             self.stdout.write(f"Seeded 10 clients with plans and progress for {tenant.name}.")

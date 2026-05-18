@@ -121,7 +121,7 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('assigned_by', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='workout_plan_assigned_by', to=settings.AUTH_USER_MODEL)),
-                ('client', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='workout_plan_assignments', to='clients.client')),
+                ('client', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='workout_plan_assignments', to='clients.clientprofile')),
                 ('plan', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='workout_plan_assignments', to='planning.workoutplan')),
                 ('tenant', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+', to='tenants.organization')),
             ],

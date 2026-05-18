@@ -102,7 +102,7 @@ class Membership(TenantAwareModel):
         PENDING = 'pending', 'Pending Payment'
 
     client = models.ForeignKey(
-        'clients.Client', on_delete=models.CASCADE, related_name='memberships'
+        'clients.ClientProfile', on_delete=models.CASCADE, related_name='memberships'
     )
     package = models.ForeignKey(
         MembershipPackage, on_delete=models.PROTECT, related_name='memberships'
@@ -134,7 +134,7 @@ class Membership(TenantAwareModel):
         ]
 
     def __str__(self):
-        return f"{self.client} — {self.package.name} ({self.status})"
+        return f"{self.client} — ({self.status})"
 
 
 # ---------------------------------------------------------------------------

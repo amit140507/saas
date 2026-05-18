@@ -11,7 +11,7 @@ class Meal(TenantAwareModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     client = models.ForeignKey(
-        'clients.Client', on_delete=models.CASCADE, related_name='meals'
+        'clients.ClientProfile', on_delete=models.CASCADE, related_name='meals'
     )
     log_date = models.DateField()
     meal_slot = models.CharField(max_length=20, choices=MealSlot.choices)
@@ -69,7 +69,7 @@ class DietLog(TenantAwareModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     client = models.ForeignKey(
-        'clients.Client', on_delete=models.CASCADE, related_name='diet_logs'
+        'clients.ClientProfile', on_delete=models.CASCADE, related_name='diet_logs'
     )
     log_date = models.DateField()
     total_calories = models.DecimalField(

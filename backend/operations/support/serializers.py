@@ -1,22 +1,18 @@
 from rest_framework import serializers
 from .models import SupportTicket
+from core.tenants.request_context import get_request_tenant
 
 class SupportTicketSerializer(serializers.ModelSerializer):
     class Meta:
         model = SupportTicket
-        fields = ['id', 'topic', 'description', 'status', 'created_at']
-        read_only_fields = ['id', 'status', 'created_at']
+        fields = ['id', 'ticket_number', 'category', 'priority', 'subject', 'description', 'status', 'created_at']
+        read_only_fields = ['id', 'ticket_number', 'status', 'created_at']
 
     def create(self, validated_data):
-        user = self.context['request'].user
-        # For simplicity, assign the first tenant associated with the user or a default
-        # Assuming TenantAwareModel logic handles tenant assignment or we do it here
-        # Let's check how other models handle this.
-        # usually in this project, tenant is required.
-        tenant = user.tenant if hasattr(user, 'tenant') else None
+        request = self.context['request']
+        user = request.user
+        tenant = get_request_tenant(request)
         if not tenant:
-            # Fallback for debugging or if not properly set
-            from core.models import Tenant
-            tenant = Tenant.objects.first()
-            
-        return SupportTicket.objects.create(user=user, tenant=tenant, **validated_data)
+            raise serializers.ValidationError({'tenant': 'Tenant context is required.'})
+
+        return SupportTicket.objects.create(raised_by=user, tenant=tenant, **validated_data)

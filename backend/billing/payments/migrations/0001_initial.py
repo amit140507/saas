@@ -68,7 +68,7 @@ class Migration(migrations.Migration):
                 ('gateway_response', models.JSONField(blank=True, null=True)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
-                ('client', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='payments', to='clients.client')),
+                ('client', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='payments', to='clients.clientprofile')),
                 ('order', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='payments', to='orders.order')),
                 ('tenant', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+', to='tenants.organization')),
             ],

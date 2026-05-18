@@ -30,7 +30,7 @@ class Followup(TenantAwareModel):
         HIGH = 'high', 'High'
 
     client = models.ForeignKey(
-        'clients.Client', on_delete=models.CASCADE, related_name='followups'
+        'clients.ClientProfile', on_delete=models.CASCADE, related_name='followups'
     )
     assigned_to = models.ForeignKey(
         settings.AUTH_USER_MODEL,

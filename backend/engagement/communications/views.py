@@ -11,23 +11,22 @@ from .serializers import (
     EmailTemplateSerializer, EmailLogSerializer, WhatsAppTemplateSerializer, WhatsAppLogSerializer
 )
 from .services import CommunicationService
+from core.tenants.permissions import IsTenantMember
+from core.tenants.request_context import require_request_tenant
 
 class TenantScopedViewSet(viewsets.ModelViewSet):
     """
-    Base viewset that automatically scopes queries to the user's tenant.
+    Base viewset that automatically scopes queries to the active request tenant.
     """
+    permission_classes = [IsTenantMember]
+
     def get_queryset(self):
         qs = super().get_queryset()
-        # Ensure 'tenant' is a field on the current model and user has a tenant
-        if hasattr(self.request.user, 'tenant'):
-            qs = qs.filter(tenant=self.request.user.tenant)
-        return qs
+        tenant = require_request_tenant(self.request)
+        return qs.filter(tenant=tenant)
 
     def perform_create(self, serializer):
-        if hasattr(self.request.user, 'tenant'):
-            serializer.save(tenant=self.request.user.tenant)
-        else:
-            serializer.save()
+        serializer.save(tenant=require_request_tenant(self.request))
 
 
 class MessageTemplateViewSet(TenantScopedViewSet):
@@ -36,10 +35,10 @@ class MessageTemplateViewSet(TenantScopedViewSet):
     filterset_fields = ['channel', 'category', 'is_active']
 
     def perform_create(self, serializer):
-        tenant_kwargs = {}
-        if hasattr(self.request.user, 'tenant'):
-            tenant_kwargs['tenant'] = self.request.user.tenant
-        serializer.save(created_by=self.request.user, **tenant_kwargs)
+        serializer.save(
+            created_by=self.request.user,
+            tenant=require_request_tenant(self.request),
+        )
 
 
 class NotificationViewSet(TenantScopedViewSet):
@@ -54,10 +53,10 @@ class PromoViewSet(TenantScopedViewSet):
     filterset_fields = ['status', 'channel', 'target_audience']
 
     def perform_create(self, serializer):
-        tenant_kwargs = {}
-        if hasattr(self.request.user, 'tenant'):
-            tenant_kwargs['tenant'] = self.request.user.tenant
-        serializer.save(created_by=self.request.user, **tenant_kwargs)
+        serializer.save(
+            created_by=self.request.user,
+            tenant=require_request_tenant(self.request),
+        )
 
     @action(detail=True, methods=['post'])
     def launch(self, request, pk=None):
@@ -81,13 +80,12 @@ class EmailLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = EmailLog.objects.all()
     serializer_class = EmailLogSerializer
+    permission_classes = [IsTenantMember]
     filterset_fields = ['status', 'recipient']
 
     def get_queryset(self):
         qs = super().get_queryset()
-        if hasattr(self.request.user, 'tenant'):
-            qs = qs.filter(tenant=self.request.user.tenant)
-        return qs
+        return qs.filter(tenant=require_request_tenant(self.request))
 
 
 class WhatsAppTemplateViewSet(TenantScopedViewSet):
@@ -102,10 +100,9 @@ class WhatsAppLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = WhatsAppLog.objects.all()
     serializer_class = WhatsAppLogSerializer
+    permission_classes = [IsTenantMember]
     filterset_fields = ['status', 'recipient']
 
     def get_queryset(self):
         qs = super().get_queryset()
-        if hasattr(self.request.user, 'tenant'):
-            qs = qs.filter(tenant=self.request.user.tenant)
-        return qs
+        return qs.filter(tenant=require_request_tenant(self.request))

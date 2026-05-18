@@ -3,11 +3,11 @@ from .models import StaffProfile
 
 @admin.register(StaffProfile)
 class StaffProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'tenant', 'phone', 'specialization', 'rating', 'sex', 'date_of_joining')
+    list_display = ('user', 'tenant', 'phone', 'specialization', 'years_of_experience', 'sex', 'date_of_joining')
     list_filter = ('tenant', 'specialization', 'sex', 'date_of_joining')
     search_fields = ('org_staff__user__username', 'org_staff__user__email', 'specialization')
     fieldsets = (
         (None, {'fields': ('org_staff', 'tenant')}),
-        ('Professional Info', {'fields': ('specialization', 'rating', 'bio')}),
+        ('Professional Info', {'fields': ('specialization', 'years_of_experience', 'bio')}),
         ('Personal Info', {'fields': ('phone', 'dob', 'sex', 'profile_picture', 'date_of_joining')}),
     )

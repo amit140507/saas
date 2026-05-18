@@ -41,7 +41,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '')
 # Application definition
 
 INSTALLED_APPS = [
-    'unfold',
+    # 'unfold',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -86,6 +86,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'core.tenants.middleware.TenantResolutionMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'allauth.account.middleware.AccountMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -230,8 +231,15 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'dj_rest_auth.jwt_auth.JWTCookieAuthentication',
     ],
+    'DEFAULT_THROTTLE_RATES': {
+        'auth_check_availability': '10/minute',
+    },
 }
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+GOOGLE_OAUTH_CALLBACK_URL = os.environ.get(
+    "GOOGLE_OAUTH_CALLBACK_URL",
+    f"{FRONTEND_URL}/auth/google/callback/",
+)
 REST_AUTH = {
     'USE_JWT': True,
     # 'JWT_AUTH_SECURE': True,        # only over HTTPS (prod)

@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Client',
+            name='ClientProfile',
             fields=[
                 ('created_at', models.DateTimeField(auto_now_add=True, db_index=True, help_text='When this record was created')),
                 ('updated_at', models.DateTimeField(auto_now=True, db_index=True, help_text='Last time this record was updated')),

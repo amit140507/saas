@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Product, PackagePlan
+from .models import Package, PackagePlan
 
 class PackagePlanSerializer(serializers.ModelSerializer):
     class Meta:

@@ -23,7 +23,7 @@ class Order(TenantAwareModel):
     order_number = models.CharField(
         max_length=20, unique=True)   # e.g. ORD-12345678
     client = models.ForeignKey(
-        'clients.Client', on_delete=models.PROTECT, related_name='orders'
+        'clients.ClientProfile', on_delete=models.PROTECT, related_name='orders'
     )
 
     status = models.CharField(

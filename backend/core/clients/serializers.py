@@ -2,7 +2,7 @@ from django.db import transaction
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
-from .models import Client
+from .models import ClientProfile
 from .services import create_client
 
 User = get_user_model()
@@ -18,7 +18,7 @@ class ClientSerializer(serializers.ModelSerializer):
     user = ClientUserSerializer(read_only=True)
 
     class Meta:
-        model = Client
+        model = ClientProfile
         fields = [
             'id', 'user', 'assigned_trainer', 'status', 'goal',
             'dob', 'sex', 'profile_picture',

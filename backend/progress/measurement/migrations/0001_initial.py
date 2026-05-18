@@ -34,7 +34,7 @@ class Migration(migrations.Migration):
                 ('weight', models.DecimalField(blank=True, decimal_places=2, max_digits=5, null=True)),
                 ('notes', models.TextField(blank=True, null=True)),
                 ('measured_at', models.DateTimeField(auto_now_add=True)),
-                ('client', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='measurements', to='clients.client')),
+                ('client', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='measurements', to='clients.clientprofile')),
                 ('tenant', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+', to='tenants.organization')),
             ],
             options={

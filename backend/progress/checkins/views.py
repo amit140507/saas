@@ -1,14 +1,13 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from .models import CheckInPlan, DailyLog
-from .serializers import CheckInPlanSerializer, DailyLogSerializer
-from core.models import Tenant
+from .models import CheckIn, CheckinLog
+from .serializers import CheckInSerializer, CheckInLogSerializer
 from .services.checkin_service import CheckInService
 
 class CheckInPlanViewSet(viewsets.ModelViewSet):
-    queryset = CheckInPlan.objects.all()
-    serializer_class = CheckInPlanSerializer
+    queryset = CheckIn.objects.all()
+    serializer_class = CheckInSerializer
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -16,9 +15,9 @@ class CheckInPlanViewSet(viewsets.ModelViewSet):
         # e.g., return qs.filter(user=self.request.user)
         return qs
 
-class DailyLogViewSet(viewsets.ModelViewSet):
-    queryset = DailyLog.objects.all()
-    serializer_class = DailyLogSerializer
+class CheckinLogViewSet(viewsets.ModelViewSet):
+    queryset = CheckinLog.objects.all()
+    serializer_class = CheckInLogSerializer
     filterset_fields = ['plan', 'week_number']
     
     def get_queryset(self):

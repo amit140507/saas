@@ -73,7 +73,7 @@ class WorkoutPlanAssignment(TenantAwareModel):
         CANCELLED = 'cancelled', 'Cancelled'
 
     client = models.ForeignKey(
-        'clients.Client', on_delete=models.CASCADE, related_name='workout_plan_assignments'
+        'clients.ClientProfile', on_delete=models.CASCADE, related_name='workout_plan_assignments'
     )
     plan = models.ForeignKey(
         WorkoutPlan, on_delete=models.PROTECT, related_name='workout_plan_assignments'

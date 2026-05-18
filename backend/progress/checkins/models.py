@@ -1,11 +1,11 @@
 from django.db import models
 from django.conf import settings
-from core.tenants.models import TenantAwareModel
+from core.tenants.models import TenantAwareModel, SoftDeleteModel
 
 
 class CheckIn(TenantAwareModel):
     client = models.ForeignKey(
-        'clients.Client', on_delete=models.CASCADE, related_name='checkins'
+        'clients.ClientProfile', on_delete=models.CASCADE, related_name='checkins'
     )
     start_date = models.DateField()
     # duration_weeks = models.IntegerField(default=12)

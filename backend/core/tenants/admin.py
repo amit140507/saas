@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Organization, Role, Permission, OrganizationMember
+from .models import Organization, Role, Permission, OrganizationMember, RolePermission
 
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
@@ -13,6 +13,11 @@ class RoleAdmin(admin.ModelAdmin):
     list_filter = ('tenant', 'is_system', 'is_default')
     search_fields = ('name', 'tenant__name')
 
+@admin.register(RolePermission)
+class RolePermissionAdmin(admin.ModelAdmin):
+    list_display = ('role', 'permission')
+    list_filter = ('role', 'permission')
+    search_fields = ('role', 'permission')
 @admin.register(Permission)
 class PermissionAdmin(admin.ModelAdmin):
     list_display = ('code', 'description')

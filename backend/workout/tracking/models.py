@@ -13,7 +13,7 @@ class WorkoutSession(TenantAwareModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     client = models.ForeignKey(
-        'clients.Client', on_delete=models.CASCADE, related_name='workout_sessions'
+        'clients.ClientProfile', on_delete=models.CASCADE, related_name='workout_sessions'
     )
     plan_assignment = models.ForeignKey(
         WorkoutPlanAssignment,

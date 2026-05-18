@@ -9,7 +9,7 @@ from core.tenants.rbac_service import seed_default_roles
 from billing.packages.models import Package, PackagePlan
 from billing.subscriptions.models import MembershipPackage, Membership, Feature, PackageFeature
 from billing.orders.models import Order
-from core.clients.models import Client
+from core.clients.models import ClientProfile
 
 class Command(BaseCommand):
     help = 'Seeds foundation data: Global Permissions, Tenant Roles, Membership Packages, Features, Client Memberships and Orders'
@@ -206,7 +206,7 @@ class Command(BaseCommand):
 
     def seed_client_memberships_and_orders(self, org, membership_packages):
         """Assigns an active membership and creates a corresponding Order for every client."""
-        clients = Client.objects.filter(tenant=org)
+        clients = ClientProfile.objects.filter(tenant=org)
         if not clients.exists():
             return
 

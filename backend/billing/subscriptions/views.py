@@ -13,24 +13,26 @@ from .serializers import (
     MembershipChangeActionSerializer
 )
 from .services import MembershipService
+from core.tenants.permissions import IsTenantMember
+from core.tenants.request_context import require_request_tenant
 
 class MembershipPackageViewSet(viewsets.ModelViewSet):
     serializer_class = MembershipPackageSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsTenantMember]
 
     def get_queryset(self):
-        return MembershipPackage.objects.filter(tenant=self.request.user.tenant_id)
+        return MembershipPackage.objects.filter(tenant=require_request_tenant(self.request))
 
     def perform_create(self, serializer):
-        serializer.save(tenant_id=self.request.user.tenant_id)
+        serializer.save(tenant=require_request_tenant(self.request))
 
 
 class MembershipViewSet(viewsets.ModelViewSet):
     serializer_class = MembershipSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsTenantMember]
 
     def get_queryset(self):
-        return Membership.objects.filter(tenant=self.request.user.tenant_id)
+        return Membership.objects.filter(tenant=require_request_tenant(self.request))
 
     def create(self, request, *args, **kwargs):
         # We override create to use our service, ensuring snapshots and dates are handled
@@ -38,9 +40,10 @@ class MembershipViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         
         try:
-            package = MembershipPackage.objects.get(id=serializer.validated_data['package'].id, tenant=self.request.user.tenant_id)
+            tenant = require_request_tenant(request)
+            package = MembershipPackage.objects.get(id=serializer.validated_data['package'].id, tenant=tenant)
             membership = MembershipService.create_membership(
-                tenant=self.request.user.tenant, # assuming user has a tenant property
+                tenant=tenant,
                 client=serializer.validated_data['client'],
                 package=package,
                 start_date=serializer.validated_data.get('start_date'),

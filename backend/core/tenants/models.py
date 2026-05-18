@@ -65,6 +65,8 @@ class Organization(TimeAwareModel):
 
     # Flexible settings (Theme, notifications, features)
     settings = models.JSONField(default=dict, blank=True)
+    null=True,
+    blank=True,
 
     def __str__(self):
         return self.name
@@ -74,7 +76,7 @@ class Organization(TimeAwareModel):
 Tenant = Organization
 
 
-class TenantAwareModel(TimeAwareModel, SoftDeleteModel):
+class TenantAwareModel(TimeAwareModel):
     """Abstract base: all tenant-scoped models inherit this."""
     tenant = models.ForeignKey(
         Organization,
@@ -82,6 +84,8 @@ class TenantAwareModel(TimeAwareModel, SoftDeleteModel):
         related_name='+',
         db_index=True
     )
+    null=True,
+    blank=True,
 
     class Meta:
         abstract = True
@@ -201,6 +205,9 @@ class OrganizationMember(TenantAwareModel):
         on_delete=models.CASCADE,
         related_name='org_memberships'
     )
+    null=True,
+    blank=True,
+
     role = models.ForeignKey(
         Role,
         on_delete=models.SET_NULL,

@@ -15,7 +15,7 @@ class StaffProfileSerializer(serializers.ModelSerializer):
         model = StaffProfile
         fields = [
             'id', 'user_id', 'username', 'full_name', 'email', 'public_id',
-            'role_name', 'bio', 'specialization', 'rating',
+            'role_name', 'bio', 'specialization', 'years_of_experience',
             'dob', 'sex', 'profile_picture', 'phone',
             'date_of_joining', 'client_count',
         ]

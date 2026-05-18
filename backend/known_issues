@@ -1,0 +1,4 @@
+Medium: services.py (line 105) auto-links a Google login to an existing user by email. That is convenient, but risky if email verification assumptions ever change. Best practice is to only auto-link when the provider email is verified, or require the user to be logged in before linking.
+
+Solution: add a helper like get_verified_social_email(sociallogin) and reject auto-link if no verified email matches the existing user email.
+

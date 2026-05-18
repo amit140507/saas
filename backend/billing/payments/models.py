@@ -34,7 +34,7 @@ class Payment(TenantAwareModel):
         'orders.Order', on_delete=models.PROTECT, related_name='payments'
     )
     client = models.ForeignKey(
-        'clients.Client', on_delete=models.PROTECT, related_name='payments'
+        'clients.ClientProfile', on_delete=models.PROTECT, related_name='payments'
     )
     gateway = models.CharField(max_length=20, choices=GatewayChoices.choices)
     gateway_payment_id = models.CharField(max_length=255, null=True, blank=True)

@@ -7,6 +7,8 @@ from django.core.exceptions import ValidationError
 from .models import Invoice
 from .serializers import InvoiceSerializer, InvoiceActionSerializer
 from .services import InvoiceService
+from core.tenants.permissions import IsTenantMember
+from core.tenants.request_context import require_request_tenant
 
 class InvoiceViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -14,10 +16,10 @@ class InvoiceViewSet(viewsets.ReadOnlyModelViewSet):
     Creation and state changes happen via business logic / services.
     """
     serializer_class = InvoiceSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsTenantMember]
 
     def get_queryset(self):
-        return Invoice.objects.filter(tenant=self.request.user.tenant_id)
+        return Invoice.objects.filter(tenant=require_request_tenant(self.request))
 
     @action(detail=True, methods=['post'], url_path='generate-pdf')
     def generate_pdf(self, request, pk=None):

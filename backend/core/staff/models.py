@@ -16,7 +16,10 @@ class StaffProfile(TenantAwareModel, BaseProfile):
 
     bio = models.TextField(null=True, blank=True)
     specialization = models.CharField(max_length=100, null=True, blank=True)
-    rating = models.DecimalField(max_digits=3, decimal_places=2, default=5.0)
+    years_of_experience = models.PositiveIntegerField(
+        null=True,
+        blank=True
+    )
     
     @property
     def user(self):

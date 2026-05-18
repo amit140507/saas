@@ -5,7 +5,7 @@ from core.tenants.models import TenantAwareModel, OrganizationMember
 from core.common.models import BaseProfile
 
 
-class Client(TenantAwareModel, BaseProfile):
+class ClientProfile(TenantAwareModel, BaseProfile):
     # Rule Followed: Use UUIDs
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
@@ -72,3 +72,7 @@ class Client(TenantAwareModel, BaseProfile):
 
     def __str__(self):
         return f"Client: {self.user.get_full_name() or self.user.username}"
+
+
+# Backward-compatible alias for older imports that still reference Client.
+# Client = ClientProfile

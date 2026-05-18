@@ -1,9 +1,9 @@
 from django.contrib import admin
-from .models import Client
+from .models import ClientProfile
 
 
-@admin.register(Client)
-class ClientAdmin(admin.ModelAdmin):
+@admin.register(ClientProfile)
+class ClientProfileAdmin(admin.ModelAdmin):
     list_display = ('client_user', 'tenant', 'phone', 'status',
                     'assigned_trainer', 'sex', 'date_of_joining')
     list_filter = ('status', 'tenant', 'sex', 'date_of_joining')
@@ -15,8 +15,8 @@ class ClientAdmin(admin.ModelAdmin):
         'goal',
     )
     fieldsets = (
-        (None, {'fields': ('org_client', 'tenant', 'status', 'assigned_trainer')}),
-        ('Client Profile', {'fields': ('goal',)}),
+        (None, {'fields': ('org_client', 'tenant', 'status', 'assigned_trainer', 'goal')}),
+        # ('Goal', {'fields': ('goal',)}),
         ('Personal Info', {'fields': ('phone', 'dob', 'sex',
          'profile_picture', 'date_of_joining', 'referral_source')}),
     )

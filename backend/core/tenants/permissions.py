@@ -1,6 +1,7 @@
 from rest_framework import permissions
 from core.tenants.permission_codes import Perms
 from core.tenants.rbac_service import user_has_permission, get_member
+from core.tenants.request_context import get_request_tenant, get_request_tenant_member
 
 class IsSuperAdmin(permissions.IsAuthenticated):
     """Allows access only to global superusers."""
@@ -9,6 +10,9 @@ class IsSuperAdmin(permissions.IsAuthenticated):
 
 def _get_cached_member(request, tenant):
     """Return the OrganizationMember for this request, caching it to avoid redundant DB hits."""
+    cached_member = get_request_tenant_member(request)
+    if cached_member is not None and getattr(cached_member, "tenant_id", None) == tenant.pk:
+        return cached_member
     cache_key = f'_rbac_member_{tenant.pk}'
     if not hasattr(request, cache_key):
         setattr(request, cache_key, get_member(request.user, tenant))
@@ -20,7 +24,7 @@ class IsTenantMember(permissions.IsAuthenticated):
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
-        tenant = getattr(request, 'tenant', None)
+        tenant = get_request_tenant(request)
         if not tenant:
             return False
         return _get_cached_member(request, tenant) is not None
@@ -30,7 +34,7 @@ class IsTenantOwner(permissions.IsAuthenticated):
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
-        tenant = getattr(request, 'tenant', None)
+        tenant = get_request_tenant(request)
         if not tenant:
             return False
         member = _get_cached_member(request, tenant)
@@ -42,7 +46,7 @@ def HasPermission(code: str):
         def has_permission(self, request, view):
             if not super().has_permission(request, view):
                 return False
-            tenant = getattr(request, 'tenant', None)
+            tenant = get_request_tenant(request)
             if not tenant:
                 return False
             return user_has_permission(request.user, tenant, code)
@@ -54,7 +58,7 @@ class IsCoachOfClient(permissions.IsAuthenticated):
     Owners/Admins can see everything.
     """
     def has_object_permission(self, request, view, obj):
-        tenant = getattr(request, 'tenant', None)
+        tenant = get_request_tenant(request)
         if not tenant:
             return False
 
@@ -81,7 +85,7 @@ class IsClientOwner(permissions.IsAuthenticated):
     Assumes the object has a 'user' or 'client.user' attribute.
     """
     def has_object_permission(self, request, view, obj):
-        tenant = getattr(request, 'tenant', None)
+        tenant = get_request_tenant(request)
         if not tenant:
             return False
 

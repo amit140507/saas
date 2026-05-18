@@ -11,6 +11,6 @@ class PackageAdmin(admin.ModelAdmin):
 
 @admin.register(PackagePlan)
 class PackagePlanAdmin(admin.ModelAdmin):
-    list_display = ('name', 'package', 'price', 'billing_cycle', 'duration_in_days', 'is_active')
+    list_display = ('name', 'package', 'price', 'billing_cycle', 'duration_in_days', 'tenant', 'is_active')
     list_filter = ('billing_cycle', 'is_active', 'tenant')
     search_fields = ('name', 'package__name')

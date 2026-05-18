@@ -88,7 +88,7 @@ class DietPlanAssignment(TenantAwareModel):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     client = models.ForeignKey(
-        'clients.Client', on_delete=models.CASCADE, related_name='diet_assignments')
+        'clients.ClientProfile', on_delete=models.CASCADE, related_name='diet_assignments')
     plan = models.ForeignKey(DietPlan, on_delete=models.PROTECT)
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)

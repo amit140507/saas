@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RemoveField(
-            model_name='client',
+            model_name='clientprofile',
             name='health_and_fitness_data',
         ),
     ]

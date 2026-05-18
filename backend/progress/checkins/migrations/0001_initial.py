@@ -22,7 +22,7 @@ class Migration(migrations.Migration):
                 ('deleted_at', models.DateTimeField(blank=True, null=True)),
                 ('start_date', models.DateField()),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('client', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='checkins', to='clients.client')),
+                ('client', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='checkins', to='clients.clientprofile')),
                 ('tenant', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+', to='tenants.organization')),
             ],
             options={

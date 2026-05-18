@@ -3,25 +3,25 @@ from django.db import transaction
 from django.contrib.auth import get_user_model
 from rest_framework import serializers as drf_serializers
 
-from .models import Client
+from .models import ClientProfile
 from core.tenants.models import OrganizationMember
 from core.tenants.rbac_service import assign_role
 
 User = get_user_model()
 
 
-def activate_client(client: Client) -> Client:
+def activate_client(client: ClientProfile) -> ClientProfile:
     """
     Transition a Client to ACTIVE status.
 
     Sets activated_at only on the first activation (idempotent).
     Raises ValueError if the client is already active.
     """
-    if client.status == Client.StatusChoices.ACTIVE:
+    if client.status == ClientProfile.StatusChoices.ACTIVE:
         raise ValueError(f"Client {client.pk} is already active.")
 
     with transaction.atomic():
-        client.status = Client.StatusChoices.ACTIVE
+        client.status = ClientProfile.StatusChoices.ACTIVE
         if not client.activated_at:
             client.activated_at = timezone.now()
         client.save(update_fields=['status', 'activated_at', 'updated_at'])
@@ -29,21 +29,21 @@ def activate_client(client: Client) -> Client:
     return client
 
 
-def deactivate_client(client: Client) -> Client:
+def deactivate_client(client: ClientProfile) -> ClientProfile:
     """
     Transition a Client to INACTIVE status.
     """
-    if client.status == Client.StatusChoices.INACTIVE:
+    if client.status == ClientProfile.StatusChoices.INACTIVE:
         raise ValueError(f"Client {client.pk} is already inactive.")
 
     with transaction.atomic():
-        client.status = Client.StatusChoices.INACTIVE
+        client.status = ClientProfile.StatusChoices.INACTIVE
         client.save(update_fields=['status', 'updated_at'])
 
     return client
 
 
-def assign_trainer(client: Client, trainer) -> Client:
+def assign_trainer(client: ClientProfile, trainer) -> ClientProfile:
     """
     Assign a StaffProfile as the client's trainer.
     Validates trainer belongs to the same tenant.
@@ -59,7 +59,7 @@ def assign_trainer(client: Client, trainer) -> Client:
 
 
 @transaction.atomic
-def create_client(tenant, user_data: dict, client_data: dict) -> Client:
+def create_client(tenant, user_data: dict, client_data: dict) -> ClientProfile:
     """
     Full client-creation flow for a given tenant.
 
@@ -118,7 +118,7 @@ def create_client(tenant, user_data: dict, client_data: dict) -> Client:
 
     # ── 4. Upsert Client profile ────────────────────────────────────────────
     org_member = OrganizationMember.objects.get(user=user, tenant=tenant)
-    client, _ = Client.objects.update_or_create(
+    client, _ = ClientProfile.objects.update_or_create(
         org_client=org_member,
         defaults={**client_data, 'tenant': tenant},
     )

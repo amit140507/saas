@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CheckIn, DailyLog
+from .models import CheckIn, CheckinLog
 
 class DailyLogSerializer(serializers.ModelSerializer):
     hunger_level_display = serializers.CharField(
@@ -8,7 +8,7 @@ class DailyLogSerializer(serializers.ModelSerializer):
     )
 
     class Meta:
-        model = DailyLog
+        model = CheckinLog
         fields = '__all__'
 
 class CheckInSerializer(serializers.ModelSerializer):

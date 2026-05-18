@@ -28,6 +28,7 @@ class User(AbstractUser):
     Global user — not tied to any tenant directly.
     Tenant membership is handled via OrganizationMember.
     """
+    email = models.EmailField(unique=True)
     objects = UserManager()
 
     public_id = models.CharField(max_length=6, unique=True, null=True, blank=True)

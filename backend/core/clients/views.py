@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.core.exceptions import ObjectDoesNotExist
 
-from .models import Client
+from .models import ClientProfile
 from .serializers import ClientSerializer
 from .services import activate_client, deactivate_client, create_client
 from core.tenants.permissions import IsTenantMember, HasPermission, IsCoachOfClient
@@ -27,10 +27,10 @@ class ClientViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         tenant = getattr(self.request, 'tenant', None)
         if not tenant:
-            return Client.objects.none()
+            return ClientProfile.objects.none()
 
         qs = (
-            Client.objects
+            ClientProfile.objects
             .filter(tenant=tenant)
             .select_related('org_client__user', 'org_client__role', 'assigned_trainer')
         )
@@ -44,7 +44,7 @@ class ClientViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(assigned_trainer=staff)
             except (ObjectDoesNotExist, AttributeError):
                 # User is a tenant member but has no StaffProfile — show no clients.
-                qs = Client.objects.none()
+                qs = ClientProfile.objects.none()
 
         return qs
 

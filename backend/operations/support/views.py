@@ -3,23 +3,29 @@ from django.core.mail import send_mail
 from django.conf import settings
 from .models import SupportTicket
 from .serializers import SupportTicketSerializer
+from core.tenants.permissions import IsTenantMember
+from core.tenants.request_context import require_request_tenant
 
 class SupportTicketViewSet(viewsets.ModelViewSet):
     queryset = SupportTicket.objects.all()
     serializer_class = SupportTicketSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember]
 
     def get_queryset(self):
-        return self.queryset.filter(user=self.request.user)
+        return self.queryset.filter(
+            tenant=require_request_tenant(self.request),
+            raised_by=self.request.user,
+        )
 
     def perform_create(self, serializer):
         ticket = serializer.save()
         
         # Send email to admin
-        subject = f"New Support Ticket: {ticket.get_topic_display()}"
+        subject = f"New Support Ticket: {ticket.get_category_display()}"
         message = (
-            f"User: {ticket.user.email}\n"
-            f"Topic: {ticket.get_topic_display()}\n\n"
+            f"User: {ticket.raised_by.email}\n"
+            f"Category: {ticket.get_category_display()}\n"
+            f"Subject: {ticket.subject}\n\n"
             f"Description:\n{ticket.description}"
         )
         admin_email = getattr(settings, 'SUPPORT_ADMIN_EMAIL', settings.DEFAULT_FROM_EMAIL)
