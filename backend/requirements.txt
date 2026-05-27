@@ -23,7 +23,7 @@ weasyprint
 boto3
 psycopg[binary]
 # psycopg2-binary
-django-unfold
+# django-unfold
 Faker
 django-silk
 weasyprint

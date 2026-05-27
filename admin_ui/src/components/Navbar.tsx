@@ -118,7 +118,7 @@ export default function Navbar() {
                                 <span className="text-sm font-semibold leading-6 text-zinc-900 dark:text-white" aria-hidden="true">
                                     {user ? user.username : 'Admin User'}
                                 </span>
-                                <span className="text-xs text-red-600 dark:text-red-400 capitalize">{user?.role || 'Super Admin'}</span>
+                                <span className="text-xs text-red-600 dark:text-red-400 capitalize">{user?.memberships?.[0]?.role}</span>
                             </div>
                             <div className="h-8 w-8 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center border border-red-200 dark:border-red-500/30 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors">
                                 <ShieldIcon className="h-5 w-5 text-red-600 dark:text-red-500" />

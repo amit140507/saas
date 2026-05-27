@@ -15,16 +15,34 @@ class UserSerializer(serializers.ModelSerializer):
     Represents the global User object.
     Profile-level fields (phone, dob, etc.) live on Client/StaffProfile — not here.
     """
+    phone = serializers.SerializerMethodField()
     memberships = MembershipSerializer(
         source='org_memberships',
         many=True,
         read_only=True,
     )
 
+    def get_phone(self, obj):
+        memberships = (
+            obj.org_memberships
+            .select_related('staff_profile', 'client_profile')
+            .all()
+        )
+        for membership in memberships:
+            staff_profile = getattr(membership, 'staff_profile', None)
+            if staff_profile and staff_profile.phone:
+                return staff_profile.phone
+
+            client_profile = getattr(membership, 'client_profile', None)
+            if client_profile and client_profile.phone:
+                return client_profile.phone
+
+        return None
+
     class Meta:
         model = User
         fields = (
             'pk', 'username', 'email', 'first_name', 'last_name',
-            'public_id', 'is_active', 'memberships',
+            'public_id', 'is_active', 'phone', 'memberships',
         )
-        read_only_fields = ('public_id', 'memberships')
+        read_only_fields = ('public_id', 'phone', 'memberships')

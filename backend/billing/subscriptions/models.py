@@ -1,18 +1,25 @@
 import uuid
+
 from django.db import models
+
 from core.tenants.models import TenantAwareModel
 
 
 # ---------------------------------------------------------------------------
-# Feature — Individual features available in packages
+# Feature - Reusable capability
 # ---------------------------------------------------------------------------
 
+
 class Feature(TenantAwareModel):
+    """
+    Reusable capability that can be included in packages or sold via add-ons.
+    """
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=50)
     description = models.TextField(blank=True)
-    
+
     class Meta:
         verbose_name = 'Feature'
         verbose_name_plural = 'Features'
@@ -28,70 +35,16 @@ class Feature(TenantAwareModel):
 
 
 # ---------------------------------------------------------------------------
-# MembershipPackage — Template/tier definition
+# Membership - Actual assignment to a client
 # ---------------------------------------------------------------------------
 
-class MembershipPackage(TenantAwareModel):
-    """
-    Template defining a membership tier (Gold, Platinum, Silver).
-    This is the package definition, NOT the assignment.
-    """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
-    class TierChoices(models.TextChoices):
-        SILVER = 'silver', 'Silver'
-        GOLD = 'gold', 'Gold'
-        PLATINUM = 'platinum', 'Platinum'
-        CUSTOM = 'custom', 'Custom'
-
-    name = models.CharField(max_length=100)          # e.g. "3-Month Gold"
-    tier = models.CharField(max_length=20, choices=TierChoices.choices)
-    description = models.TextField(null=True, blank=True)
-    duration_days = models.PositiveIntegerField()    # 30, 90, 180, 365
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-    max_freezes = models.PositiveIntegerField(default=0)   # freeze days allowed
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        verbose_name = 'Membership Package'
-        verbose_name_plural = 'Membership Packages'
-        indexes = [
-            models.Index(fields=['tenant', 'tier', 'is_active']),
-        ]
-
-    def __str__(self):
-        return f"{self.name} ({self.get_tier_display()})"
-
-
-# ---------------------------------------------------------------------------
-# PackageFeature — Link between Package and Feature
-# ---------------------------------------------------------------------------
-
-class PackageFeature(TenantAwareModel):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    package = models.ForeignKey(MembershipPackage, on_delete=models.CASCADE, related_name='package_features')
-    feature = models.ForeignKey(Feature, on_delete=models.CASCADE, related_name='package_features')
-
-    class Meta:
-        verbose_name = 'Package Feature'
-        verbose_name_plural = 'Package Features'
-        constraints = [
-            models.UniqueConstraint(fields=['package', 'feature'], name='unique_package_feature')
-        ]
-
-    def __str__(self):
-        return f"{self.package.name} - {self.feature.name}"
-
-
-# ---------------------------------------------------------------------------
-# Membership — Actual assignment to a client
-# ---------------------------------------------------------------------------
 
 class Membership(TenantAwareModel):
     """
     An actual membership assigned to a Client.
     Tracks start/end, freeze periods, and renewal chain.
     """
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     class StatusChoices(models.TextChoices):
@@ -104,8 +57,8 @@ class Membership(TenantAwareModel):
     client = models.ForeignKey(
         'clients.ClientProfile', on_delete=models.CASCADE, related_name='memberships'
     )
-    package = models.ForeignKey(
-        MembershipPackage, on_delete=models.PROTECT, related_name='memberships'
+    plan = models.ForeignKey(
+        'packages.PackagePlan', on_delete=models.PROTECT, related_name='memberships'
     )
     order = models.OneToOneField(
         'orders.Order', on_delete=models.SET_NULL, null=True, blank=True,
@@ -117,8 +70,6 @@ class Membership(TenantAwareModel):
     status = models.CharField(
         max_length=20, choices=StatusChoices.choices, default=StatusChoices.ACTIVE
     )
-
-    # Renewal chain
     renewed_from = models.ForeignKey(
         'self', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='renewals'
@@ -133,13 +84,14 @@ class Membership(TenantAwareModel):
             models.Index(fields=['extended_end_date']),
         ]
 
-    def __str__(self):
-        return f"{self.client} — ({self.status})"
+    # def __str__(self):
+    #     return f"{self.client} ({self.status})"
 
 
 # ---------------------------------------------------------------------------
-# MembershipFreeze — Tracks individual freezes
+# MembershipFreeze - Tracks individual freezes
 # ---------------------------------------------------------------------------
+
 
 class MembershipFreeze(TenantAwareModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -162,8 +114,9 @@ class MembershipFreeze(TenantAwareModel):
 
 
 # ---------------------------------------------------------------------------
-# MembershipSnapshot — Package data at the time of purchase
+# MembershipSnapshot - Package data at the time of purchase
 # ---------------------------------------------------------------------------
+
 
 class MembershipSnapshot(TenantAwareModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -179,14 +132,15 @@ class MembershipSnapshot(TenantAwareModel):
 
 
 # ---------------------------------------------------------------------------
-# MembershipChange — Tracks upgrades and downgrades
+# MembershipChange - Tracks upgrades and downgrades
 # ---------------------------------------------------------------------------
+
 
 class MembershipChange(TenantAwareModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     membership = models.ForeignKey(Membership, on_delete=models.CASCADE, related_name='changes')
-    from_package = models.ForeignKey(MembershipPackage, on_delete=models.PROTECT, related_name='+')
-    to_package = models.ForeignKey(MembershipPackage, on_delete=models.PROTECT, related_name='+')
+    from_plan = models.ForeignKey('packages.PackagePlan', on_delete=models.PROTECT, related_name='+')
+    to_plan = models.ForeignKey('packages.PackagePlan', on_delete=models.PROTECT, related_name='+')
     price_difference = models.DecimalField(max_digits=10, decimal_places=2)
 
     class Meta:
@@ -197,4 +151,112 @@ class MembershipChange(TenantAwareModel):
         ]
 
     def __str__(self):
-        return f"Change for {self.membership}: {self.from_package.name} -> {self.to_package.name}"
+        return f"Change for {self.membership}: {self.from_plan.name} -> {self.to_plan.name}"
+
+
+# ---------------------------------------------------------------------------
+# Addon - Optional paid extras for a specific membership
+# ---------------------------------------------------------------------------
+
+
+class Addon(TenantAwareModel):
+    """
+    Optional paid extra that can unlock one or more reusable features for a
+    specific membership without changing the package defaults.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    class BillingTypeChoices(models.TextChoices):
+        ONE_TIME = 'one_time', 'One Time'
+        RECURRING = 'recurring', 'Recurring'
+
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=50)
+    description = models.TextField(blank=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    billing_type = models.CharField(
+        max_length=20,
+        choices=BillingTypeChoices.choices,
+        default=BillingTypeChoices.ONE_TIME,
+    )
+    duration_days = models.PositiveIntegerField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'Addon'
+        verbose_name_plural = 'Addons'
+        indexes = [
+            models.Index(fields=['tenant', 'is_active']),
+            models.Index(fields=['tenant', 'name']),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'code'], name='unique_addon_code_per_tenant'),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+# ---------------------------------------------------------------------------
+# AddonFeature - Features unlocked by an add-on
+# ---------------------------------------------------------------------------
+
+
+class AddonFeature(TenantAwareModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    addon = models.ForeignKey(Addon, on_delete=models.CASCADE, related_name='addon_features')
+    feature = models.ForeignKey(Feature, on_delete=models.CASCADE, related_name='addon_features')
+
+    class Meta:
+        verbose_name = 'Addon Feature'
+        verbose_name_plural = 'Addon Features'
+        indexes = [
+            models.Index(fields=['tenant', 'addon']),
+            models.Index(fields=['tenant', 'feature']),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['addon', 'feature'], name='unique_addon_feature'),
+        ]
+
+    def __str__(self):
+        return f"{self.addon.name} - {self.feature.name}"
+
+
+from billing.packages.models import PackageFeature
+
+
+# ---------------------------------------------------------------------------
+# MembershipAddon - Purchased add-ons for a specific membership
+# ---------------------------------------------------------------------------
+
+
+class MembershipAddon(TenantAwareModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    class StatusChoices(models.TextChoices):
+        ACTIVE = 'active', 'Active'
+        EXPIRED = 'expired', 'Expired'
+        CANCELLED = 'cancelled', 'Cancelled'
+
+    membership = models.ForeignKey(Membership, on_delete=models.CASCADE, related_name='addons')
+    addon = models.ForeignKey(Addon, on_delete=models.PROTECT, related_name='membership_addons')
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=StatusChoices.choices,
+        default=StatusChoices.ACTIVE,
+    )
+
+    class Meta:
+        verbose_name = 'Membership Addon'
+        verbose_name_plural = 'Membership Addons'
+        indexes = [
+            models.Index(fields=['tenant', 'membership', 'status']),
+            models.Index(fields=['tenant', 'addon']),
+        ]
+
+    def __str__(self):
+        return f"{self.membership} - {self.addon.name} ({self.status})"

@@ -6,5 +6,6 @@ urlpatterns = [
     path('clients/', include('core.clients.urls')),
     path('staff/', include('core.staff.urls')),
     path('users/', include('core.accounts.urls')),
+    path('', include('billing.packages.urls')),
     path('meal/', include('meal.urls')),
 ]

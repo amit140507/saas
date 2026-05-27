@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
     UsersIcon,
@@ -13,13 +13,15 @@ import {
     CalculatorIcon,
     ActivityIcon,
     RulerIcon,
-    ShoppingCartIcon
+    ShoppingCartIcon,
+    PackageIcon
 } from "lucide-react";
 
 const navigation = [
     { name: "Admin Dashboard", href: "/dashboard", icon: LayoutDashboardIcon },
     { name: "Staff Members", href: "/dashboard/staff-profiles", icon: ShieldCheckIcon },
     { name: "Clients (Members)", href: "/dashboard/clients", icon: UsersIcon },
+    { name: "Packages", href: "/dashboard/packages", icon: PackageIcon },
     { name: "Orders", href: "/dashboard/orders", icon: ShoppingCartIcon },
     { name: "Payments", href: "/dashboard/payments", icon: CreditCardIcon },
     // { name: "Security", href: "/dashboard/security", icon: ShieldCheckIcon },
@@ -31,7 +33,6 @@ const navigation = [
 
 export default function Sidebar() {
     const pathname = usePathname();
-    const router = useRouter();
 
     const handleLogout = () => {
         signOut({ callbackUrl: "/login" });

@@ -4,9 +4,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.core.exceptions import ValidationError
 
-from .models import MembershipPackage, Membership
+from billing.packages.models import PackagePlan
+from .models import Membership
 from .serializers import (
-    MembershipPackageSerializer,
     MembershipSerializer,
     MembershipFreezeActionSerializer,
     MembershipRenewActionSerializer,
@@ -15,17 +15,6 @@ from .serializers import (
 from .services import MembershipService
 from core.tenants.permissions import IsTenantMember
 from core.tenants.request_context import require_request_tenant
-
-class MembershipPackageViewSet(viewsets.ModelViewSet):
-    serializer_class = MembershipPackageSerializer
-    permission_classes = [IsAuthenticated, IsTenantMember]
-
-    def get_queryset(self):
-        return MembershipPackage.objects.filter(tenant=require_request_tenant(self.request))
-
-    def perform_create(self, serializer):
-        serializer.save(tenant=require_request_tenant(self.request))
-
 
 class MembershipViewSet(viewsets.ModelViewSet):
     serializer_class = MembershipSerializer
@@ -41,11 +30,14 @@ class MembershipViewSet(viewsets.ModelViewSet):
         
         try:
             tenant = require_request_tenant(request)
-            package = MembershipPackage.objects.get(id=serializer.validated_data['package'].id, tenant=tenant)
+            plan = PackagePlan.objects.select_related('package').get(
+                id=serializer.validated_data['plan'].id,
+                tenant=tenant,
+            )
             membership = MembershipService.create_membership(
                 tenant=tenant,
                 client=serializer.validated_data['client'],
-                package=package,
+                plan=plan,
                 start_date=serializer.validated_data.get('start_date'),
                 order=serializer.validated_data.get('order')
             )
@@ -83,7 +75,7 @@ class MembershipViewSet(viewsets.ModelViewSet):
             try:
                 renewed_membership = MembershipService.renew_membership(
                     membership=membership,
-                    package_id=serializer.validated_data['package_id'],
+                    plan_id=serializer.validated_data['plan_id'],
                     start_date=serializer.validated_data.get('start_date')
                 )
                 return Response(
@@ -95,16 +87,16 @@ class MembershipViewSet(viewsets.ModelViewSet):
                 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['post'], url_path='change-package')
-    def change_package(self, request, pk=None):
+    @action(detail=True, methods=['post'], url_path='change-plan')
+    def change_plan(self, request, pk=None):
         membership = self.get_object()
         serializer = MembershipChangeActionSerializer(data=request.data)
         
         if serializer.is_valid():
             try:
-                updated_membership = MembershipService.change_membership_package(
+                updated_membership = MembershipService.change_membership_plan(
                     membership=membership,
-                    new_package_id=serializer.validated_data['new_package_id']
+                    new_plan_id=serializer.validated_data['new_plan_id']
                 )
                 return Response(
                     MembershipSerializer(updated_membership).data, 

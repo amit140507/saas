@@ -1,15 +1,22 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets
 from .models import Package
+from .permissions import CanManagePackages, IsPackageTenantMember
 from .serializers import PackageSerializer
+from .services import resolve_package_tenant
 
 class PackageViewSet(viewsets.ModelViewSet):
-    queryset = Package.objects.filter(is_active=True)
     serializer_class = PackageSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsPackageTenantMember()]
+        return [CanManagePackages()]
 
     def get_queryset(self):
-        # Filter by current user's tenant
-        user = self.request.user
-        if user.is_staff:
-            return Package.objects.filter(tenant=user.tenant, is_active=True)
-        return Package.objects.filter(tenant=user.tenant, is_active=True)
+        tenant = resolve_package_tenant(self.request)
+        return (
+            Package.objects
+            .filter(tenant=tenant)
+            .prefetch_related('plans', 'package_features__feature')
+            .order_by('name')
+        )

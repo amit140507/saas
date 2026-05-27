@@ -1,13 +1,16 @@
 from django.contrib import admin
+
 from .models import (
-    Feature, 
-    PackageFeature, 
-    MembershipPackage, 
-    Membership, 
+    Addon,
+    AddonFeature,
+    Feature,
+    Membership,
+    MembershipAddon,
+    MembershipChange,
     MembershipFreeze,
     MembershipSnapshot,
-    MembershipChange
 )
+
 
 @admin.register(Feature)
 class FeatureAdmin(admin.ModelAdmin):
@@ -16,17 +19,18 @@ class FeatureAdmin(admin.ModelAdmin):
     search_fields = ('name', 'code', 'description')
 
 
-class PackageFeatureInline(admin.TabularInline):
-    model = PackageFeature
+class AddonFeatureInline(admin.TabularInline):
+    model = AddonFeature
     extra = 1
 
-@admin.register(MembershipPackage)
-class MembershipPackageAdmin(admin.ModelAdmin):
-    list_display = ('name', 'tier', 'duration_days', 'price', 'is_active', 'tenant')
-    list_filter = ('tier', 'is_active', 'tenant')
-    search_fields = ('name', 'description')
+
+@admin.register(Addon)
+class AddonAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'billing_type', 'price', 'is_active', 'tenant')
+    list_filter = ('billing_type', 'is_active', 'tenant')
+    search_fields = ('name', 'code', 'description')
     readonly_fields = ('id',)
-    inlines = [PackageFeatureInline]
+    inlines = [AddonFeatureInline]
 
 
 class MembershipFreezeInline(admin.TabularInline):
@@ -34,34 +38,58 @@ class MembershipFreezeInline(admin.TabularInline):
     extra = 0
     readonly_fields = ('days',)
 
+
 class MembershipSnapshotInline(admin.StackedInline):
     model = MembershipSnapshot
     readonly_fields = ('data',)
 
+
 class MembershipChangeInline(admin.TabularInline):
     model = MembershipChange
     extra = 0
-    readonly_fields = ('from_package', 'to_package', 'price_difference')
+    readonly_fields = ('from_plan', 'to_plan', 'price_difference')
+
+
+class MembershipAddonInline(admin.TabularInline):
+    model = MembershipAddon
+    extra = 0
 
 
 @admin.register(Membership)
 class MembershipAdmin(admin.ModelAdmin):
-    list_display = ('client', 'package', 'status', 'start_date', 'extended_end_date', 'tenant')
+    list_display = ('client', 'plan', 'status', 'start_date', 'extended_end_date', 'tenant')
     list_filter = ('status', 'tenant')
-    search_fields = ('client__user__email', 'client__user__first_name', 'client__user__last_name')
-    readonly_fields = ('id', 'base_end_date', 'extended_end_date')
-    date_hierarchy = 'start_date'
-    inlines = [MembershipFreezeInline, MembershipChangeInline, MembershipSnapshotInline]
+    search_fields = ('client__org_client__user__email', 'plan__name', 'plan__package__name')
+    # list_filter = ('status', 'tenant')
+    # search_fields = ('client__user__email', 'client__user__first_name', 'client__user__last_name')
+    # readonly_fields = ('id', 'base_end_date', 'extended_end_date')
+    # date_hierarchy = 'start_date'
+    inlines = [
+        MembershipFreezeInline,
+        MembershipAddonInline,
+        MembershipChangeInline,
+        MembershipSnapshotInline,
+    ]
+
+
+@admin.register(MembershipAddon)
+class MembershipAddonAdmin(admin.ModelAdmin):
+    list_display = ('membership', 'addon', 'price', 'start_date', 'end_date', 'status', 'tenant')
+    list_filter = ('status', 'tenant')
+    search_fields = ('membership__client__user__email', 'addon__name', 'addon__code')
+
 
 @admin.register(MembershipFreeze)
 class MembershipFreezeAdmin(admin.ModelAdmin):
     list_display = ('membership', 'start_date', 'end_date', 'days', 'tenant')
     list_filter = ('tenant',)
 
+
 @admin.register(MembershipChange)
 class MembershipChangeAdmin(admin.ModelAdmin):
-    list_display = ('membership', 'from_package', 'to_package', 'price_difference', 'tenant')
+    list_display = ('membership', 'from_plan', 'to_plan', 'price_difference', 'tenant')
     list_filter = ('tenant',)
+
 
 @admin.register(MembershipSnapshot)
 class MembershipSnapshotAdmin(admin.ModelAdmin):

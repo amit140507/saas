@@ -13,9 +13,12 @@ interface UserProfile {
     last_name: string;
     role: string;
     phone: string;
-    tenant_details?: {
-        name: string;
-    };
+    memberships?: {
+        tenant_id: string;
+        tenant_name: string;
+        role: string;
+        is_owner: boolean;
+    }[];
 }
 
 export default function ProfilePage() {
@@ -330,7 +333,7 @@ export default function ProfilePage() {
                                     <BuildingIcon size={16} /> Organization
                                 </dt>
                                 <dd className="mt-1 text-sm text-zinc-900 dark:text-zinc-100 sm:mt-0 sm:col-span-2">
-                                    {user?.tenant_details?.name || "Independent Account"}
+                                    {user?.memberships?.tenant_name || "No tenant"}
                                 </dd>
                             </div>
                             <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">

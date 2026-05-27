@@ -13,9 +13,12 @@ interface UserProfile {
     last_name: string;
     role: string;
     phone: string;
-    tenant_details?: {
-        name: string;
-    };
+    memberships?: {
+        tenant_id: string;
+        tenant_name: string;
+        role: string;
+        is_owner: boolean;
+    }[];
 }
 
 export default function AdminProfilePage() {
@@ -32,6 +35,7 @@ export default function AdminProfilePage() {
     });
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const organizationName = user?.memberships?.[0]?.tenant_name || "No organization";
 
     const fetchUser = async () => {
         try {
@@ -330,7 +334,7 @@ export default function AdminProfilePage() {
                                     <BuildingIcon size={16} /> Organization
                                 </dt>
                                 <dd className="mt-1 text-sm text-zinc-900 dark:text-zinc-100 sm:mt-0 sm:col-span-2 transition-colors">
-                                    {user?.tenant_details?.name || "Independent Account"}
+                                    {organizationName}
                                 </dd>
                             </div>
                             <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">

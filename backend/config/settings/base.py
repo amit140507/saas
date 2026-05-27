@@ -41,7 +41,6 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '')
 # Application definition
 
 INSTALLED_APPS = [
-    # 'unfold',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -166,6 +165,8 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
@@ -197,7 +198,7 @@ JWT_AUTH_REFRESH_COOKIE = 'saas-refresh-token'
 # Allauth settings
 ACCOUNT_LOGIN_METHODS = {'email', 'username'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*']
-ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+# ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 ACCOUNT_CONFIRM_EMAIL_ON_GET = True
 
 # Social Account Settings

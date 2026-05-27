@@ -3,7 +3,21 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1/";
+
+function extractAuthErrorMessage(error: any): string {
+  const data = error?.response?.data;
+  if (typeof data === "string" && data.trim()) {
+    return data;
+  }
+  if (Array.isArray(data?.non_field_errors) && data.non_field_errors[0]) {
+    return String(data.non_field_errors[0]);
+  }
+  if (typeof data?.detail === "string" && data.detail.trim()) {
+    return data.detail;
+  }
+  return "Unable to log in with provided credentials.";
+}
 
 /**
  * Decodes the exp (expiration) claim from a JWT.
@@ -51,10 +65,14 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         try {
-          const response = await axios.post(`${API_URL}auth/login/`, {
-            username: credentials?.email,
+          const identifier = credentials?.email?.trim() || "";
+          const loginPayload = {
             password: credentials?.password,
-          });
+            ...(identifier.includes("@")
+              ? { email: identifier }
+              : { username: identifier }),
+          };
+          const response = await axios.post(`${API_URL}auth/login/`, loginPayload);
 
           if (response.data && response.data.access) {
             return {
@@ -67,8 +85,9 @@ export const authOptions: NextAuthOptions = {
           }
           return null;
         } catch (error: any) {
+          const message = extractAuthErrorMessage(error);
           console.error("Login error response:", error.response?.data || error.message);
-          return null;
+          throw new Error(message);
         }
       },
     }),

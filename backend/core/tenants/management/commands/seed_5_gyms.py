@@ -215,15 +215,25 @@ class Command(BaseCommand):
 
             # 3. Packages
             package, _ = Package.objects.get_or_create(
-                tenant=tenant, name='Standard Membership', defaults={'description': 'Basic gym access'}
+                tenant=tenant,
+                name='Standard Membership',
+                defaults={'description': 'Basic gym access', 'max_freezes': 5}
             )
             PackagePlan.objects.get_or_create(
                 tenant=tenant, package=package, name='Monthly Plan', 
-                defaults={'price': 2000, 'billing_cycle': PackagePlan.BillingCycleChoices.MONTHLY}
+                defaults={
+                    'price': 2000,
+                    'billing_cycle': PackagePlan.BillingCycleChoices.MONTHLY,
+                    'duration_in_days': 30,
+                }
             )
             PackagePlan.objects.get_or_create(
                 tenant=tenant, package=package, name='Annual Plan', 
-                defaults={'price': 18000, 'billing_cycle': PackagePlan.BillingCycleChoices.YEARLY}
+                defaults={
+                    'price': 18000,
+                    'billing_cycle': PackagePlan.BillingCycleChoices.YEARLY,
+                    'duration_in_days': 365,
+                }
             )
 
             # 4. Exercises for this tenant
