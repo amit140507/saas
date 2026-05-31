@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from celery.schedules import crontab
+from corsheaders.defaults import default_headers
 from datetime import timedelta
 import os
 from pathlib import Path
@@ -50,6 +51,7 @@ INSTALLED_APPS = [
     'django.contrib.sites',
     'rest_framework',
     'rest_framework.authtoken',
+    # "rest_framework_simplejwt.token_blacklist",
     'dj_rest_auth',
     'dj_rest_auth.registration',
     'allauth',
@@ -89,7 +91,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'allauth.account.middleware.AccountMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'axes.middleware.AxesMiddleware',
+    # 'axes.middleware.AxesMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -108,6 +110,14 @@ TEMPLATES = [
             ],
         },
     },
+]
+
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+    # "django.contrib.auth.hashers.Argon2PasswordHasher",
+    # "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
+    # "django.contrib.auth.hashers.ScryptPasswordHasher",
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
@@ -179,9 +189,13 @@ AUTH_USER_MODEL = 'accounts.User'
 
 # CORS Settings
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = (
+    *default_headers,
+    'x-tenant-id',
+)
 
 AUTHENTICATION_BACKENDS = [
-    'axes.backends.AxesBackend',
+    # 'axes.backends.AxesBackend',
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
@@ -231,10 +245,12 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'dj_rest_auth.jwt_auth.JWTCookieAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
     'DEFAULT_THROTTLE_RATES': {
         'auth_check_availability': '10/minute',
     },
+    "EXCEPTION_HANDLER": "core.common.exceptions.custom_exception_handler",
 }
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 GOOGLE_OAUTH_CALLBACK_URL = os.environ.get(

@@ -8,7 +8,6 @@ interface Plan {
     id: number;
     name: string;
     price: string;
-    billing_cycle: string;
     duration_in_days: number | null;
     is_active: boolean;
 }
@@ -90,10 +89,10 @@ export default function ShopPage() {
     };
 
     const filteredProducts = products
-        .filter(p => p.is_active && p.plans.some(plan => plan.billing_cycle === selectedDuration && plan.is_active));
+        .filter(p => p.is_active && p.plans.some(plan.is_active));
 
     const getPlanForDuration = (product: Product): Plan | undefined => {
-        return product.plans.find(plan => plan.billing_cycle === selectedDuration && plan.is_active);
+        return product.plans.find(plan => plan.is_active);
     };
 
     const openCheckout = (product: Product, plan: Plan) => {
@@ -330,7 +329,6 @@ export default function ShopPage() {
                                 <div>
                                     <p className="text-sm font-medium text-indigo-200">Checkout</p>
                                     <h2 className="text-xl font-bold mt-1">{checkout.product.name}</h2>
-                                    <p className="text-sm text-indigo-200 mt-1">{checkout.plan.name} • {checkout.plan.billing_cycle.replace('-', ' ')}</p>
                                 </div>
                                 <button onClick={closeCheckout} className="text-white/70 hover:text-white text-2xl leading-none p-1">&times;</button>
                             </div>

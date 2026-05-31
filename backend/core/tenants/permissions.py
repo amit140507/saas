@@ -21,34 +21,49 @@ def _get_cached_member(request, tenant):
 
 class IsTenantMember(permissions.IsAuthenticated):
     """Allows access to any member of the current tenant."""
+    message = "Authenticated user is not an active member of the selected organization."
+
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
         tenant = get_request_tenant(request)
         if not tenant:
+            self.message = "Organization context is required. Provide X-Tenant-Id or X-Tenant-Slug."
             return False
+        if request.user.is_superuser:
+            return True
         return _get_cached_member(request, tenant) is not None
 
 class IsTenantOwner(permissions.IsAuthenticated):
     """Allows access only to organization owners."""
+    message = "Authenticated user is not an owner of the selected organization."
+
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
         tenant = get_request_tenant(request)
         if not tenant:
+            self.message = "Organization context is required. Provide X-Tenant-Id or X-Tenant-Slug."
             return False
+        if request.user.is_superuser:
+            return True
         member = _get_cached_member(request, tenant)
         return member is not None and member.is_owner
 
 def HasPermission(code: str):
     """Factory that returns a permission class checking for a specific code."""
     class _HasPermission(permissions.IsAuthenticated):
+        message = f"Authenticated user does not have the required permission: {code}."
+
         def has_permission(self, request, view):
             if not super().has_permission(request, view):
                 return False
             tenant = get_request_tenant(request)
             if not tenant:
+                self.message = "Organization context is required. Provide X-Tenant-Id or X-Tenant-Slug."
                 return False
+            if request.user.is_superuser:
+                return True
             return user_has_permission(request.user, tenant, code)
     return _HasPermission
 

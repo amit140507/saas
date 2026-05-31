@@ -35,7 +35,6 @@ def migrate_membership_packages_to_catalog(apps, schema_editor):
             name=legacy_package.name,
             defaults={
                 'price': legacy_package.price,
-                'billing_cycle': 'one-time',
                 'duration_in_days': legacy_package.duration_days,
                 'is_active': legacy_package.is_active,
             },

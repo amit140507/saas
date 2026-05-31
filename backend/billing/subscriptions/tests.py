@@ -1,4 +1,5 @@
 from datetime import date
+from types import SimpleNamespace
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
@@ -78,6 +79,145 @@ class MembershipFeatureTests(TestCase):
         )
         self.assertEqual(len(serializer.data['plans']), 1)
         self.assertEqual(serializer.data['plans'][0]['name'], 'Gold 3-Month Plan')
+
+    def test_package_serializer_creates_nested_features_and_plans(self):
+        payload = {
+            'name': 'Platinum',
+            'description': 'Platinum package',
+            'max_freezes': 10,
+            'is_active': True,
+            'features': [
+                {
+                    'name': 'Diet Plans',
+                    'code': 'diet_plans',
+                    'description': 'Access to diet plans.',
+                },
+            ],
+            'plans': [
+                {
+                    'name': 'Monthly Platinum',
+                    'price': '6000.00',
+                    'duration_in_days': 30,
+                    'is_active': True,
+                },
+            ],
+        }
+        serializer = PackageSerializer(
+            data=payload,
+            context={'request': SimpleNamespace(tenant=self.tenant)},
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        package = serializer.save()
+
+        self.assertEqual(package.package_features.count(), 1)
+        self.assertEqual(package.plans.count(), 1)
+        self.assertEqual(package.package_features.first().feature_id, self.diet_feature.id)
+
+    def test_package_serializer_replaces_nested_features_and_plans_on_update(self):
+        payload = {
+            'name': 'Gold Updated',
+            'description': 'Updated package',
+            'max_freezes': 8,
+            'is_active': True,
+            'features': [
+                {
+                    'name': 'Diet Plans',
+                    'code': 'diet_plans',
+                    'description': 'Access to diet plans.',
+                },
+            ],
+            'plans': [
+                {
+                    'name': 'Annual Gold',
+                    'price': '30000.00',
+                    'duration_in_days': 365,
+                    'is_active': True,
+                },
+            ],
+        }
+        serializer = PackageSerializer(
+            self.package,
+            data=payload,
+            context={'request': SimpleNamespace(tenant=self.tenant)},
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        package = serializer.save()
+
+        self.assertEqual(package.name, 'Gold Updated')
+        self.assertEqual(package.package_features.count(), 1)
+        self.assertEqual(package.package_features.first().feature_id, self.diet_feature.id)
+        self.assertEqual(list(package.plans.values_list('name', flat=True)), ['Annual Gold'])
+
+    def test_package_serializer_rejects_invalid_nested_package_data(self):
+        payload = {
+            'name': 'Invalid',
+            'description': '',
+            'max_freezes': 0,
+            'is_active': True,
+            'features': [
+                {'name': 'A', 'code': 'duplicate', 'description': ''},
+                {'name': 'B', 'code': 'duplicate', 'description': ''},
+            ],
+            'plans': [
+                {
+                    'name': '',
+                    'price': '-1.00',
+                    'duration_in_days': 0,
+                    'is_active': True,
+                },
+            ],
+        }
+        serializer = PackageSerializer(
+            data=payload,
+            context={'request': SimpleNamespace(tenant=self.tenant)},
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('plans', serializer.errors)
+
+    def test_package_serializer_scopes_feature_reuse_by_tenant(self):
+        other_tenant = Organization.objects.create(name='Other Gym', slug='other-gym')
+        Feature.objects.create(
+            tenant=other_tenant,
+            code='video_calls',
+            name='Other Video Calls',
+            description='Other tenant feature.',
+        )
+        payload = {
+            'name': 'Online',
+            'description': '',
+            'max_freezes': 0,
+            'is_active': True,
+            'features': [
+                {
+                    'name': 'Video Calls',
+                    'code': 'video_calls',
+                    'description': 'Tenant-local calls.',
+                },
+            ],
+            'plans': [
+                {
+                    'name': 'Monthly Online',
+                    'price': '1500.00',
+                    'duration_in_days': 30,
+                    'is_active': True,
+                },
+            ],
+        }
+        serializer = PackageSerializer(
+            data=payload,
+            context={'request': SimpleNamespace(tenant=self.tenant)},
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        package = serializer.save()
+
+        self.assertEqual(
+            package.package_features.first().feature.tenant_id,
+            self.tenant.id,
+        )
 
     def test_create_membership_snapshots_package_features(self):
         membership = MembershipService.create_membership(

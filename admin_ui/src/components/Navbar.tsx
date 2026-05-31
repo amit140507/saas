@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import api from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Navbar() {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -66,7 +67,7 @@ export default function Navbar() {
     }, []);
 
     return (
-        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8 text-zinc-900 dark:text-white transition-colors">
+        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 pl-16 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8 text-zinc-900 dark:text-white transition-colors">
             <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
                 <form className="relative flex flex-1" action="#" method="GET">
                     <label htmlFor="search-field" className="sr-only">
@@ -115,10 +116,19 @@ export default function Navbar() {
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                         >
                             <div className="flex flex-col items-end hidden lg:flex">
-                                <span className="text-sm font-semibold leading-6 text-zinc-900 dark:text-white" aria-hidden="true">
-                                    {user ? user.username : 'Admin User'}
-                                </span>
-                                <span className="text-xs text-red-600 dark:text-red-400 capitalize">{user?.memberships?.[0]?.role}</span>
+                                {user ? (
+                                    <>
+                                        <span className="text-sm font-semibold leading-6 text-zinc-900 dark:text-white" aria-hidden="true">
+                                            {user.username}
+                                        </span>
+                                        <span className="text-xs text-red-600 dark:text-red-400 capitalize">{user.memberships?.[0]?.role}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Skeleton className="h-4 w-24" />
+                                        <Skeleton className="mt-1 h-3 w-14" />
+                                    </>
+                                )}
                             </div>
                             <div className="h-8 w-8 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center border border-red-200 dark:border-red-500/30 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors">
                                 <ShieldIcon className="h-5 w-5 text-red-600 dark:text-red-500" />

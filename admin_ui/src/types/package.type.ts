@@ -3,7 +3,6 @@ export interface PackagePlan {
     package: string;
     name: string;
     price: string;
-    billing_cycle: "monthly" | "quarterly" | "half-yearly" | "yearly" | "one-time";
     duration_in_days: number | null;
     is_active: boolean;
 }
@@ -17,6 +16,13 @@ export interface PackageFeature {
         code: string;
         description: string;
     };
+}
+
+export interface FeatureCatalogItem {
+    id: string;
+    name: string;
+    code: string;
+    description: string;
 }
 
 export interface Package {
@@ -35,5 +41,20 @@ export interface PackagePayload {
     name: string;
     description: string;
     max_freezes: number;
+    is_active: boolean;
+    features: PackageFeaturePayload[];
+    plans: PackagePlanPayload[];
+}
+
+export interface PackageFeaturePayload {
+    name: string;
+    code: string;
+    description: string;
+}
+
+export interface PackagePlanPayload {
+    name: string;
+    price: string;
+    duration_in_days: number | null;
     is_active: boolean;
 }

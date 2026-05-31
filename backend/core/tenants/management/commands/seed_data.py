@@ -222,7 +222,6 @@ class Command(BaseCommand):
                 tenant=tenant, package=package, name='Monthly Plan', 
                 defaults={
                     'price': 2000,
-                    'billing_cycle': PackagePlan.BillingCycleChoices.MONTHLY,
                     'duration_in_days': 30,
                 }
             )
@@ -230,7 +229,6 @@ class Command(BaseCommand):
                 tenant=tenant, package=package, name='Annual Plan', 
                 defaults={
                     'price': 18000,
-                    'billing_cycle': PackagePlan.BillingCycleChoices.YEARLY,
                     'duration_in_days': 365,
                 }
             )

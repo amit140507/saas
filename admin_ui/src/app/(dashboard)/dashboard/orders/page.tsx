@@ -18,7 +18,6 @@ interface Plan {
     id: number;
     name: string;
     price: string;
-    billing_cycle: string;
     duration_in_days: number | null;
     is_active: boolean;
 }
@@ -34,7 +33,7 @@ interface Product {
 interface Order {
     id: number;
     user_detail: { id: number; first_name: string; last_name: string; email: string; public_id: string };
-    product_detail: { id: number; name: string; price: string; billing_cycle: string; product_name: string };
+    product_detail: { id: number; name: string; price: string; product_name: string };
     subtotal: string;
     discount: string;
     total: string;
@@ -418,7 +417,7 @@ export default function AdminOrdersPage() {
                                             <option value="">Select a plan...</option>
                                             {activePlans.map((plan) => (
                                                 <option key={plan.id} value={plan.id}>
-                                                    {plan.name} — ${plan.price} / {plan.billing_cycle}
+                                                    {plan.name} — ${plan.price} 
                                                 </option>
                                             ))}
                                         </select>

@@ -10,7 +10,6 @@ interface Order {
         id: number;
         name: string;
         price: string;
-        billing_cycle: string;
         product_name: string;
     };
     subtotal: string;

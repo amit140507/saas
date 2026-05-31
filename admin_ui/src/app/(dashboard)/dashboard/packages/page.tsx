@@ -19,24 +19,71 @@ import {
     getPackages,
     updatePackage,
 } from "@/services/package.service";
-import type { Package, PackagePayload } from "@/types/package.type";
+import { getFeatures } from "@/services/feature.service";
+import type { Package, PackageFeaturePayload, PackagePayload, PackagePlanPayload } from "@/types/package.type";
 
 type ModalMode = "create" | "edit";
+type PackageForm = {
+    name: string;
+    description: string;
+    max_freezes: string;
+    is_active: boolean;
+    features: PackageFeaturePayload[];
+    plans: Array<Omit<PackagePlanPayload, "duration_in_days"> & { duration_in_days: string }>;
+};
 
-const emptyForm = {
+const createEmptyFeature = (): PackageFeaturePayload => ({
+    name: "",
+    code: "",
+    description: "",
+});
+
+const createEmptyPlan = (): PackageForm["plans"][number] => ({
+    name: "",
+    price: "",
+    duration_in_days: "30",
+    is_active: true,
+});
+
+const emptyForm: PackageForm = {
     name: "",
     description: "",
     max_freezes: "0",
     is_active: true,
+    features: [createEmptyFeature()],
+    plans: [createEmptyPlan()],
 };
 
-function toForm(packageItem: Package) {
+function toForm(packageItem: Package): PackageForm {
     return {
         name: packageItem.name,
         description: packageItem.description || "",
         max_freezes: String(packageItem.max_freezes ?? 0),
         is_active: packageItem.is_active,
+        features: packageItem.features.length
+            ? packageItem.features.map((feature) => ({
+                name: feature.feature_details.name,
+                code: feature.feature_details.code,
+                description: feature.feature_details.description || "",
+            }))
+            : [createEmptyFeature()],
+        plans: packageItem.plans.length
+            ? packageItem.plans.map((plan) => ({
+                name: plan.name,
+                price: plan.price,
+                duration_in_days: plan.duration_in_days === null ? "" : String(plan.duration_in_days),
+                is_active: plan.is_active,
+            }))
+            : [createEmptyPlan()],
     };
+}
+
+function slugifyFeatureCode(value: string) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
 }
 
 function formatCurrency(value: string) {
@@ -50,10 +97,6 @@ function formatCurrency(value: string) {
         currency: "INR",
         maximumFractionDigits: 0,
     }).format(amount);
-}
-
-function formatCycle(value: string) {
-    return value.replace("-", " ");
 }
 
 export default function PackagesPage() {
@@ -71,8 +114,14 @@ export default function PackagesPage() {
         queryFn: getPackages,
     });
 
+    const { data: featureCatalog = [], isLoading: isLoadingFeatures } = useQuery({
+        queryKey: ["admin-package-features"],
+        queryFn: getFeatures,
+    });
+
     const refreshPackages = () => {
         queryClient.invalidateQueries({ queryKey: ["admin-packages"] });
+        queryClient.invalidateQueries({ queryKey: ["admin-package-features"] });
     };
 
     const createMutation = useMutation({
@@ -147,14 +196,104 @@ export default function PackagesPage() {
 
     const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
+    const updateFeature = (index: number, field: keyof PackageFeaturePayload, value: string) => {
+        setForm((current) => ({
+            ...current,
+            features: current.features.map((feature, featureIndex) => {
+                if (featureIndex !== index) {
+                    return feature;
+                }
+
+                const nextFeature = { ...feature, [field]: value };
+                if (field === "name" && !feature.code.trim()) {
+                    nextFeature.code = slugifyFeatureCode(value);
+                }
+
+                return nextFeature;
+            }),
+        }));
+    };
+
+    const selectExistingFeature = (index: number, code: string) => {
+        const selectedFeature = featureCatalog.find((feature) => feature.code === code);
+        if (!selectedFeature) {
+            return;
+        }
+
+        setForm((current) => ({
+            ...current,
+            features: current.features.map((feature, featureIndex) => (
+                featureIndex === index
+                    ? {
+                        name: selectedFeature.name,
+                        code: selectedFeature.code,
+                        description: selectedFeature.description || "",
+                    }
+                    : feature
+            )),
+        }));
+    };
+
+    const addFeature = () => {
+        setForm((current) => ({ ...current, features: [...current.features, createEmptyFeature()] }));
+    };
+
+    const removeFeature = (index: number) => {
+        setForm((current) => ({
+            ...current,
+            features: current.features.filter((_, featureIndex) => featureIndex !== index),
+        }));
+    };
+
+    const updatePlan = <Field extends keyof PackageForm["plans"][number]>(
+        index: number,
+        field: Field,
+        value: PackageForm["plans"][number][Field],
+    ) => {
+        setForm((current) => ({
+            ...current,
+            plans: current.plans.map((plan, planIndex) => (
+                planIndex === index ? { ...plan, [field]: value } : plan
+            )),
+        }));
+    };
+
+    const addPlan = () => {
+        setForm((current) => ({ ...current, plans: [...current.plans, createEmptyPlan()] }));
+    };
+
+    const removePlan = (index: number) => {
+        setForm((current) => ({
+            ...current,
+            plans: current.plans.filter((_, planIndex) => planIndex !== index),
+        }));
+    };
+
     const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+
+        const features = form.features
+            .map((feature) => ({
+                name: feature.name.trim(),
+                code: slugifyFeatureCode(feature.code),
+                description: feature.description.trim(),
+            }))
+            .filter((feature) => feature.name || feature.code || feature.description);
+
+        const plans = form.plans.map((plan) => ({
+            name: plan.name.trim(),
+            price: plan.price.trim(),
+            duration_in_days: plan.duration_in_days.trim() ? Number(plan.duration_in_days) : null,
+            is_active: plan.is_active,
+        }));
 
         const payload: PackagePayload = {
             name: form.name.trim(),
             description: form.description.trim(),
             max_freezes: Number(form.max_freezes),
             is_active: form.is_active,
+            features,
+            plans,
         };
 
         if (!payload.name) {
@@ -164,6 +303,37 @@ export default function PackagesPage() {
 
         if (Number.isNaN(payload.max_freezes) || payload.max_freezes < 0) {
             setFormError("Max freezes must be zero or higher.");
+            return;
+        }
+
+        if (payload.features.some((feature) => !feature.name || !feature.code)) {
+            setFormError("Every feature must have a name and unique code.");
+            return;
+        }
+
+        const featureCodes = payload.features.map((feature) => feature.code);
+        if (new Set(featureCodes).size !== featureCodes.length) {
+            setFormError("Feature codes must be unique.");
+            return;
+        }
+
+        if (payload.plans.length === 0) {
+            setFormError("At least one plan is required.");
+            return;
+        }
+
+        if (payload.plans.some((plan) => !plan.name)) {
+            setFormError("Every plan must have a name.");
+            return;
+        }
+
+        if (payload.plans.some((plan) => !plan.price || Number.isNaN(Number(plan.price)) || Number(plan.price) < 0)) {
+            setFormError("Every plan needs a price of zero or higher.");
+            return;
+        }
+
+        if (payload.plans.some((plan) => plan.duration_in_days !== null && (!Number.isInteger(plan.duration_in_days) || plan.duration_in_days < 1))) {
+            setFormError("Plan duration must be blank or at least one day.");
             return;
         }
 
@@ -291,7 +461,9 @@ export default function PackagesPage() {
                                                         <div key={plan.id} className="flex items-center justify-between gap-4">
                                                             <div>
                                                                 <div className="font-medium text-zinc-900 dark:text-white">{plan.name}</div>
-                                                                <div className="text-xs text-zinc-500 capitalize">{formatCycle(plan.billing_cycle)}</div>
+                                                                <div className="text-xs text-zinc-500">
+                                                                    {plan.duration_in_days ? `${plan.duration_in_days} days` : "No fixed duration"}
+                                                                </div>
                                                             </div>
                                                             <div className="font-semibold text-zinc-900 dark:text-white">
                                                                 {formatCurrency(plan.price)}
@@ -342,7 +514,7 @@ export default function PackagesPage() {
 
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="w-full max-w-xl rounded-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-xl">
+                    <div className="w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-xl">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
                             <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
                                 {modalMode === "edit" ? "Edit Package" : "Add Package"}
@@ -357,54 +529,57 @@ export default function PackagesPage() {
                             </button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+                        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-73px)]">
                             {formError && (
                                 <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300">
                                     {formError}
                                 </div>
                             )}
 
-                            <div>
-                                <label htmlFor="package-name" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                                    Name
-                                </label>
-                                <input
-                                    id="package-name"
-                                    type="text"
-                                    value={form.name}
-                                    onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                                    className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-white outline-none focus:border-red-500"
-                                    required
-                                />
-                            </div>
-
-                            <div>
-                                <label htmlFor="package-description" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                                    Description
-                                </label>
-                                <textarea
-                                    id="package-description"
-                                    value={form.description}
-                                    onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                                    className="mt-1 block min-h-24 w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-white outline-none focus:border-red-500"
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <section className="space-y-4">
+                                <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                                    Basic details
+                                </h3>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <div>
+                                        <label htmlFor="package-name" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                                            Name
+                                        </label>
+                                        <input
+                                            id="package-name"
+                                            type="text"
+                                            value={form.name}
+                                            onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                                            className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-white outline-none focus:border-red-500"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="max-freezes" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                                            Max freezes
+                                        </label>
+                                        <input
+                                            id="max-freezes"
+                                            type="number"
+                                            min="0"
+                                            value={form.max_freezes}
+                                            onChange={(event) => setForm((current) => ({ ...current, max_freezes: event.target.value }))}
+                                            className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-white outline-none focus:border-red-500"
+                                        />
+                                    </div>
+                                </div>
                                 <div>
-                                    <label htmlFor="max-freezes" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                                        Max freezes
+                                    <label htmlFor="package-description" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                                        Description
                                     </label>
-                                    <input
-                                        id="max-freezes"
-                                        type="number"
-                                        min="0"
-                                        value={form.max_freezes}
-                                        onChange={(event) => setForm((current) => ({ ...current, max_freezes: event.target.value }))}
-                                        className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-white outline-none focus:border-red-500"
+                                    <textarea
+                                        id="package-description"
+                                        value={form.description}
+                                        onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+                                        className="mt-1 block min-h-20 w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-white outline-none focus:border-red-500"
                                     />
                                 </div>
-                                <label className="flex items-center gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 px-4 py-3 mt-6 sm:mt-0">
+                                <label className="inline-flex items-center gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 px-4 py-3">
                                     <input
                                         type="checkbox"
                                         checked={form.is_active}
@@ -413,7 +588,166 @@ export default function PackagesPage() {
                                     />
                                     <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Active package</span>
                                 </label>
-                            </div>
+                            </section>
+
+                            <section className="space-y-4 border-t border-zinc-200 dark:border-zinc-800 pt-6">
+                                <div className="flex items-center justify-between gap-3">
+                                    <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                                        Package features
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={addFeature}
+                                        className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                                    >
+                                        <PlusIcon className="w-4 h-4" />
+                                        Add Feature
+                                    </button>
+                                </div>
+                                <div className="space-y-3">
+                                    {form.features.length === 0 ? (
+                                        <div className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 px-4 py-6 text-sm text-zinc-500 dark:text-zinc-400">
+                                            No package features added.
+                                        </div>
+                                    ) : (
+                                        form.features.map((feature, index) => (
+                                            <div key={index} className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 space-y-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">Use existing feature</label>
+                                                    <select
+                                                        value={featureCatalog.some((catalogFeature) => catalogFeature.code === feature.code) ? feature.code : ""}
+                                                        onChange={(event) => selectExistingFeature(index, event.target.value)}
+                                                        disabled={isLoadingFeatures || featureCatalog.length === 0}
+                                                        className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-red-500 disabled:opacity-60"
+                                                    >
+                                                        <option value="">
+                                                            {isLoadingFeatures
+                                                                ? "Loading features..."
+                                                                : featureCatalog.length === 0
+                                                                    ? "No existing features"
+                                                                    : "Select a tenant feature"}
+                                                        </option>
+                                                        {featureCatalog.map((catalogFeature) => (
+                                                            <option key={catalogFeature.id} value={catalogFeature.code}>
+                                                                {catalogFeature.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3">
+                                                    <div>
+                                                        <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">Feature name</label>
+                                                        <input
+                                                            type="text"
+                                                            value={feature.name}
+                                                            onChange={(event) => updateFeature(index, "name", event.target.value)}
+                                                            className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-red-500"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">Feature code</label>
+                                                        <input
+                                                            type="text"
+                                                            value={feature.code}
+                                                            onChange={(event) => updateFeature(index, "code", event.target.value)}
+                                                            className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-red-500"
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeFeature(index)}
+                                                        className="self-end p-2 text-zinc-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                                                        title="Remove feature"
+                                                    >
+                                                        <Trash2Icon className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">Description</label>
+                                                    <input
+                                                        type="text"
+                                                        value={feature.description}
+                                                        onChange={(event) => updateFeature(index, "description", event.target.value)}
+                                                        className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-red-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </section>
+
+                            <section className="space-y-4 border-t border-zinc-200 dark:border-zinc-800 pt-6">
+                                <div className="flex items-center justify-between gap-3">
+                                    <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                                        Package plans
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={addPlan}
+                                        className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                                    >
+                                        <PlusIcon className="w-4 h-4" />
+                                        Add Plan
+                                    </button>
+                                </div>
+                                <div className="space-y-3">
+                                    {form.plans.map((plan, index) => (
+                                        <div key={index} className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 space-y-3">
+                                            <div className="grid grid-cols-1 md:grid-cols-[1.3fr_0.8fr_0.9fr_0.8fr_auto] gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">Plan name</label>
+                                                    <input
+                                                        type="text"
+                                                        value={plan.name}
+                                                        onChange={(event) => updatePlan(index, "name", event.target.value)}
+                                                        className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-red-500"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">Price</label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        value={plan.price}
+                                                        onChange={(event) => updatePlan(index, "price", event.target.value)}
+                                                        className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-red-500"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">Duration days</label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={plan.duration_in_days}
+                                                        onChange={(event) => updatePlan(index, "duration_in_days", event.target.value)}
+                                                        className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-red-500"
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removePlan(index)}
+                                                    className="self-end p-2 text-zinc-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40"
+                                                    title="Remove plan"
+                                                    disabled={form.plans.length === 1}
+                                                >
+                                                    <Trash2Icon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <label className="inline-flex items-center gap-3">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={plan.is_active}
+                                                    onChange={(event) => updatePlan(index, "is_active", event.target.checked)}
+                                                    className="h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-600"
+                                                />
+                                                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Active plan</span>
+                                            </label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
 
                             <div className="flex justify-end gap-3 pt-2">
                                 <button

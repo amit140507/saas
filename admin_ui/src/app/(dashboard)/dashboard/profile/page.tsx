@@ -6,13 +6,13 @@ import { UserIcon, MailIcon, ShieldIcon, BuildingIcon, CheckCircleIcon, XCircleI
 import Link from "next/link";
 
 interface UserProfile {
-    pk: number;
     username: string;
     email: string;
     first_name: string;
     last_name: string;
     role: string;
     phone: string;
+    permission_codes?: string[];
     memberships?: {
         tenant_id: string;
         tenant_name: string;

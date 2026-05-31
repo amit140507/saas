@@ -40,7 +40,6 @@ class Migration(migrations.Migration):
                 ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
                 ('name', models.CharField(help_text="e.g. '3 Months Plan'", max_length=100)),
                 ('price', models.DecimalField(decimal_places=2, default=0.0, max_digits=10)),
-                ('billing_cycle', models.CharField(choices=[('monthly', 'Monthly'), ('quarterly', 'Quarterly'), ('half-yearly', 'Half-yearly'), ('yearly', 'Yearly'), ('one-time', 'One-time')], default='monthly', max_length=20)),
                 ('duration_in_days', models.IntegerField(blank=True, help_text='Duration of access for one-time or fixed-term passes', null=True)),
                 ('is_active', models.BooleanField(default=True)),
                 ('package', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='package', to='packages.package')),

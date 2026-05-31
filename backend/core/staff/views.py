@@ -12,8 +12,6 @@ class StaffProfileViewSet(viewsets.ModelViewSet):
     serializer_class = StaffProfileSerializer
 
     def get_permissions(self):
-        if self.action in ('list', 'retrieve'):
-            return [IsTenantMember()]
         return [HasPermission('manage_staff')()]
 
     def get_queryset(self):

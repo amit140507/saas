@@ -1,15 +1,22 @@
-import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
+import { Suspense } from "react";
 
 import AdminLoginForm from "./AdminLoginForm";
-import { authOptions } from "@/lib/auth";
+import LoginAuthRedirect from "./LoginAuthRedirect";
 
-export default async function AdminLoginPage() {
-    const session = await getServerSession(authOptions);
+export default function AdminLoginPage() {
+    return (
+        <Suspense fallback={<LoginLoading />}>
+            <LoginAuthRedirect>
+                <AdminLoginForm />
+            </LoginAuthRedirect>
+        </Suspense>
+    );
+}
 
-    if (session) {
-        redirect("/dashboard");
-    }
-
-    return <AdminLoginForm />;
+function LoginLoading() {
+    return (
+        <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-sm text-zinc-400">
+            Loading...
+        </div>
+    );
 }

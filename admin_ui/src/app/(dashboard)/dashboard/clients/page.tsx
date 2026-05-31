@@ -2,21 +2,9 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import api from "@/lib/api";
+import { createClient, deleteClient, getClients, updateClient } from "@/services/client.service";
+import type { ClientData, ClientPayload } from "@/types/client.type";
 import { UsersIcon, UserPlusIcon, SearchIcon, Loader2Icon, EditIcon, Trash2Icon } from "lucide-react";
-
-interface ClientData {
-  id: number;
-  user: {
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone: string;
-  };
-  status: string;
-  goal: string;
-  health_conditions: string;
-}
 
 export default function ClientsPage() {
   const queryClient = useQueryClient();
@@ -30,22 +18,16 @@ export default function ClientsPage() {
 
   const [form, setForm] = useState({
     first_name: "", last_name: "", email: "", phone: "",
-    status: "active", goal: "", health_conditions: ""
+    status: "active", goal: ""
   });
 
   const { data: clients, isLoading, error } = useQuery<ClientData[]>({
     queryKey: ["clients-management"],
-    queryFn: async () => {
-      const response = await api.get("/clients/management/");
-      return response.data;
-    },
+    queryFn: getClients,
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await api.post("/clients/management/", data);
-      return res.data;
-    },
+    mutationFn: (data: ClientPayload) => createClient(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients-management"] });
       setIsModalOpen(false);
@@ -53,10 +35,7 @@ export default function ClientsPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number, data: any }) => {
-      const res = await api.put(`/clients/management/${id}/`, data);
-      return res.data;
-    },
+    mutationFn: ({ id, data }: { id: string, data: ClientPayload }) => updateClient(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients-management"] });
       setIsModalOpen(false);
@@ -64,9 +43,7 @@ export default function ClientsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await api.delete(`/clients/management/${id}/`);
-    },
+    mutationFn: (id: string) => deleteClient(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients-management"] });
       setClientToDelete(null);
@@ -84,7 +61,7 @@ export default function ClientsPage() {
     setModalMode("add");
     setForm({
       first_name: "", last_name: "", email: "", phone: "",
-      status: "active", goal: "", health_conditions: ""
+      status: "active", goal: ""
     });
     setSelectedClient(null);
     setIsModalOpen(true);
@@ -96,10 +73,9 @@ export default function ClientsPage() {
       first_name: client.user.first_name || "",
       last_name: client.user.last_name || "",
       email: client.user.email || "",
-      phone: client.user.phone || "",
+      phone: client.phone || "",
       status: client.status || "active",
-      goal: client.goal || "",
-      health_conditions: client.health_conditions || ""
+      goal: client.goal || ""
     });
     setSelectedClient(client);
     setIsModalOpen(true);
@@ -107,16 +83,15 @@ export default function ClientsPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = {
+    const payload: ClientPayload = {
       user: {
         first_name: form.first_name,
         last_name: form.last_name,
-        email: form.email,
-        phone: form.phone
+        email: form.email
       },
+      phone: form.phone,
       status: form.status,
-      goal: form.goal,
-      health_conditions: form.health_conditions
+      goal: form.goal
     };
 
     if (modalMode === "add") {
@@ -214,7 +189,7 @@ export default function ClientsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-zinc-900 dark:text-white font-medium">{client.user.email}</div>
-                      <div className="text-zinc-500 text-xs">{client.user.phone || 'No phone'}</div>
+                      <div className="text-zinc-500 text-xs">{client.phone || 'No phone'}</div>
                     </td>
                     <td className="px-6 py-4 font-medium">{client.goal || '—'}</td>
                     <td className="px-6 py-4 text-right">

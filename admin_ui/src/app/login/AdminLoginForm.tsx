@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { ShieldAlertIcon } from "lucide-react";
 
+import { DEFAULT_DASHBOARD_PATH, getSafeDashboardPath, getStoredDashboardPath } from "@/lib/utils";
+
 export default function AdminLoginForm() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -28,8 +30,8 @@ export default function AdminLoginForm() {
             if (result?.error) {
                 setError(result.error);
             } else {
-                const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
-                router.push(callbackUrl);
+                const callbackUrl = getSafeDashboardPath(searchParams.get("callbackUrl"));
+                router.push(callbackUrl || getStoredDashboardPath() || DEFAULT_DASHBOARD_PATH);
             }
         } catch {
             setError("Authentication service unavailable");

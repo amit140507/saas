@@ -5,7 +5,14 @@ DEBUG = True
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
 
 CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOWED_ORIGINS = [o for o in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',') if o]
+CORS_ALLOWED_ORIGINS = [
+    origin
+    for origin in [
+        os.environ.get('FRONTEND_URL'),
+        *os.environ.get('CORS_ALLOWED_ORIGINS', '').split(','),
+    ]
+    if origin
+]
 
 # Security Settings
 SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'False').lower() == 'true'

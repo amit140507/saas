@@ -2,53 +2,215 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
-import { ShieldCheckIcon, SearchIcon, PlusIcon, EditIcon, Trash2Icon, Loader2Icon, MoreVerticalIcon } from "lucide-react";
+import { can, PERMISSIONS, useCurrentUserPermissions } from "@/lib/permissions";
+import { ShieldCheckIcon, SearchIcon, PlusIcon, EditIcon, Trash2Icon, Loader2Icon } from "lucide-react";
+import { redirect } from "next/navigation";
 import { useState } from "react";
 
 interface StaffMember {
-    id: number;
+    id: string;
+    user_id: string;
     public_id: string;
     username: string;
+    full_name: string;
+    email: string;
+    role_name: string | null;
+    phone: string;
+    date_of_joining?: string;
+    dob?: string | null;
+    sex?: StaffSex | null;
+    profile_picture?: string | null;
+    bio: string;
+    specialization: string;
+    years_of_experience?: number | null;
+}
+
+type StaffListResponse = StaffMember[] | { results?: StaffMember[]; data?: StaffMember[] };
+
+const STAFF_ENDPOINT = "staff/staff/";
+const DEFAULT_ROLE_NAME = "trainer";
+
+type StaffSex = "M" | "F" | "O" | "";
+
+interface RoleOption {
+    id: string;
+    name: string;
+    description?: string;
+    is_system?: boolean;
+    is_default?: boolean;
+}
+
+type RoleListResponse = RoleOption[] | { results?: RoleOption[]; data?: RoleOption[] };
+
+interface StaffFormState {
     first_name: string;
     last_name: string;
     email: string;
-    role_names: string[];
     phone: string;
-    date_of_joining?: string;
-    staff_profile?: {
-        bio: string;
-        specialization: string;
-        rating: string;
-    } | null;
+    role_names: string[];
+    bio: string;
+    specialization: string;
+    years_of_experience: string;
+    dob: string;
+    sex: StaffSex;
+    date_of_joining: string;
+    profile_picture: File | null;
 }
+
+interface StaffPayload {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+    role_names: string[];
+    username: string;
+    bio: string;
+    specialization: string;
+    years_of_experience?: number | null;
+    dob?: string | null;
+    sex?: StaffSex | null;
+    date_of_joining?: string | null;
+}
+
+type StaffMutationPayload = StaffPayload | FormData;
+
+const getStaffList = (responseData: StaffListResponse): StaffMember[] => {
+    if (Array.isArray(responseData)) {
+        return responseData;
+    }
+
+    if (Array.isArray(responseData.results)) {
+        return responseData.results;
+    }
+
+    if (Array.isArray(responseData.data)) {
+        return responseData.data;
+    }
+
+    return [];
+};
+
+const getRoleList = (responseData: RoleListResponse): RoleOption[] => {
+    if (Array.isArray(responseData)) {
+        return responseData;
+    }
+
+    if (Array.isArray(responseData.results)) {
+        return responseData.results;
+    }
+
+    if (Array.isArray(responseData.data)) {
+        return responseData.data;
+    }
+
+    return [];
+};
+
+const createEmptyStaffForm = (roleName = DEFAULT_ROLE_NAME): StaffFormState => ({
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    role_names: [roleName],
+    bio: "",
+    specialization: "",
+    years_of_experience: "",
+    dob: "",
+    sex: "",
+    date_of_joining: "",
+    profile_picture: null,
+});
+
+const getSelectedRoleName = (roles?: RoleOption[], currentRole?: string | null) => {
+    if (currentRole) {
+        return currentRole;
+    }
+
+    return roles?.[0]?.name || DEFAULT_ROLE_NAME;
+};
+
+const buildStaffPayload = (form: StaffFormState): StaffMutationPayload => {
+    const payload: StaffPayload = {
+        first_name: form.first_name,
+        last_name: form.last_name,
+        email: form.email,
+        phone: form.phone,
+        role_names: form.role_names,
+        username: form.email,
+        bio: form.bio,
+        specialization: form.specialization,
+        years_of_experience: form.years_of_experience ? Number(form.years_of_experience) : null,
+        dob: form.dob || null,
+        sex: form.sex || null,
+        date_of_joining: form.date_of_joining || null,
+    };
+
+    if (!form.profile_picture) {
+        return payload;
+    }
+
+    const multipartPayload = new FormData();
+    Object.entries(payload).forEach(([key, value]) => {
+        if (key === "role_names") {
+            payload.role_names.forEach((roleName, index) => {
+                multipartPayload.append(`role_names[${index}]`, roleName);
+            });
+            return;
+        }
+
+        multipartPayload.append(key, value == null ? "" : String(value));
+    });
+    multipartPayload.append("profile_picture", form.profile_picture);
+
+    return multipartPayload;
+};
+
+const isMultipartPayload = (payload: StaffMutationPayload): payload is FormData => {
+    return payload instanceof FormData;
+};
 
 export default function StaffMembersPage() {
     const queryClient = useQueryClient();
+    const { sessionStatus, tenantId, userPermissions, permissionsLoading, hasRequiredPermission } =
+        useCurrentUserPermissions(PERMISSIONS.STAFF_VIEW);
     const [searchQuery, setSearchQuery] = useState("");
     
     // Modal states
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState<"add" | "edit">("add");
     const [selectedMember, setSelectedMember] = useState<StaffMember | null>(null);
-    const [form, setForm] = useState({
-        first_name: "", last_name: "", email: "", phone: "", role_names: ["trainer"]
-    });
+    const [form, setForm] = useState<StaffFormState>(() => createEmptyStaffForm());
     
     // Delete states
     const [memberToDelete, setMemberToDelete] = useState<StaffMember | null>(null);
 
     const { data: staff, isLoading, error } = useQuery<StaffMember[]>({
         queryKey: ["staff-profiles"],
+        enabled: hasRequiredPermission,
         queryFn: async () => {
-            const response = await api.get("/users/staff/");
-            return response.data;
+            const response = await api.get<StaffListResponse>(STAFF_ENDPOINT);
+            return getStaffList(response.data);
         },
     });
 
+    const { data: roles, isLoading: rolesLoading } = useQuery<RoleOption[]>({
+        queryKey: ["tenant-roles", tenantId],
+        enabled: hasRequiredPermission && Boolean(tenantId),
+        queryFn: async () => {
+            const response = await api.get<RoleListResponse>(`organizations/${tenantId}/roles/`);
+            return getRoleList(response.data);
+        },
+    });
+
+    const selectedRoleName = form.role_names[0] || "";
+    const roleSelectValue = roles?.some((role) => role.name === selectedRoleName) ? selectedRoleName : "";
+
     // Mutations
     const createMutation = useMutation({
-        mutationFn: async (data: any) => {
-            const res = await api.post("/users/staff/", data);
+        mutationFn: async (data: StaffMutationPayload) => {
+            const res = await api.post(STAFF_ENDPOINT, data, isMultipartPayload(data) ? {
+                headers: { "Content-Type": "multipart/form-data" },
+            } : undefined);
             return res.data;
         },
         onSuccess: () => {
@@ -58,8 +220,10 @@ export default function StaffMembersPage() {
     });
 
     const updateMutation = useMutation({
-        mutationFn: async ({ id, data }: { id: number, data: any }) => {
-            const res = await api.put(`/users/staff/${id}/`, data);
+        mutationFn: async ({ id, data }: { id: string, data: StaffMutationPayload }) => {
+            const res = await api.put(`${STAFF_ENDPOINT}${id}/`, data, isMultipartPayload(data) ? {
+                headers: { "Content-Type": "multipart/form-data" },
+            } : undefined);
             return res.data;
         },
         onSuccess: () => {
@@ -69,8 +233,8 @@ export default function StaffMembersPage() {
     });
 
     const deleteMutation = useMutation({
-        mutationFn: async (id: number) => {
-            await api.delete(`/users/staff/${id}/`);
+        mutationFn: async (id: string) => {
+            await api.delete(`${STAFF_ENDPOINT}${id}/`);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["staff-profiles"] });
@@ -79,7 +243,7 @@ export default function StaffMembersPage() {
     });
 
     const filteredStaff = staff?.filter(member => {
-        const full_name = `${member.first_name} ${member.last_name}`.toLowerCase();
+        const full_name = member.full_name.toLowerCase();
         const email = member.email.toLowerCase();
         const query = searchQuery.toLowerCase();
         return full_name.includes(query) || email.includes(query);
@@ -87,19 +251,27 @@ export default function StaffMembersPage() {
 
     const handleOpenAdd = () => {
         setModalMode("add");
-        setForm({ first_name: "", last_name: "", email: "", phone: "", role_names: ["trainer"] });
+        setForm(createEmptyStaffForm(getSelectedRoleName(roles)));
         setSelectedMember(null);
         setIsModalOpen(true);
     };
 
     const handleOpenEdit = (member: StaffMember) => {
+        const [firstName = "", ...lastNameParts] = member.full_name.split(" ");
         setModalMode("edit");
         setForm({ 
-            first_name: member.first_name || "", 
-            last_name: member.last_name || "", 
+            first_name: firstName,
+            last_name: lastNameParts.join(" "),
             email: member.email || "", 
             phone: member.phone || "", 
-            role_names: member.role_names?.length ? member.role_names : ["trainer"] 
+            role_names: [getSelectedRoleName(roles, member.role_name)],
+            bio: member.bio || "",
+            specialization: member.specialization || "",
+            years_of_experience: member.years_of_experience == null ? "" : String(member.years_of_experience),
+            dob: member.dob || "",
+            sex: member.sex || "",
+            date_of_joining: member.date_of_joining || "",
+            profile_picture: null,
         });
         setSelectedMember(member);
         setIsModalOpen(true);
@@ -107,10 +279,10 @@ export default function StaffMembersPage() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const payload = {
+        const payload = buildStaffPayload({
             ...form,
-            username: form.email // For backward compatibility or if backend needs it
-        };
+            role_names: [roleSelectValue || roles?.[0]?.name || selectedRoleName],
+        });
         if (modalMode === "add") {
             createMutation.mutate(payload);
         } else if (modalMode === "edit" && selectedMember) {
@@ -118,7 +290,7 @@ export default function StaffMembersPage() {
         }
     };
 
-    if (isLoading) {
+    if (sessionStatus === "loading" || permissionsLoading || (hasRequiredPermission && isLoading)) {
         return (
             <div className="flex items-center justify-center h-64">
                 <Loader2Icon className="animate-spin text-indigo-600 w-8 h-8" />
@@ -132,6 +304,10 @@ export default function StaffMembersPage() {
                 Error loading staff members. Please try again.
             </div>
         );
+    }
+
+    if (!can(userPermissions, PERMISSIONS.STAFF_VIEW)) {
+        redirect("/dashboard");
     }
 
     return (
@@ -197,23 +373,23 @@ export default function StaffMembersPage() {
                                 filteredStaff?.map((member) => (
                                     <tr key={member.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                                         <td className="px-6 py-4 font-mono text-zinc-500 dark:text-zinc-400">
-                                            {member.public_id || "—"}
+                                            {member.public_id || "-"}
                                         </td>
                                         <td className="px-6 py-4 font-semibold text-zinc-900 dark:text-white text-base">
-                                            {member.first_name} {member.last_name}
+                                            {member.full_name}
                                         </td>
                                         <td className="px-6 py-4 text-zinc-900 dark:text-white">
                                             {member.email}
                                         </td>
                                         <td className="px-6 py-4 text-zinc-500 dark:text-zinc-400">
-                                            {member.phone || "—"}
+                                            {member.phone || "-"}
                                         </td>
                                         <td className="px-6 py-4">
-                                            {member.role_names?.map((role) => (
-                                                <span key={role} className="inline-flex items-center rounded-md bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-400 ring-1 ring-inset ring-indigo-600/10 dark:ring-indigo-400/20 mr-1 capitalize transition-colors">
-                                                    {role}
+                                            {member.role_name && (
+                                                <span className="inline-flex items-center rounded-md bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-400 ring-1 ring-inset ring-indigo-600/10 dark:ring-indigo-400/20 mr-1 capitalize transition-colors">
+                                                    {member.role_name}
                                                 </span>
-                                            ))}
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
@@ -244,7 +420,7 @@ export default function StaffMembersPage() {
             {/* Create / Edit Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800">
+                    <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800">
                         <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-950">
                             <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
                                 {modalMode === 'add' ? 'Add New Team Member' : 'Edit Team Member'}
@@ -253,8 +429,8 @@ export default function StaffMembersPage() {
                                 &times;
                             </button>
                         </div>
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
+                        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-80px)]">
+                            <div className="grid gap-4 md:grid-cols-2">
                                 <div>
                                     <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">First Name</label>
                                     <input required type="text" value={form.first_name} onChange={e => setForm({...form, first_name: e.target.value})} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition" />
@@ -264,7 +440,7 @@ export default function StaffMembersPage() {
                                     <input required type="text" value={form.last_name} onChange={e => setForm({...form, last_name: e.target.value})} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition" />
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-4 md:grid-cols-2">
                                 <div>
                                     <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Email</label>
                                     <input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition" />
@@ -274,24 +450,69 @@ export default function StaffMembersPage() {
                                     <input type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition" />
                                 </div>
                             </div>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Primary Role</label>
+                                    <select
+                                        required
+                                        value={roleSelectValue}
+                                        disabled={rolesLoading || !roles?.length}
+                                        onChange={e => setForm({...form, role_names: [e.target.value]})}
+                                        className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {rolesLoading && <option value="">Loading roles...</option>}
+                                        {!rolesLoading && !roles?.length && <option value="">No roles available</option>}
+                                        {roles?.map((role) => (
+                                            <option key={role.id} value={role.name}>
+                                                {role.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Specialization</label>
+                                    <input type="text" value={form.specialization} onChange={e => setForm({...form, specialization: e.target.value})} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition" />
+                                </div>
+                            </div>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Years of Experience</label>
+                                    <input min="0" type="number" value={form.years_of_experience} onChange={e => setForm({...form, years_of_experience: e.target.value})} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Date of Joining</label>
+                                    <input type="date" value={form.date_of_joining} onChange={e => setForm({...form, date_of_joining: e.target.value})} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition" />
+                                </div>
+                            </div>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Date of Birth</label>
+                                    <input type="date" value={form.dob} onChange={e => setForm({...form, dob: e.target.value})} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Sex</label>
+                                    <select value={form.sex} onChange={e => setForm({...form, sex: e.target.value as StaffSex})} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition">
+                                        <option value="">Select sex</option>
+                                        <option value="M">Male</option>
+                                        <option value="F">Female</option>
+                                        <option value="O">Other</option>
+                                    </select>
+                                </div>
+                            </div>
                             <div>
-                                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Primary Role</label>
-                                <select 
-                                    value={form.role_names[0] || 'trainer'} 
-                                    onChange={e => setForm({...form, role_names: [e.target.value]})} 
-                                    className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition"
-                                >
-                                    <option value="trainer">Trainer</option>
-                                    <option value="admin">Administrator</option>
-                                    <option value="marketing">Marketing</option>
-                                </select>
+                                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Profile Picture</label>
+                                <input type="file" accept="image/*" onChange={e => setForm({...form, profile_picture: e.target.files?.[0] || null})} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition file:mr-3 file:rounded-md file:border-0 file:bg-zinc-200 file:px-3 file:py-1 file:text-sm file:font-medium file:text-zinc-700 dark:file:bg-zinc-800 dark:file:text-zinc-200" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Bio</label>
+                                <textarea value={form.bio} onChange={e => setForm({...form, bio: e.target.value})} rows={4} className="w-full resize-none bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition" />
                             </div>
 
                             <div className="pt-4 flex justify-end gap-3 border-t border-zinc-200 dark:border-zinc-800 mt-6 md:mt-8 tracking-wide">
                                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors">
                                     Cancel
                                 </button>
-                                <button disabled={createMutation.isPending || updateMutation.isPending} type="submit" className="px-5 py-2 font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-colors flex items-center gap-2">
+                                <button disabled={createMutation.isPending || updateMutation.isPending || !roles?.length} type="submit" className="px-5 py-2 font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60 rounded-lg shadow-sm transition-colors flex items-center gap-2">
                                     {(createMutation.isPending || updateMutation.isPending) && <Loader2Icon className="w-4 h-4 animate-spin" />}
                                     {modalMode === 'add' ? 'Add Member' : 'Save Changes'}
                                 </button>
@@ -311,7 +532,7 @@ export default function StaffMembersPage() {
                             </div>
                             <h2 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">Delete Member?</h2>
                             <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-6">
-                                Are you sure you want to remove <span className="font-semibold text-zinc-900 dark:text-white">{memberToDelete.first_name} {memberToDelete.last_name}</span>? This action cannot be undone.
+                                Are you sure you want to remove <span className="font-semibold text-zinc-900 dark:text-white">{memberToDelete.full_name}</span>? This action cannot be undone.
                             </p>
                             <div className="flex gap-3 w-full">
                                 <button 

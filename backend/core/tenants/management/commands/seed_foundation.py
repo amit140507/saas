@@ -86,28 +86,16 @@ class Command(BaseCommand):
             {
                 'name': 'Silver Membership',
                 'description': 'Basic access to gym facilities and standard workout plans.',
-                'plans': [
-                    {'name': 'Monthly Silver', 'price': 1500, 'cycle': PackagePlan.BillingCycleChoices.MONTHLY, 'days': 30},
-                    {'name': 'Annual Silver', 'price': 15000, 'cycle': PackagePlan.BillingCycleChoices.YEARLY, 'days': 365},
-                ]
             },
             {
                 'name': 'Gold Membership',
                 'description': 'Full gym access, advanced workout plans, and monthly nutrition consultation.',
                 'max_freezes': 15,
-                'plans': [
-                    {'name': 'Monthly Gold', 'price': 3000, 'cycle': PackagePlan.BillingCycleChoices.MONTHLY, 'days': 30},
-                    {'name': 'Annual Gold', 'price': 30000, 'cycle': PackagePlan.BillingCycleChoices.YEARLY, 'days': 365},
-                ]
             },
             {
                 'name': 'Platinum Membership',
                 'description': 'All-inclusive access, personal trainer assigned, and weekly progress tracking.',
                 'max_freezes': 30,
-                'plans': [
-                    {'name': 'Monthly Platinum', 'price': 6000, 'cycle': PackagePlan.BillingCycleChoices.MONTHLY, 'days': 30},
-                    {'name': 'Annual Platinum', 'price': 60000, 'cycle': PackagePlan.BillingCycleChoices.YEARLY, 'days': 365},
-                ]
             }
         ]
 
@@ -131,7 +119,6 @@ class Command(BaseCommand):
                     name=plan_info['name'],
                     defaults={
                         'price': plan_info['price'],
-                        'billing_cycle': plan_info['cycle'],
                         'duration_in_days': plan_info['days'],
                     }
                 )
