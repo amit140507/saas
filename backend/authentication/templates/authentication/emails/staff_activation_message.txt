@@ -1,0 +1,8 @@
+Hi {{ user.get_full_name|default:user.username }},
+
+You have been added as a staff member{% if tenant %} for {{ tenant.name }}{% endif %}.
+
+Use the link below to activate your account and set your password:
+{{ activation_url }}
+
+If you were not expecting this invitation, you can ignore this email.

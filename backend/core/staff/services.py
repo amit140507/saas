@@ -3,6 +3,7 @@ from django.db import transaction
 from rest_framework import serializers as drf_serializers
 
 from .models import StaffProfile
+from authentication.services import send_staff_activation_email
 from core.tenants.rbac_service import assign_role
 
 User = get_user_model()
@@ -38,10 +39,12 @@ def create_staff_member(tenant, user_data: dict, staff_data: dict, role_name: st
             user.save(update_fields=list(updates.keys()))
 
     org_member = assign_role(user, tenant, role_name)
-    staff, _ = StaffProfile.objects.update_or_create(
+    staff, staff_created = StaffProfile.objects.update_or_create(
         org_staff=org_member,
         defaults={**staff_data, 'tenant': tenant},
     )
+    if staff_created:
+        transaction.on_commit(lambda: send_staff_activation_email(user=user, tenant=tenant))
     return staff
 
 

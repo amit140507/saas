@@ -135,7 +135,7 @@ export default function AdminProfilePage() {
             <div className="md:flex md:items-center md:justify-between mb-8">
                 <div className="min-w-0 flex-1">
                     <h2 className="text-2xl font-bold leading-7 text-zinc-900 dark:text-white sm:truncate sm:text-3xl sm:tracking-tight transition-colors">
-                        Admin Profile
+                        Profile
                     </h2>
                 </div>
                 {!isEditing && (

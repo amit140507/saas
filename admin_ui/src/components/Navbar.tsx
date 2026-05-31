@@ -143,16 +143,9 @@ export default function Navbar() {
                                     onClick={() => setIsDropdownOpen(false)}
                                 >
                                     <UserIcon className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
-                                    Admin Profile
+                                    My Profile
                                 </Link>
-                                <Link
-                                    href="/dashboard/settings"
-                                    className="flex items-center gap-x-3 px-4 py-2 text-sm leading-6 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-colors"
-                                    onClick={() => setIsDropdownOpen(false)}
-                                >
-                                    <SettingsIcon className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
-                                    System Settings
-                                </Link>
+                                
                                 <div className="border-t border-zinc-200 dark:border-zinc-800 my-1"></div>
                                 <button
                                     type="button"

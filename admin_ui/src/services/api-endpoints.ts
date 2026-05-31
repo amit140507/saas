@@ -1,4 +1,8 @@
 export const API_ENDPOINTS = {
+    auth: {
+        passwordReset: "auth/password/reset/",
+        passwordResetConfirm: "auth/password/reset/confirm/",
+    },
     clients: {
         list: "clients/clients/",
         detail: (id: string) => `clients/clients/${id}/`,

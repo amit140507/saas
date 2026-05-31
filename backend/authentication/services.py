@@ -202,16 +202,20 @@ def onboard_owner_user(*, user, tenant_name: str, phone: str = ""):
     }
 
 
-def send_password_reset_email(*, user):
-    uid = urlsafe_base64_encode(force_bytes(user.pk))
-    token = default_token_generator.make_token(user)
-
+def build_password_setup_url(*, uid: str, token: str) -> str:
     rest_auth_settings = getattr(settings, "REST_AUTH", {})
     url_pattern = rest_auth_settings.get(
         "PASSWORD_RESET_CONFIRM_URL",
         f"{settings.FRONTEND_URL}/reset-password/{{uid}}/{{token}}/",
     )
-    reset_url = url_pattern.replace("{uid}", uid).replace("{token}", token)
+    return url_pattern.replace("{uid}", uid).replace("{token}", token)
+
+
+def send_password_reset_email(*, user):
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    # print("Toekn",token)
+    reset_url = build_password_setup_url(uid=uid, token=token)
     context = {
         "user": user,
         "uid": uid,
@@ -224,6 +228,35 @@ def send_password_reset_email(*, user):
     ).strip()
     email_msg = render_to_string(
         "authentication/emails/password_reset_message.txt",
+        context,
+    )
+
+    send_mail(
+        subject=subject,
+        message=email_msg,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+
+
+def send_staff_activation_email(*, user, tenant):
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    activation_url = build_password_setup_url(uid=uid, token=token)
+    context = {
+        "user": user,
+        "tenant": tenant,
+        "uid": uid,
+        "token": token,
+        "activation_url": activation_url,
+    }
+    subject = render_to_string(
+        "authentication/emails/staff_activation_subject.txt",
+        context,
+    ).strip()
+    email_msg = render_to_string(
+        "authentication/emails/staff_activation_message.txt",
         context,
     )
 

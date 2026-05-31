@@ -117,7 +117,7 @@ class CustomPasswordResetSerializer(PasswordResetSerializer):
         email = self.validated_data.get("email")
         user_model = get_user_model()
         users = user_model.objects.filter(email__iexact=email, is_active=True)
-
+        # print("users>>>>>>>>>>>>>>>>>>>>>>>>>",users)
         for user in users:
             send_password_reset_email(user=user)
 

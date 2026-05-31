@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { ShieldAlertIcon } from "lucide-react";
@@ -80,9 +81,17 @@ export default function AdminLoginForm() {
                     </div>
 
                     <div>
-                        <label htmlFor="password" title="password" className="block text-sm font-medium leading-6 text-zinc-300">
-                            Password
-                        </label>
+                        <div className="flex items-center justify-between gap-4">
+                            <label htmlFor="password" title="password" className="block text-sm font-medium leading-6 text-zinc-300">
+                                Password
+                            </label>
+                            <Link
+                                href="/forgot-password"
+                                className="text-sm font-medium text-red-400 transition hover:text-red-300"
+                            >
+                                Forgot password?
+                            </Link>
+                        </div>
                         <div className="mt-2">
                             <input
                                 id="password"
