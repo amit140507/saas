@@ -100,8 +100,8 @@ export default function AdminOrdersPage() {
         // Fetch clients and products in parallel
         try {
             const [clientsRes, productsRes] = await Promise.all([
-                api.get("clients/management/"),
-                api.get("billing/products/"),
+                api.get("clients/clients"),
+                api.get("billing/packages/"),
             ]);
             setClients(Array.isArray(clientsRes.data) ? clientsRes.data : clientsRes.data.results || []);
             setProducts(Array.isArray(productsRes.data) ? productsRes.data : productsRes.data.results || []);

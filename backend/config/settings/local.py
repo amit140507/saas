@@ -10,8 +10,8 @@ INSTALLED_APPS += [
 ]
 
 MIDDLEWARE += [
-    'debug_toolbar.middleware.DebugToolbarMiddleware',
-    'silk.middleware.SilkyMiddleware',
+    # 'debug_toolbar.middleware.DebugToolbarMiddleware',
+    # 'silk.middleware.SilkyMiddleware',
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True

@@ -259,6 +259,7 @@ GOOGLE_OAUTH_CALLBACK_URL = os.environ.get(
 )
 REST_AUTH = {
     'USE_JWT': True,
+    'SESSION_LOGIN': False,
     # 'JWT_AUTH_SECURE': True,        # only over HTTPS (prod)
     # 'JWT_AUTH_HTTPONLY': True,
     'JWT_AUTH_COOKIE': 'saas-auth',
