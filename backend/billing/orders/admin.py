@@ -4,10 +4,10 @@ from .models import Order, OrderItem
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'order_number', 'client', 'total',
-                    'status', 'payment_method', 'created_at')
-    list_filter = ('status', 'payment_method', 'created_at')
-    search_fields = ('order_number', 'client__name')
+    list_display = ('id', 'order_number','total', 'status', 'payment_method', 'created_at')
+    list_display = ('id', 'order_number', 'total', 'status', 'payment_method', 'created_at')
+    list_filter = ('status', 'payment_method', 'created_at','tenant')
+    search_fields = ('order_number',)
     readonly_fields = ('payment_link_token',)
 
 

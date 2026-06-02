@@ -81,7 +81,7 @@ export default function AdminOrdersPage() {
 
     const fetchOrders = async () => {
         try {
-            const res = await api.get("orders/");
+            const res = await api.get("orders/orders/");
             setOrders(Array.isArray(res.data) ? res.data : res.data.results || []);
         } catch (err) {
             console.error("Failed to fetch orders:", err);
