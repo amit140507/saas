@@ -9,7 +9,7 @@ class OrderAdmin(admin.ModelAdmin):
     list_filter = ('status', 'payment_method', 'created_at','tenant')
     search_fields = ('order_number',)
     readonly_fields = ('payment_link_token',)
-
+    ordering = ('-created_at',)
 
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):

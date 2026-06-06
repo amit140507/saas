@@ -20,7 +20,15 @@ POST
   "tax_amount": "810.00",
   "total_amount": "5310.00",
   "coupon": null,
-  "notes": "Gold package order for client"
+  "notes": "Gold package order for client",
+  "items": [
+    {
+      "product": "eea82f69-9e4e-4ccc-bce7-f0c609489208",
+      "quantity": 1,
+      "unit_price": "1500.00",
+      "total_price": "1500.00"
+    }
+  ]
 }
 
 

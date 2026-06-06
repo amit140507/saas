@@ -16,4 +16,12 @@ export const API_ENDPOINTS = {
         list: "packages/",
         detail: (id: string) => `packages/${id}/`,
     },
+    coupons: {
+        list: "coupons/",
+        detail: (id: string) => `coupons/${id}/`,
+    },
+    orders: {
+        list: "orders/orders/",
+        detail: (id: string) => `orders/orders/${id}/`,
+    },
 } as const;
