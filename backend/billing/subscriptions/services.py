@@ -8,14 +8,15 @@ from .models import (
     Membership, 
     MembershipFreeze, 
     MembershipSnapshot, 
-    MembershipChange
+    MembershipChange,
+    PlanDeliveryTask,
 )
 
 class MembershipService:
     
     @staticmethod
     @transaction.atomic
-    def create_membership(tenant, client, plan, start_date=None, order=None, status=None, notes=None):
+    def create_membership(tenant, client, plan, start_date=None, order=None, order_item=None, status=None, notes=None):
         if not start_date:
             start_date = timezone.now().date()
 
@@ -29,6 +30,7 @@ class MembershipService:
             client=client,
             plan=plan,
             order=order,
+            order_item=order_item,
             start_date=start_date,
             base_end_date=base_end_date,
             extended_end_date=base_end_date,
@@ -160,6 +162,66 @@ class MembershipService:
         # Here we just update the reference and track it.
         
         return membership
+
+    @staticmethod
+    @transaction.atomic
+    def provision_paid_order(order, paid_at=None):
+        """
+        Create paid-order memberships and plan delivery tasks idempotently.
+        """
+        paid_at = paid_at or timezone.now()
+        payment_date = timezone.localdate(paid_at) if timezone.is_aware(paid_at) else paid_at.date()
+        memberships = []
+        delivery_tasks = []
+
+        items = (
+            order.items
+            .select_related('product__package')
+            .filter(product__isnull=False)
+        )
+
+        for item in items:
+            plan = item.product
+            membership = getattr(item, 'membership', None)
+            if membership is None:
+                membership = MembershipService.create_membership(
+                    tenant=order.tenant,
+                    client=order.client,
+                    plan=plan,
+                    start_date=payment_date,
+                    order=order,
+                    order_item=item,
+                    status=Membership.StatusChoices.ACTIVE,
+                )
+
+            memberships.append(membership)
+
+            if MembershipService._requires_plan_delivery(plan):
+                due_date = payment_date + timedelta(days=plan.plan_delivery_days)
+                task, _ = PlanDeliveryTask.objects.get_or_create(
+                    tenant=order.tenant,
+                    membership=membership,
+                    defaults={
+                        'client': order.client,
+                        'order': order,
+                        'package_plan': plan,
+                        'due_date': due_date,
+                        'status': PlanDeliveryTask.StatusChoices.PENDING_CREATION,
+                    },
+                )
+                delivery_tasks.append(task)
+
+        return {
+            'memberships': memberships,
+            'plan_delivery_tasks': delivery_tasks,
+        }
+
+    @staticmethod
+    def _requires_plan_delivery(plan):
+        return (
+            plan.package.package_type in ('online', 'pt')
+            and plan.plan_delivery_days is not None
+        )
 
     @staticmethod
     def _build_plan_snapshot(plan: PackagePlan):

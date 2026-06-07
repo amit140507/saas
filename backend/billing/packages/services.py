@@ -76,14 +76,16 @@ def sync_package_relations(*, package, tenant, features, plans):
                 name=plan_data["name"],
                 price=plan_data["price"],
                 duration_in_days=plan_data.get("duration_in_days"),
+                plan_delivery_days=plan_data.get("plan_delivery_days"),
                 is_active=plan_data.get("is_active", True),
             )
             continue
 
         plan.price = plan_data["price"]
         plan.duration_in_days = plan_data.get("duration_in_days")
+        plan.plan_delivery_days = plan_data.get("plan_delivery_days")
         plan.is_active = plan_data.get("is_active", True)
-        plan.save(update_fields=["price", "duration_in_days", "is_active", "updated_at"])
+        plan.save(update_fields=["price", "duration_in_days", "plan_delivery_days", "is_active", "updated_at"])
 
     stale_plans = PackagePlan.objects.filter(
         tenant=tenant,

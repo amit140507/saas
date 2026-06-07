@@ -1,14 +1,15 @@
-from rest_framework import viewsets, status
+from rest_framework import mixins, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.core.exceptions import ValidationError
 
 from billing.packages.models import PackagePlan
-from .models import Feature, Membership
+from .models import Feature, Membership, PlanDeliveryTask
 from .serializers import (
     FeatureSerializer,
     MembershipSerializer,
+    PlanDeliveryTaskSerializer,
     MembershipFreezeActionSerializer,
     MembershipRenewActionSerializer,
     MembershipChangeActionSerializer
@@ -32,28 +33,10 @@ class MembershipViewSet(viewsets.ModelViewSet):
         )
 
     def create(self, request, *args, **kwargs):
-        # We override create to use our service, ensuring snapshots and dates are handled
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        try:
-            tenant = require_request_tenant(request)
-            plan = PackagePlan.objects.select_related('package').get(
-                id=serializer.validated_data['plan'].id,
-                tenant=tenant,
-            )
-            membership = MembershipService.create_membership(
-                tenant=tenant,
-                client=serializer.validated_data['client'],
-                plan=plan,
-                start_date=serializer.validated_data.get('start_date'),
-                order=serializer.validated_data.get('order'),
-                status=serializer.validated_data.get('status'),
-                notes=serializer.validated_data.get('notes')
-            )
-            return Response(MembershipSerializer(membership).data, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {'error': 'Memberships are created automatically after a paid order is confirmed.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     @action(detail=True, methods=['post'])
     def freeze(self, request, pk=None):
@@ -128,3 +111,46 @@ class FeatureViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(tenant=require_request_tenant(self.request))
+
+
+class PlanDeliveryTaskViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    serializer_class = PlanDeliveryTaskSerializer
+    permission_classes = [IsAuthenticated, IsTenantMember]
+
+    def get_queryset(self):
+        tenant = require_request_tenant(self.request)
+        qs = (
+            PlanDeliveryTask.objects
+            .filter(tenant=tenant)
+            .select_related(
+                'client__org_client__user',
+                'order',
+                'membership',
+                'package_plan__package',
+                'assigned_to',
+            )
+            .order_by('due_date', 'created_at')
+        )
+
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
+        client_id = self.request.query_params.get('client')
+        if client_id:
+            qs = qs.filter(client_id=client_id)
+
+        membership_id = self.request.query_params.get('membership')
+        if membership_id:
+            qs = qs.filter(membership_id=membership_id)
+
+        due_date = self.request.query_params.get('due_date')
+        if due_date:
+            qs = qs.filter(due_date=due_date)
+
+        return qs

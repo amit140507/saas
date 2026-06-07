@@ -9,6 +9,7 @@ from .models import (
     MembershipChange,
     MembershipFreeze,
     MembershipSnapshot,
+    PlanDeliveryTask,
 )
 
 
@@ -95,3 +96,14 @@ class MembershipChangeAdmin(admin.ModelAdmin):
 class MembershipSnapshotAdmin(admin.ModelAdmin):
     list_display = ('membership', 'tenant')
     list_filter = ('tenant',)
+
+
+@admin.register(PlanDeliveryTask)
+class PlanDeliveryTaskAdmin(admin.ModelAdmin):
+    list_display = ('client', 'package_plan', 'status', 'due_date', 'assigned_to', 'tenant')
+    list_filter = ('status', 'due_date', 'tenant')
+    search_fields = (
+        'client__org_client__user__email',
+        'package_plan__name',
+        'package_plan__package__name',
+    )

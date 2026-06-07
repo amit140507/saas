@@ -34,7 +34,7 @@ class PackageFeatureSerializer(serializers.ModelSerializer):
 class PackagePlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = PackagePlan
-        fields = ('id', 'package', 'name', 'price', 'duration_in_days', 'is_active')
+        fields = ('id', 'package', 'name', 'price', 'duration_in_days', 'plan_delivery_days', 'is_active')
         read_only_fields = ('package',)
 
 
@@ -48,6 +48,7 @@ class PackagePlanInputSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=100)
     price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
     duration_in_days = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+    plan_delivery_days = serializers.IntegerField(required=False, allow_null=True, min_value=0)
     is_active = serializers.BooleanField(required=False, default=True)
 
 
@@ -65,6 +66,7 @@ class PackageSerializer(serializers.ModelSerializer):
             'id',
             'name',
             'description',
+            'package_type',
             'max_freezes',
             'is_active',
             'features',
@@ -166,6 +168,7 @@ class PackageSerializer(serializers.ModelSerializer):
                         'name': plan.name,
                         'price': plan.price,
                         'duration_in_days': plan.duration_in_days,
+                        'plan_delivery_days': plan.plan_delivery_days,
                         'is_active': plan.is_active,
                     }
                     for plan in instance.plans.all()

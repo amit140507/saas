@@ -12,8 +12,20 @@ class Package(TenantAwareModel):
     Shared package/tier definition (e.g. Silver, Gold, Platinum).
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    class PackageTypeChoices(models.TextChoices):
+        GYM = 'gym', 'Gym'
+        ONLINE = 'online', 'Online'
+        PT = 'pt', 'Personal Training'
+        OTHER = 'other', 'Other'
+
     name = models.CharField(max_length=100)
     description = models.TextField(null=True, blank=True)
+    package_type = models.CharField(
+        max_length=20,
+        choices=PackageTypeChoices.choices,
+        default=PackageTypeChoices.GYM,
+    )
     max_freezes = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -45,6 +57,11 @@ class PackagePlan(TenantAwareModel):
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     duration_in_days = models.IntegerField(
         null=True, blank=True, help_text="Duration of access for one-time or fixed-term passes"
+    )
+    plan_delivery_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Days after payment by which a personalized plan should be delivered."
     )
     is_active = models.BooleanField(default=True)
 

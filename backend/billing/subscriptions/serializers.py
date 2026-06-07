@@ -11,6 +11,7 @@ from .models import (
     MembershipChange,
     MembershipFreeze,
     MembershipSnapshot,
+    PlanDeliveryTask,
 )
 
 
@@ -121,6 +122,38 @@ class MembershipSerializer(serializers.ModelSerializer):
             validated_data['extended_end_date'] = base_end_date
 
         return super().update(instance, validated_data)
+
+
+class PlanDeliveryTaskSerializer(serializers.ModelSerializer):
+    package_plan_details = PackagePlanSerializer(source='package_plan', read_only=True)
+
+    class Meta:
+        model = PlanDeliveryTask
+        fields = '__all__'
+        read_only_fields = (
+            'id',
+            'tenant',
+            'client',
+            'order',
+            'membership',
+            'package_plan',
+            'due_date',
+            'created_at',
+            'updated_at',
+        )
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        tenant = getattr(request, 'tenant', None) if request is not None else None
+
+        assigned_to = attrs.get('assigned_to')
+        if tenant is not None and assigned_to is not None:
+            if not assigned_to.org_memberships.filter(tenant=tenant, status='active').exists():
+                raise serializers.ValidationError({
+                    'assigned_to': 'Assigned user must belong to the current tenant.'
+                })
+
+        return attrs
 
 
 class MembershipFreezeActionSerializer(serializers.Serializer):

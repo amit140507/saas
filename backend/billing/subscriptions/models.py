@@ -1,6 +1,7 @@
 import uuid
 
 from django.db import models
+from django.conf import settings
 
 from core.tenants.models import TenantAwareModel
 from billing.packages.models import PackageFeature
@@ -60,8 +61,12 @@ class Membership(TenantAwareModel):
     plan = models.ForeignKey(
         'packages.PackagePlan', on_delete=models.PROTECT, related_name='memberships'
     )
-    order = models.OneToOneField(
+    order = models.ForeignKey(
         'orders.Order', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='memberships'
+    )
+    order_item = models.OneToOneField(
+        'orders.OrderItem', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='membership'
     )
     start_date = models.DateField()
@@ -82,6 +87,7 @@ class Membership(TenantAwareModel):
         indexes = [
             models.Index(fields=['tenant', 'client', 'status']),
             models.Index(fields=['extended_end_date']),
+            models.Index(fields=['tenant', 'order']),
         ]
 
     # def __str__(self):
@@ -129,6 +135,64 @@ class MembershipSnapshot(TenantAwareModel):
 
     def __str__(self):
         return f"Snapshot for {self.membership}"
+
+
+class PlanDeliveryTask(TenantAwareModel):
+    """
+    Tracks pending personalized plan creation after a paid online/PT purchase.
+    Real diet/workout assignments are created only when the plan is delivered.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    class StatusChoices(models.TextChoices):
+        PENDING_CREATION = 'pending_creation', 'Pending Creation'
+        IN_PROGRESS = 'in_progress', 'In Progress'
+        DELIVERED = 'delivered', 'Delivered'
+        CANCELLED = 'cancelled', 'Cancelled'
+
+    client = models.ForeignKey(
+        'clients.ClientProfile', on_delete=models.CASCADE, related_name='plan_delivery_tasks'
+    )
+    order = models.ForeignKey(
+        'orders.Order', on_delete=models.CASCADE, related_name='plan_delivery_tasks'
+    )
+    membership = models.OneToOneField(
+        Membership, on_delete=models.CASCADE, related_name='plan_delivery_task'
+    )
+    package_plan = models.ForeignKey(
+        'packages.PackagePlan', on_delete=models.PROTECT, related_name='plan_delivery_tasks'
+    )
+    due_date = models.DateField()
+    status = models.CharField(
+        max_length=20,
+        choices=StatusChoices.choices,
+        default=StatusChoices.PENDING_CREATION,
+    )
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_plan_delivery_tasks',
+    )
+    notes = models.TextField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Plan Delivery Task'
+        verbose_name_plural = 'Plan Delivery Tasks'
+        indexes = [
+            models.Index(fields=['tenant', 'status', 'due_date']),
+            models.Index(fields=['tenant', 'client', 'status']),
+            models.Index(fields=['tenant', 'membership']),
+        ]
+
+    def __str__(self):
+        return f"{self.client} plan delivery due {self.due_date} ({self.status})"
 
 
 # ---------------------------------------------------------------------------
