@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from datetime import timedelta
 
 from billing.packages.serializers import PackageFeatureSerializer, PackagePlanSerializer
 from .models import (
@@ -86,11 +87,40 @@ class MembershipSerializer(serializers.ModelSerializer):
             'tenant',
             'created_at',
             'updated_at',
-            'status',
             'renewed_from',
             'extended_end_date',
             'base_end_date',
         )
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        tenant = getattr(request, 'tenant', None) if request is not None else None
+        tenant = tenant or getattr(self.instance, 'tenant', None)
+
+        client = attrs.get('client')
+        if tenant is not None and client is not None and client.tenant_id != tenant.id:
+            raise serializers.ValidationError({'client': 'Client must belong to the current tenant.'})
+
+        plan = attrs.get('plan')
+        if tenant is not None and plan is not None and plan.tenant_id != tenant.id:
+            raise serializers.ValidationError({'plan': 'Plan must belong to the current tenant.'})
+
+        order = attrs.get('order')
+        if tenant is not None and order is not None and order.tenant_id != tenant.id:
+            raise serializers.ValidationError({'order': 'Order must belong to the current tenant.'})
+
+        return attrs
+
+    def update(self, instance, validated_data):
+        plan = validated_data.get('plan', instance.plan)
+        start_date = validated_data.get('start_date', instance.start_date)
+
+        if ('plan' in validated_data or 'start_date' in validated_data) and plan.duration_in_days:
+            base_end_date = start_date + timedelta(days=plan.duration_in_days)
+            validated_data['base_end_date'] = base_end_date
+            validated_data['extended_end_date'] = base_end_date
+
+        return super().update(instance, validated_data)
 
 
 class MembershipFreezeActionSerializer(serializers.Serializer):

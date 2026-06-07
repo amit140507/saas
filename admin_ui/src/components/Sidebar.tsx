@@ -16,6 +16,7 @@ import {
     RulerIcon,
     ShoppingCartIcon,
     PackageIcon,
+    BadgeCheckIcon,
     MenuIcon,
     XIcon,
 } from "lucide-react";
@@ -37,6 +38,7 @@ const navigation: NavigationItem[] = [
     { name: "Staff Members", href: "/dashboard/staff", icon: ShieldCheckIcon, permission: PERMISSIONS.STAFF_VIEW },
     { name: "Clients (Members)", href: "/dashboard/clients", icon: UsersIcon, permission: PERMISSIONS.VIEW_CLIENTS },
     { name: "Packages", href: "/dashboard/packages", icon: PackageIcon, permission: PERMISSIONS.VIEW_PLANS },
+    { name: "Subscriptions", href: "/dashboard/subscriptions", icon: BadgeCheckIcon, permission: PERMISSIONS.VIEW_PLANS },
     { name: "Orders", href: "/dashboard/orders", icon: ShoppingCartIcon, permission: PERMISSIONS.VIEW_ORDERS },
     { name: "Payments", href: "/dashboard/payments", icon: CreditCardIcon, permission: PERMISSIONS.MANAGE_ORDERS },
     // { name: "Security", href: "/dashboard/security", icon: ShieldCheckIcon },

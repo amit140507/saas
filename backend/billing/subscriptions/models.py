@@ -3,7 +3,7 @@ import uuid
 from django.db import models
 
 from core.tenants.models import TenantAwareModel
-
+from billing.packages.models import PackageFeature
 
 # ---------------------------------------------------------------------------
 # Feature - Reusable capability
@@ -223,7 +223,7 @@ class AddonFeature(TenantAwareModel):
         return f"{self.addon.name} - {self.feature.name}"
 
 
-from billing.packages.models import PackageFeature
+
 
 
 # ---------------------------------------------------------------------------

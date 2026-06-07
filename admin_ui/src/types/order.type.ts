@@ -3,7 +3,7 @@ export type OrderPaymentMethod = "card" | "payment_link";
 
 export interface OrderItem {
     id: string;
-    product: string;
+    product: string | null;
     quantity: number;
     unit_price: string;
     total_price: string;

@@ -5,8 +5,9 @@ from rest_framework.permissions import IsAuthenticated
 from django.core.exceptions import ValidationError
 
 from billing.packages.models import PackagePlan
-from .models import Membership
+from .models import Feature, Membership
 from .serializers import (
+    FeatureSerializer,
     MembershipSerializer,
     MembershipFreezeActionSerializer,
     MembershipRenewActionSerializer,
@@ -21,7 +22,14 @@ class MembershipViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsTenantMember]
 
     def get_queryset(self):
-        return Membership.objects.filter(tenant=require_request_tenant(self.request))
+        tenant = require_request_tenant(self.request)
+        return (
+            Membership.objects
+            .filter(tenant=tenant)
+            .select_related('client__org_client__user', 'plan__package', 'order')
+            .prefetch_related('freezes', 'addons', 'changes')
+            .order_by('-start_date')
+        )
 
     def create(self, request, *args, **kwargs):
         # We override create to use our service, ensuring snapshots and dates are handled
@@ -39,7 +47,9 @@ class MembershipViewSet(viewsets.ModelViewSet):
                 client=serializer.validated_data['client'],
                 plan=plan,
                 start_date=serializer.validated_data.get('start_date'),
-                order=serializer.validated_data.get('order')
+                order=serializer.validated_data.get('order'),
+                status=serializer.validated_data.get('status'),
+                notes=serializer.validated_data.get('notes')
             )
             return Response(MembershipSerializer(membership).data, status=status.HTTP_201_CREATED)
         except Exception as e:
@@ -106,3 +116,15 @@ class MembershipViewSet(viewsets.ModelViewSet):
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
                 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class FeatureViewSet(viewsets.ModelViewSet):
+    serializer_class = FeatureSerializer
+    permission_classes = [IsAuthenticated, IsTenantMember]
+
+    def get_queryset(self):
+        tenant = require_request_tenant(self.request)
+        return Feature.objects.filter(tenant=tenant).order_by('name')
+
+    def perform_create(self, serializer):
+        serializer.save(tenant=require_request_tenant(self.request))

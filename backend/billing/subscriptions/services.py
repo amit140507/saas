@@ -15,7 +15,7 @@ class MembershipService:
     
     @staticmethod
     @transaction.atomic
-    def create_membership(tenant, client, plan, start_date=None, order=None):
+    def create_membership(tenant, client, plan, start_date=None, order=None, status=None, notes=None):
         if not start_date:
             start_date = timezone.now().date()
 
@@ -32,7 +32,8 @@ class MembershipService:
             start_date=start_date,
             base_end_date=base_end_date,
             extended_end_date=base_end_date,
-            status=Membership.StatusChoices.ACTIVE
+            status=status or Membership.StatusChoices.ACTIVE,
+            notes=notes
         )
         
         # Create snapshot
