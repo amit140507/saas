@@ -253,6 +253,7 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "core.common.exceptions.custom_exception_handler",
 }
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+PAYMENT_LINK_BASE_URL = os.environ.get("PAYMENT_LINK_BASE_URL", FRONTEND_URL).rstrip("/")
 GOOGLE_OAUTH_CALLBACK_URL = os.environ.get(
     "GOOGLE_OAUTH_CALLBACK_URL",
     f"{FRONTEND_URL}/auth/google/callback/",
@@ -317,3 +318,14 @@ R2_REGION = os.environ.get('R2_REGION', 'auto')
 R2_ENDPOINT_URL = os.environ.get('R2_ENDPOINT_URL', '')
 R2_INVOICE_KEY_PREFIX = os.environ.get('R2_INVOICE_KEY_PREFIX', 'invoices')
 INVOICE_CURRENCY_LABEL = os.environ.get('INVOICE_CURRENCY_LABEL', 'USD')
+
+# Payments
+PAYMENT_DEFAULT_GATEWAY = os.environ.get("PAYMENT_DEFAULT_GATEWAY", "razorpay")
+PAYMENT_ENABLED_GATEWAYS = [
+    gateway.strip()
+    for gateway in os.environ.get("PAYMENT_ENABLED_GATEWAYS", "razorpay,test").split(",")
+    if gateway.strip()
+]
+RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
+RAZORPAY_WEBHOOK_SECRET = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "")

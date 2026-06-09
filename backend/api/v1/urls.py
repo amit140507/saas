@@ -10,5 +10,6 @@ urlpatterns = [
     path('', include('billing.coupons.urls')),
     path('subscriptions/', include('billing.subscriptions.urls')),
     path('meal/', include('meal.urls')),
-    path('orders/', include('billing.orders.urls'))
+    path('orders/', include('billing.orders.urls')),
+    path('payments/', include('billing.payments.urls')),
 ]

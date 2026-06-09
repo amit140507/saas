@@ -81,10 +81,73 @@ class PaymentGatewayConfig(TenantAwareModel):
     provider_name = models.CharField(max_length=50, choices=PROVIDER_CHOICES, default='test')
     api_key = models.CharField(max_length=255, blank=True)
     api_secret = models.CharField(max_length=255, blank=True)
+    webhook_secret = models.CharField(max_length=255, blank=True)
     is_active = models.BooleanField(default=True)
     
     def __str__(self):
         return f"{self.tenant.name} -> {self.provider_name}"
+
+
+class CheckoutIntent(TenantAwareModel):
+    class SourceChoices(models.TextChoices):
+        USER_CHECKOUT = "user_checkout", "User Checkout"
+        ADMIN_PAYMENT_LINK = "admin_payment_link", "Admin Payment Link"
+
+    class StatusChoices(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PROCESSING = "processing", "Processing"
+        PAID = "paid", "Paid"
+        FAILED = "failed", "Failed"
+        EXPIRED = "expired", "Expired"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    client = models.ForeignKey(
+        "clients.ClientProfile",
+        on_delete=models.PROTECT,
+        related_name="checkout_intents",
+    )
+    order = models.ForeignKey(
+        "orders.Order",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="checkout_intents",
+    )
+    source = models.CharField(max_length=30, choices=SourceChoices.choices)
+    status = models.CharField(
+        max_length=20,
+        choices=StatusChoices.choices,
+        default=StatusChoices.PENDING,
+    )
+    gateway = models.CharField(max_length=50)
+    provider_order_id = models.CharField(max_length=255, blank=True, db_index=True)
+    gateway_payment_id = models.CharField(max_length=255, blank=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default="INR")
+    payment_link_token = models.UUIDField(null=True, blank=True, unique=True)
+    order_snapshot = models.JSONField(default=dict, blank=True)
+    gateway_response = models.JSONField(null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_checkout_intents",
+    )
+
+    class Meta:
+        verbose_name = "Checkout Intent"
+        verbose_name_plural = "Checkout Intents"
+        indexes = [
+            models.Index(fields=["tenant", "source", "status"]),
+            models.Index(fields=["tenant", "client", "status"]),
+            models.Index(fields=["provider_order_id"]),
+        ]
+
+    def __str__(self):
+        return f"{self.source} {self.id} ({self.status})"
+
 
 class Transaction(TenantAwareModel):
     """

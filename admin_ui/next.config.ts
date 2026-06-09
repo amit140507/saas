@@ -4,6 +4,7 @@ const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api
 const backendApiUrl = backendUrl.endsWith("/") ? backendUrl : `${backendUrl}/`;
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["frontend.abhifithealthclub.com"],
   async rewrites() {
     return [
       {

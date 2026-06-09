@@ -25,10 +25,12 @@ import {
 import { getClients } from "@/services/client.service";
 import { getCoupons } from "@/services/coupon.service";
 import { createOrder, getOrders, updateOrder } from "@/services/order.service";
+import { createAdminPaymentLink, getAdminPaymentLinks } from "@/services/payment.service";
 import { getPackages } from "@/services/package.service";
 import type { ClientData } from "@/types/client.type";
 import type { Coupon } from "@/types/coupon.type";
 import type { Order, OrderItemPayload, OrderPayload, OrderPaymentMethod, OrderStatus } from "@/types/order.type";
+import type { AdminPaymentLinkPayload, AdminPaymentLinkRequest, AdminPaymentLinkResponse } from "@/types/payment.type";
 import type { Package } from "@/types/package.type";
 
 type ModalMode = "create" | "edit";
@@ -175,7 +177,7 @@ function toForm(order: Order): OrderForm {
         items: order.items.length
             ? order.items.map((item) => ({
                 rowId: item.id,
-                product: item.product,
+                product: item.product || "",
                 quantity: String(item.quantity),
                 unit_price: item.unit_price,
             }))
@@ -192,10 +194,16 @@ export default function AdminOrdersPage() {
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [form, setForm] = useState<OrderForm>(createEmptyForm);
     const [formError, setFormError] = useState("");
+    const [latestPaymentLink, setLatestPaymentLink] = useState<AdminPaymentLinkResponse | null>(null);
 
     const { data: orders = [], isLoading: isLoadingOrders } = useQuery({
         queryKey: ["admin-orders"],
         queryFn: getOrders,
+    });
+
+    const { data: paymentLinks = [], isLoading: isLoadingPaymentLinks } = useQuery({
+        queryKey: ["admin-payment-links"],
+        queryFn: getAdminPaymentLinks,
     });
 
     const { data: clients = [], isLoading: isLoadingClients } = useQuery({
@@ -258,6 +266,10 @@ export default function AdminOrdersPage() {
         queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
     };
 
+    const refreshPaymentLinks = () => {
+        queryClient.invalidateQueries({ queryKey: ["admin-payment-links"] });
+    };
+
     const createMutation = useMutation({
         mutationFn: createOrder,
         onSuccess: () => {
@@ -266,6 +278,18 @@ export default function AdminOrdersPage() {
         },
         onError: (error: unknown) => {
             setFormError(getErrorMessage(error, "Could not create order. Please check the details and try again."));
+        },
+    });
+
+    const createPaymentLinkMutation = useMutation({
+        mutationFn: createAdminPaymentLink,
+        onSuccess: (result) => {
+            setLatestPaymentLink(result);
+            refreshPaymentLinks();
+            closeModal();
+        },
+        onError: (error: unknown) => {
+            setFormError(getErrorMessage(error, "Could not create payment link. Please check the details and try again."));
         },
     });
 
@@ -280,7 +304,7 @@ export default function AdminOrdersPage() {
         },
     });
 
-    const isSubmitting = createMutation.isPending || updateMutation.isPending;
+    const isSubmitting = createMutation.isPending || updateMutation.isPending || createPaymentLinkMutation.isPending;
 
     const filteredOrders = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -406,9 +430,53 @@ export default function AdminOrdersPage() {
         };
     };
 
+    const buildPaymentLinkPayload = (): AdminPaymentLinkPayload | null => {
+        if (!form.client) {
+            setFormError("Please select a client.");
+            return null;
+        }
+
+        const items = computedItems.map((item) => ({
+            product: item.product,
+            quantity: Number(item.quantity),
+            unit_price: toMoneyString(Number(item.unit_price) || 0),
+            total_price: item.total_price,
+        }));
+
+        if (items.some((item) => !item.product)) {
+            setFormError("Please select a product for each payment link item.");
+            return null;
+        }
+
+        if (items.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1)) {
+            setFormError("Quantity must be at least 1 for each payment link item.");
+            return null;
+        }
+
+        return {
+            client: form.client,
+            coupon: form.coupon || null,
+            notes: form.notes,
+            subtotal: toMoneyString(subtotal),
+            discount_amount: toMoneyString(discountAmount),
+            tax_amount: toMoneyString(taxAmount),
+            total_amount: toMoneyString(totalAmount),
+            items,
+        };
+    };
+
     const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setFormError("");
+
+        if (modalMode === "create" && form.payment_method === "payment_link") {
+            const paymentLinkPayload = buildPaymentLinkPayload();
+            if (!paymentLinkPayload) {
+                return;
+            }
+            createPaymentLinkMutation.mutate(paymentLinkPayload);
+            return;
+        }
 
         const payload = buildPayload();
         if (!payload) {
@@ -431,6 +499,14 @@ export default function AdminOrdersPage() {
             hour: "2-digit",
             minute: "2-digit",
         });
+    };
+
+    const copyToClipboard = async (value: string) => {
+        try {
+            await navigator.clipboard.writeText(value);
+        } catch (error) {
+            console.error("Could not copy payment link", error);
+        }
     };
 
     return (
@@ -491,6 +567,77 @@ export default function AdminOrdersPage() {
                 </div>
             </div>
 
+            {latestPaymentLink && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
+                    Payment link ready for {latestPaymentLink.snapshot.client_name}:{" "}
+                    <button
+                        type="button"
+                        onClick={() => copyToClipboard(latestPaymentLink.payment_url)}
+                        className="font-semibold underline underline-offset-2"
+                    >
+                        Copy link
+                    </button>
+                </div>
+            )}
+
+            <div className="bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+                    <h2 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wide">Payment Requests</h2>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500">
+                            <tr>
+                                <th className="px-6 py-4">Client</th>
+                                <th className="px-6 py-4">Amount</th>
+                                <th className="px-6 py-4">Status</th>
+                                <th className="px-6 py-4">Created</th>
+                                <th className="px-6 py-4 text-right">Link</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                            {isLoadingPaymentLinks ? (
+                                <tr><td colSpan={5} className="px-6 py-10 text-center text-zinc-400">Loading payment requests...</td></tr>
+                            ) : paymentLinks.length === 0 ? (
+                                <tr><td colSpan={5} className="px-6 py-10 text-center text-zinc-400">No payment requests yet.</td></tr>
+                            ) : (
+                                paymentLinks.map((paymentLink: AdminPaymentLinkRequest) => (
+                                    <tr key={paymentLink.id}>
+                                        <td className="px-6 py-4">
+                                            <div className="font-medium text-zinc-900 dark:text-white">{paymentLink.client_name}</div>
+                                            <div className="text-xs text-zinc-500">{paymentLink.client_email}</div>
+                                        </td>
+                                        <td className="px-6 py-4 font-semibold text-zinc-900 dark:text-white">{toCurrency(paymentLink.amount)}</td>
+                                        <td className="px-6 py-4">
+                                            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold uppercase ${
+                                                paymentLink.status === "paid"
+                                                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                                                    : paymentLink.status === "processing"
+                                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300"
+                                                        : "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+                                            }`}>
+                                                {paymentLink.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-xs text-zinc-500">{formatDate(paymentLink.created_at)}</td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button
+                                                type="button"
+                                                onClick={() => copyToClipboard(paymentLink.payment_url)}
+                                                className="inline-flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 font-medium"
+                                            >
+                                                <LinkIcon className="w-4 h-4" />
+                                                Copy Link
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <div className="bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-sm">
@@ -518,7 +665,7 @@ export default function AdminOrdersPage() {
                                     const client = clientById.get(order.client);
                                     const coupon = order.coupon ? couponById.get(order.coupon) : undefined;
                                     const firstItem = order.items[0];
-                                    const firstPlan = firstItem ? planById.get(firstItem.product) : undefined;
+                                    const firstPlan = firstItem?.product ? planById.get(firstItem.product) : undefined;
                                     return (
                                         <tr key={order.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors">
                                             <td className="px-6 py-4">
@@ -834,6 +981,8 @@ export default function AdminOrdersPage() {
                                         <><Loader2Icon className="w-4 h-4 animate-spin" /> Saving...</>
                                     ) : modalMode === "edit" ? (
                                         <><EditIcon className="w-4 h-4" /> Save Changes</>
+                                    ) : form.payment_method === "payment_link" ? (
+                                        <><LinkIcon className="w-4 h-4" /> Create Payment Link</>
                                     ) : (
                                         <><PlusIcon className="w-4 h-4" /> Create Order</>
                                     )}

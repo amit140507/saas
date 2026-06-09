@@ -8,7 +8,6 @@ import {
     EditIcon,
     LayersIcon,
     Loader2Icon,
-    PlusIcon,
     SearchIcon,
     Trash2Icon,
     UserIcon,
@@ -195,14 +194,6 @@ export default function SubscriptionsPage() {
         },
     });
 
-    const openCreateMembership = () => {
-        setModalMode("create");
-        setSelectedMembership(null);
-        setMembershipForm(emptyMembershipForm());
-        setFormError("");
-        setMembershipModalOpen(true);
-    };
-
     const openEditMembership = (membership: Membership) => {
         setModalMode("edit");
         setSelectedMembership(membership);
@@ -256,13 +247,6 @@ export default function SubscriptionsPage() {
                     </h1>
                     <p className="text-zinc-500 dark:text-zinc-400 mt-1">Manage tenant memberships.</p>
                 </div>
-                <button
-                    onClick={openCreateMembership}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg font-semibold flex items-center gap-2 transition-colors shadow-sm"
-                >
-                    <PlusIcon className="w-5 h-5" />
-                    Add Membership
-                </button>
             </div>
 
             <div className="flex flex-col md:flex-row gap-4 justify-between md:items-center">

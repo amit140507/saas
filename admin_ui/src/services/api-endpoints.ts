@@ -24,6 +24,12 @@ export const API_ENDPOINTS = {
         list: "orders/orders/",
         detail: (id: string) => `orders/orders/${id}/`,
     },
+    payments: {
+        checkoutIntentDetail: (id: string) => `payments/checkout-intents/${id}/`,
+        adminPaymentLinks: "payments/admin-payment-links/",
+        paymentLinkSummary: (token: string) => `payments/payment-links/${token}/`,
+        paymentLinkCheckout: (token: string) => `payments/payment-links/${token}/checkout/`,
+    },
     subscriptions: {
         memberships: "subscriptions/memberships/",
         membershipDetail: (id: string) => `subscriptions/memberships/${id}/`,

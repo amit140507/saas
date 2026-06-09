@@ -81,6 +81,8 @@ export const authOptions: NextAuthOptions = {
               name: `${response.data.user?.first_name || ""} ${response.data.user?.last_name || ""}`.trim(),
               accessToken: response.data.access,
               refreshToken: response.data.refresh,
+              tenantId: response.data.user?.memberships?.[0]?.tenant_id,
+              tenantName: response.data.user?.memberships?.[0]?.tenant_name,
             };
           }
           return null;
@@ -107,6 +109,8 @@ export const authOptions: NextAuthOptions = {
           if (response.data && response.data.access) {
             (user as any).accessToken = response.data.access;
             (user as any).refreshToken = response.data.refresh;
+            (user as any).tenantId = response.data.user?.memberships?.[0]?.tenant_id;
+            (user as any).tenantName = response.data.user?.memberships?.[0]?.tenant_name;
             return true;
           }
           return false;
@@ -124,6 +128,8 @@ export const authOptions: NextAuthOptions = {
           accessToken: (user as any).accessToken,
           accessTokenExpires: decodeJWTExp((user as any).accessToken),
           refreshToken: (user as any).refreshToken,
+          tenantId: (user as any).tenantId,
+          tenantName: (user as any).tenantName,
           user,
         };
       }
@@ -138,6 +144,8 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       (session as any).accessToken = token.accessToken;
+      (session as any).tenantId = token.tenantId;
+      (session as any).tenantName = token.tenantName;
       (session as any).user = token.user;
       (session as any).error = token.error;
       return session;
