@@ -37,8 +37,16 @@ class Order(TenantAwareModel):
     )
     payment_method = models.CharField(
         max_length=20,
-        choices=[('card', 'Pay by Card'), ('payment_link', 'Payment Link')],
-        default='card'
+        choices=[
+            ('cash', 'Cash'),
+            ('upi', 'UPI'),
+            ('card', 'Card'),
+            ('bank_transfer', 'Bank Transfer'),
+            ('pos', 'POS'),
+            ('checkout', 'Checkout'),
+            ('payment_link', 'Payment Link'),
+        ],
+        default='checkout'
     )
 
     # Pricing
@@ -93,7 +101,7 @@ class OrderItem(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     order = models.ForeignKey(
-        Order, on_delete=models.CASCADE, related_name='items')
+        Order, on_delete=models.PROTECT, related_name='items')
     # product_id = models.UUIDField(null=True, blank=True)
     product = models.ForeignKey(
         PackagePlan, on_delete=models.RESTRICT, null=True, blank=True)

@@ -27,7 +27,9 @@ class Payment(TenantAwareModel):
         RAZORPAY = 'razorpay', 'Razorpay'
         CASH = 'cash', 'Cash'
         UPI = 'upi', 'UPI'
+        CARD = 'card', 'Card'
         BANK_TRANSFER = 'bank_transfer', 'Bank Transfer'
+        POS = 'pos', 'POS'
         OTHER = 'other', 'Other'
 
     order = models.ForeignKey(

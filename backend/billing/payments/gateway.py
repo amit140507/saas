@@ -28,12 +28,17 @@ class RazorpayAdapter(BasePaymentAdapter):
         super().__init__(api_key=api_key, api_secret=api_secret, webhook_secret=webhook_secret)
         self.client = razorpay.Client(auth=(self.api_key, self.api_secret))
 
+    @staticmethod
+    def _build_receipt(intent):
+        # Razorpay receipts must stay within 40 characters.
+        return f"intent_{intent.id.hex}"
+
     def create_order(self, intent):
         razorpay_order = self.client.order.create(
             data={
                 "amount": int(intent.amount * 100),
                 "currency": intent.currency,
-                "receipt": f"intent_{intent.id}",
+                "receipt": self._build_receipt(intent),
                 "notes": {
                     "intent_id": str(intent.id),
                     "source": intent.source,

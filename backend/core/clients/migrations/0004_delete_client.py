@@ -12,10 +12,8 @@ class Migration(migrations.Migration):
         ('measurement', '0002_remove_measurementphoto_deleted_at_and_more'),
         ('orders', '0003_remove_order_deleted_at_alter_order_client'),
         ('payments', '0002_remove_payment_deleted_at_and_more'),
-        ('planning', '0004_remove_exercise_deleted_at_and_more'),
         ('reports', '0002_remove_bloodreport_deleted_at_and_more'),
         ('subscriptions', '0003_remove_feature_deleted_at_and_more'),
-        ('tracking', '0002_remove_setlog_deleted_at_and_more'),
     ]
 
     # operations = [

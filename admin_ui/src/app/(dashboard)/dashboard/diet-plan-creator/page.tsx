@@ -4,7 +4,7 @@ import { useState, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { FileTextIcon, SendIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { foodDb, supplementsDb } from "@/lib/foodDb";
-import axios from "axios";
+import { generateDietPlanPdf } from "@/services/diet-plan.service";
 
 function DietPlanCreatorContent() {
   const searchParams = useSearchParams();
@@ -185,12 +185,11 @@ function DietPlanCreatorContent() {
     };
 
     try {
-      // Assuming backend is running on 8000
-      const res = await axios.post("http://localhost:8000/api/diet-plans/generate/", payload);
+      await generateDietPlanPdf(payload);
       alert("Plan Generated and Sent successfully!");
     } catch (e: any) {
       console.error(e);
-      alert("Failed to generate plan. Ensure backend is running. " + (e.response?.data?.error || ""));
+      alert("Failed to generate plan. Check the configured backend URL. " + (e.response?.data?.error || ""));
     } finally {
       setLoading(false);
     }

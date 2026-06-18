@@ -17,8 +17,11 @@ import {
     ShoppingCartIcon,
     PackageIcon,
     BadgeCheckIcon,
+    MailIcon,
     MenuIcon,
     XIcon,
+    DumbbellIcon,
+    ChevronDownIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -31,6 +34,10 @@ interface NavigationItem {
     href: string;
     icon: LucideIcon;
     permission?: PermissionCode;
+    children?: Array<{
+        name: string;
+        href: string;
+    }>;
 }
 
 const navigation: NavigationItem[] = [
@@ -39,8 +46,19 @@ const navigation: NavigationItem[] = [
     { name: "Clients (Members)", href: "/dashboard/clients", icon: UsersIcon, permission: PERMISSIONS.VIEW_CLIENTS },
     { name: "Packages", href: "/dashboard/packages", icon: PackageIcon, permission: PERMISSIONS.VIEW_PLANS },
     { name: "Subscriptions", href: "/dashboard/subscriptions", icon: BadgeCheckIcon, permission: PERMISSIONS.VIEW_PLANS },
+    {
+        name: "Workouts",
+        href: "/dashboard/workouts",
+        icon: DumbbellIcon,
+        permission: PERMISSIONS.MANAGE_WORKOUTS,
+        children: [
+            { name: "Planning", href: "/dashboard/workouts/planning" },
+            { name: "Tracking", href: "/dashboard/workouts/tracking" },
+        ],
+    },
     { name: "Orders", href: "/dashboard/orders", icon: ShoppingCartIcon, permission: PERMISSIONS.VIEW_ORDERS },
     { name: "Payments", href: "/dashboard/payments", icon: CreditCardIcon, permission: PERMISSIONS.MANAGE_ORDERS },
+    { name: "Email Logs", href: "/dashboard/email-logs", icon: MailIcon, permission: PERMISSIONS.MANAGE_SETTINGS },
     // { name: "Security", href: "/dashboard/security", icon: ShieldCheckIcon },
     { name: "Macro Calculator", href: "/dashboard/macro-calculator", icon: CalculatorIcon, permission: PERMISSIONS.VIEW_PLANS },
     { name: "Client Trackers", href: "/dashboard/check-in-tracker", icon: ActivityIcon, permission: PERMISSIONS.VIEW_PROGRESS },
@@ -51,6 +69,9 @@ const navigation: NavigationItem[] = [
 export default function Sidebar() {
     const pathname = usePathname();
     const [isMobileOpen, setIsMobileOpen] = useState(false);
+    const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+        Workouts: pathname.startsWith("/dashboard/workouts"),
+    });
     const { userPermissions, permissionsLoading } = useCurrentUserPermissions();
 
     const visibleNavigation = permissionsLoading
@@ -82,19 +103,64 @@ export default function Sidebar() {
                         <ul role="list" className="-mx-2 space-y-1">
                             {visibleNavigation.map((item) => (
                                 <li key={item.name}>
-                                    <Link
-                                        href={item.href}
-                                        onClick={() => setIsMobileOpen(false)}
-                                        className={cn(
-                                            "group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors",
-                                            pathname === item.href
-                                                ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
-                                                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                                        )}
-                                    >
-                                        <item.icon className="h-6 w-6 shrink-0" aria-hidden="true" />
-                                        {item.name}
-                                    </Link>
+                                    {item.children ? (
+                                        <div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setOpenGroups((groups) => ({ ...groups, [item.name]: !groups[item.name] }))}
+                                                className={cn(
+                                                    "group flex w-full items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors",
+                                                    pathname === item.href || pathname.startsWith(`${item.href}/`)
+                                                        ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white"
+                                                        : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-white"
+                                                )}
+                                            >
+                                                <item.icon className="h-6 w-6 shrink-0" aria-hidden="true" />
+                                                <span className="min-w-0 flex-1 text-left">{item.name}</span>
+                                                <ChevronDownIcon
+                                                    className={cn(
+                                                        "h-4 w-4 shrink-0 transition-transform",
+                                                        openGroups[item.name] ? "rotate-180" : ""
+                                                    )}
+                                                    aria-hidden="true"
+                                                />
+                                            </button>
+                                            {openGroups[item.name] && (
+                                                <ul className="mt-1 space-y-1 pl-9">
+                                                    {item.children.map((child) => (
+                                                        <li key={child.name}>
+                                                            <Link
+                                                                href={child.href}
+                                                                onClick={() => setIsMobileOpen(false)}
+                                                                className={cn(
+                                                                    "block rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                                                                    pathname === child.href
+                                                                        ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white"
+                                                                        : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-white"
+                                                                )}
+                                                            >
+                                                                {child.name}
+                                                            </Link>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <Link
+                                            href={item.href}
+                                            onClick={() => setIsMobileOpen(false)}
+                                            className={cn(
+                                                "group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors",
+                                                pathname === item.href
+                                                    ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
+                                                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                                            )}
+                                        >
+                                            <item.icon className="h-6 w-6 shrink-0" aria-hidden="true" />
+                                            {item.name}
+                                        </Link>
+                                    )}
                                 </li>
                             ))}
                         </ul>

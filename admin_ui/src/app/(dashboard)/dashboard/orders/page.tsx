@@ -4,17 +4,20 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     AlertCircleIcon,
+    BanknoteIcon,
     BoxIcon,
     CheckCircleIcon,
     ClockIcon,
     CreditCardIcon,
     EditIcon,
+    LandmarkIcon,
     LinkIcon,
     Loader2Icon,
     PackageIcon,
     PlusIcon,
     RefreshCwIcon,
     SearchIcon,
+    SmartphoneIcon,
     Trash2Icon,
     UserIcon,
     XCircleIcon,
@@ -24,16 +27,18 @@ import {
 
 import { getClients } from "@/services/client.service";
 import { getCoupons } from "@/services/coupon.service";
-import { createOrder, getOrders, updateOrder } from "@/services/order.service";
-import { createAdminPaymentLink, getAdminPaymentLinks } from "@/services/payment.service";
+import { getOrders, updateOrder } from "@/services/order.service";
+import { createAdminCheckoutIntent, createAdminManualPayment, createAdminPaymentLink, getAdminPaymentLinks, getCheckoutIntentStatus } from "@/services/payment.service";
 import { getPackages } from "@/services/package.service";
+import { ensureRazorpayLoaded } from "@/lib/razorpay";
 import type { ClientData } from "@/types/client.type";
 import type { Coupon } from "@/types/coupon.type";
-import type { Order, OrderItemPayload, OrderPayload, OrderPaymentMethod, OrderStatus } from "@/types/order.type";
+import type { ManualPaymentMethod, Order, OrderItemPayload, OrderPayload, OrderPaymentMethod, OrderStatus } from "@/types/order.type";
 import type { AdminPaymentLinkPayload, AdminPaymentLinkRequest, AdminPaymentLinkResponse } from "@/types/payment.type";
 import type { Package } from "@/types/package.type";
 
 type ModalMode = "create" | "edit";
+type PaymentFlow = "manual" | "payment_link" | "checkout";
 
 type OrderItemForm = {
     rowId: string;
@@ -47,6 +52,8 @@ type OrderForm = {
     coupon: string;
     status: OrderStatus;
     payment_method: OrderPaymentMethod;
+    payment_flow: PaymentFlow;
+    manual_payment_method: ManualPaymentMethod;
     discount_amount: string;
     tax_amount: string;
     notes: string;
@@ -66,6 +73,34 @@ const statusConfig: Record<OrderStatus, StatusConfig> = {
     refunded: { icon: RefreshCwIcon, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-500/20" },
 };
 
+const manualPaymentMethods: Array<{
+    value: ManualPaymentMethod;
+    label: string;
+    icon: LucideIcon;
+}> = [
+    { value: "cash", label: "Cash", icon: BanknoteIcon },
+    { value: "upi", label: "UPI", icon: SmartphoneIcon },
+    { value: "card", label: "Card", icon: CreditCardIcon },
+    { value: "bank_transfer", label: "Bank Transfer", icon: LandmarkIcon },
+    { value: "pos", label: "POS", icon: CreditCardIcon },
+];
+
+const manualPaymentMethodSet = new Set<OrderPaymentMethod>(
+    manualPaymentMethods.map((method) => method.value)
+);
+
+function getPaymentMethodMeta(method: OrderPaymentMethod): { label: string; icon: LucideIcon } {
+    if (method === "payment_link") {
+        return { label: "Payment Link", icon: LinkIcon };
+    }
+
+    if (method === "checkout") {
+        return { label: "Razorpay Checkout", icon: CreditCardIcon };
+    }
+
+    return manualPaymentMethods.find((option) => option.value === method) || manualPaymentMethods[0];
+}
+
 const createEmptyItem = (): OrderItemForm => ({
     rowId: typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
@@ -79,7 +114,9 @@ const createEmptyForm = (): OrderForm => ({
     client: "",
     coupon: "",
     status: "pending",
-    payment_method: "card",
+    payment_method: "cash",
+    payment_flow: "manual",
+    manual_payment_method: "cash",
     discount_amount: "0.00",
     tax_amount: "0.00",
     notes: "",
@@ -166,11 +203,22 @@ function flattenPlans(packages: Package[]) {
 }
 
 function toForm(order: Order): OrderForm {
+    const paymentFlow: PaymentFlow = order.payment_method === "payment_link"
+        ? "payment_link"
+        : order.payment_method === "checkout"
+            ? "checkout"
+            : "manual";
+    const manualPaymentMethod = manualPaymentMethodSet.has(order.payment_method)
+        ? order.payment_method as ManualPaymentMethod
+        : "cash";
+
     return {
         client: order.client,
         coupon: order.coupon || "",
         status: order.status,
         payment_method: order.payment_method,
+        payment_flow: paymentFlow,
+        manual_payment_method: manualPaymentMethod,
         discount_amount: order.discount_amount,
         tax_amount: order.tax_amount,
         notes: order.notes || "",
@@ -195,6 +243,7 @@ export default function AdminOrdersPage() {
     const [form, setForm] = useState<OrderForm>(createEmptyForm);
     const [formError, setFormError] = useState("");
     const [latestPaymentLink, setLatestPaymentLink] = useState<AdminPaymentLinkResponse | null>(null);
+    const [copiedPaymentLinkId, setCopiedPaymentLinkId] = useState<string | null>(null);
 
     const { data: orders = [], isLoading: isLoadingOrders } = useQuery({
         queryKey: ["admin-orders"],
@@ -270,16 +319,21 @@ export default function AdminOrdersPage() {
         queryClient.invalidateQueries({ queryKey: ["admin-payment-links"] });
     };
 
-    const createMutation = useMutation({
-        mutationFn: createOrder,
-        onSuccess: () => {
-            refreshOrders();
-            closeModal();
-        },
-        onError: (error: unknown) => {
-            setFormError(getErrorMessage(error, "Could not create order. Please check the details and try again."));
-        },
-    });
+    const pollCheckoutStatus = async (intentId: string) => {
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+            try {
+                const intent = await getCheckoutIntentStatus(intentId);
+                if (intent.status === "paid") {
+                    refreshOrders();
+                    return;
+                }
+            } catch (error) {
+                console.error("Could not refresh checkout status", error);
+            }
+        }
+        refreshOrders();
+    };
 
     const createPaymentLinkMutation = useMutation({
         mutationFn: createAdminPaymentLink,
@@ -290,6 +344,54 @@ export default function AdminOrdersPage() {
         },
         onError: (error: unknown) => {
             setFormError(getErrorMessage(error, "Could not create payment link. Please check the details and try again."));
+        },
+    });
+
+    const createManualPaymentMutation = useMutation({
+        mutationFn: createAdminManualPayment,
+        onSuccess: () => {
+            refreshOrders();
+            closeModal();
+        },
+        onError: (error: unknown) => {
+            setFormError(getErrorMessage(error, "Could not record manual payment. Please check the details and try again."));
+        },
+    });
+
+    const createAdminCheckoutMutation = useMutation({
+        mutationFn: createAdminCheckoutIntent,
+        onSuccess: async (result) => {
+            const checkoutReady = await ensureRazorpayLoaded();
+            if (!checkoutReady || !window.Razorpay) {
+                setFormError("Razorpay checkout could not be loaded.");
+                return;
+            }
+
+            const client = clientById.get(form.client);
+            const razorpay = new window.Razorpay({
+                key: result.key,
+                amount: result.amount,
+                currency: result.currency,
+                order_id: result.provider_order_id,
+                name: getClientName(client),
+                description: "Admin order payment",
+                handler: () => {
+                    void pollCheckoutStatus(result.intent_id);
+                    closeModal();
+                },
+                modal: {
+                    ondismiss: () => {
+                        setFormError("Payment was not completed. The order will be created after successful payment.");
+                    },
+                },
+                theme: {
+                    color: "#4f46e5",
+                },
+            });
+            razorpay.open();
+        },
+        onError: (error: unknown) => {
+            setFormError(getErrorMessage(error, "Could not start checkout. Please check the details and try again."));
         },
     });
 
@@ -304,7 +406,9 @@ export default function AdminOrdersPage() {
         },
     });
 
-    const isSubmitting = createMutation.isPending || updateMutation.isPending || createPaymentLinkMutation.isPending;
+    const isSubmitting = updateMutation.isPending || createPaymentLinkMutation.isPending || createManualPaymentMutation.isPending || createAdminCheckoutMutation.isPending;
+    const selectedManualPaymentMethod = getPaymentMethodMeta(form.manual_payment_method);
+    const SelectedManualPaymentIcon = selectedManualPaymentMethod.icon;
 
     const filteredOrders = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -419,7 +523,7 @@ export default function AdminOrdersPage() {
         return {
             client: form.client,
             status: form.status,
-            payment_method: form.payment_method,
+            payment_method: form.payment_flow === "manual" ? form.manual_payment_method : form.payment_method,
             subtotal: toMoneyString(subtotal),
             discount_amount: toMoneyString(discountAmount),
             tax_amount: toMoneyString(taxAmount),
@@ -469,12 +573,26 @@ export default function AdminOrdersPage() {
         event.preventDefault();
         setFormError("");
 
-        if (modalMode === "create" && form.payment_method === "payment_link") {
+        if (modalMode === "create") {
             const paymentLinkPayload = buildPaymentLinkPayload();
             if (!paymentLinkPayload) {
                 return;
             }
-            createPaymentLinkMutation.mutate(paymentLinkPayload);
+
+            if (form.payment_flow === "payment_link") {
+                createPaymentLinkMutation.mutate(paymentLinkPayload);
+                return;
+            }
+
+            if (form.payment_flow === "manual") {
+                createManualPaymentMutation.mutate({
+                    ...paymentLinkPayload,
+                    payment_method: form.manual_payment_method,
+                });
+                return;
+            }
+
+            createAdminCheckoutMutation.mutate(paymentLinkPayload);
             return;
         }
 
@@ -487,8 +605,6 @@ export default function AdminOrdersPage() {
             updateMutation.mutate({ id: selectedOrder.id, payload });
             return;
         }
-
-        createMutation.mutate(payload);
     };
 
     const formatDate = (dateStr: string) => {
@@ -501,9 +617,13 @@ export default function AdminOrdersPage() {
         });
     };
 
-    const copyToClipboard = async (value: string) => {
+    const copyToClipboard = async (value: string, linkId: string) => {
         try {
             await navigator.clipboard.writeText(value);
+            setCopiedPaymentLinkId(linkId);
+            window.setTimeout(() => {
+                setCopiedPaymentLinkId((current) => current === linkId ? null : current);
+            }, 2000);
         } catch (error) {
             console.error("Could not copy payment link", error);
         }
@@ -572,10 +692,10 @@ export default function AdminOrdersPage() {
                     Payment link ready for {latestPaymentLink.snapshot.client_name}:{" "}
                     <button
                         type="button"
-                        onClick={() => copyToClipboard(latestPaymentLink.payment_url)}
+                        onClick={() => copyToClipboard(latestPaymentLink.payment_url, latestPaymentLink.id)}
                         className="font-semibold underline underline-offset-2"
                     >
-                        Copy link
+                        {copiedPaymentLinkId === latestPaymentLink.id ? "Link copied" : "Copy link"}
                     </button>
                 </div>
             )}
@@ -623,11 +743,11 @@ export default function AdminOrdersPage() {
                                         <td className="px-6 py-4 text-right">
                                             <button
                                                 type="button"
-                                                onClick={() => copyToClipboard(paymentLink.payment_url)}
+                                                onClick={() => copyToClipboard(paymentLink.payment_url, paymentLink.id)}
                                                 className="inline-flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 font-medium"
                                             >
                                                 <LinkIcon className="w-4 h-4" />
-                                                Copy Link
+                                                {copiedPaymentLinkId === paymentLink.id ? "Link copied" : "Copy Link"}
                                             </button>
                                         </td>
                                     </tr>
@@ -666,6 +786,8 @@ export default function AdminOrdersPage() {
                                     const coupon = order.coupon ? couponById.get(order.coupon) : undefined;
                                     const firstItem = order.items[0];
                                     const firstPlan = firstItem?.product ? planById.get(firstItem.product) : undefined;
+                                    const paymentMethod = getPaymentMethodMeta(order.payment_method);
+                                    const PaymentMethodIcon = paymentMethod.icon;
                                     return (
                                         <tr key={order.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors">
                                             <td className="px-6 py-4">
@@ -693,11 +815,8 @@ export default function AdminOrdersPage() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className="inline-flex items-center gap-1 text-xs font-medium">
-                                                    {order.payment_method === "payment_link" ? (
-                                                        <><LinkIcon className="w-3 h-3" /> Link</>
-                                                    ) : (
-                                                        <><CreditCardIcon className="w-3 h-3" /> Card</>
-                                                    )}
+                                                    <PaymentMethodIcon className="w-3 h-3" />
+                                                    {paymentMethod.label}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">
@@ -882,34 +1001,89 @@ export default function AdminOrdersPage() {
                             <div className="grid md:grid-cols-[1fr_320px] gap-5">
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Payment Method</label>
-                                        <div className="grid grid-cols-2 gap-3">
+                                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Payment Type</label>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                             <button
                                                 type="button"
-                                                onClick={() => setForm({ ...form, payment_method: "card" })}
+                                                onClick={() => setForm({
+                                                    ...form,
+                                                    payment_flow: "manual",
+                                                    payment_method: form.manual_payment_method,
+                                                })}
                                                 className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 text-sm font-bold transition-all ${
-                                                    form.payment_method === "card"
+                                                    form.payment_flow === "manual"
                                                         ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400"
                                                         : "border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-700"
                                                 }`}
                                             >
-                                                <CreditCardIcon className="w-4 h-4" />
-                                                Card
+                                                <BanknoteIcon className="w-4 h-4" />
+                                                Manual
                                             </button>
                                             <button
                                                 type="button"
-                                                onClick={() => setForm({ ...form, payment_method: "payment_link" })}
+                                                onClick={() => setForm({
+                                                    ...form,
+                                                    payment_flow: "payment_link",
+                                                    payment_method: "payment_link",
+                                                })}
                                                 className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 text-sm font-bold transition-all ${
-                                                    form.payment_method === "payment_link"
+                                                    form.payment_flow === "payment_link"
                                                         ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400"
                                                         : "border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-700"
                                                 }`}
                                             >
                                                 <LinkIcon className="w-4 h-4" />
-                                                Payment Link
+                                                Razorpay Link
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setForm({
+                                                    ...form,
+                                                    payment_flow: "checkout",
+                                                    payment_method: "checkout",
+                                                })}
+                                                className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 text-sm font-bold transition-all ${
+                                                    form.payment_flow === "checkout"
+                                                        ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400"
+                                                        : "border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-700"
+                                                }`}
+                                            >
+                                                <CreditCardIcon className="w-4 h-4" />
+                                                Razorpay Checkout
                                             </button>
                                         </div>
                                     </div>
+
+                                    {form.payment_flow === "manual" && (
+                                        <div>
+                                            <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Manual Payment Method</label>
+                                            <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+                                                {manualPaymentMethods.map((method) => {
+                                                    const MethodIcon = method.icon;
+                                                    return (
+                                                        <button
+                                                            key={method.value}
+                                                            type="button"
+                                                            onClick={() => setForm({
+                                                                ...form,
+                                                                payment_flow: "manual",
+                                                                payment_method: method.value,
+                                                                manual_payment_method: method.value,
+                                                            })}
+                                                            className={`flex items-center justify-center gap-2 min-h-10 px-3 py-2 rounded-lg border text-xs font-bold transition-all ${
+                                                                form.manual_payment_method === method.value
+                                                                    ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400"
+                                                                    : "border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-700"
+                                                            }`}
+                                                        >
+                                                            <MethodIcon className="w-4 h-4 shrink-0" />
+                                                            <span className="truncate">{method.label}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div>
                                         <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Notes</label>
@@ -981,10 +1155,12 @@ export default function AdminOrdersPage() {
                                         <><Loader2Icon className="w-4 h-4 animate-spin" /> Saving...</>
                                     ) : modalMode === "edit" ? (
                                         <><EditIcon className="w-4 h-4" /> Save Changes</>
-                                    ) : form.payment_method === "payment_link" ? (
+                                    ) : form.payment_flow === "payment_link" ? (
                                         <><LinkIcon className="w-4 h-4" /> Create Payment Link</>
+                                    ) : form.payment_flow === "manual" ? (
+                                        <><SelectedManualPaymentIcon className="w-4 h-4" /> Record {selectedManualPaymentMethod.label}</>
                                     ) : (
-                                        <><PlusIcon className="w-4 h-4" /> Create Order</>
+                                        <><CreditCardIcon className="w-4 h-4" /> Open Checkout</>
                                     )}
                                 </button>
                             </div>

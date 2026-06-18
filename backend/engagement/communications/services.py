@@ -1,6 +1,7 @@
 import requests
 from django.core.mail import send_mail
 from django.conf import settings
+from django.utils import timezone
 from .models import EmailLog, WhatsAppLog
 
 def send_transactional_email(user, template, context=None):
@@ -25,7 +26,8 @@ def send_transactional_email(user, template, context=None):
             recipient=user,
             recipient_email=user.email,
             subject=rendered_subject,
-            status=EmailLog.Status.SUCCESS
+            status=EmailLog.StatusChoices.SENT,
+            sent_at=timezone.now(),
         )
         return True
         
@@ -36,7 +38,7 @@ def send_transactional_email(user, template, context=None):
             recipient=user,
             recipient_email=user.email,
             subject=rendered_subject,
-            status=EmailLog.Status.FAILED,
+            status=EmailLog.StatusChoices.FAILED,
             error_message=str(e)
         )
         return False

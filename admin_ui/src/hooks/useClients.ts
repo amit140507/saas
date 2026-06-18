@@ -1,16 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
 import { ClientFormData } from "../lib/validations/schemas";
-
-const API_URL = "/api/clients/management/";
+import { createClient, getClients } from "@/services/client.service";
 
 export const useClients = () => {
   return useQuery({
     queryKey: ["clients"],
-    queryFn: async () => {
-      const { data } = await axios.get(API_URL);
-      return data;
-    },
+    queryFn: getClients,
   });
 };
 
@@ -19,16 +14,16 @@ export const useCreateClient = () => {
 
   return useMutation({
     mutationFn: async (newClient: ClientFormData) => {
-      const { data } = await axios.post(API_URL, {
-        ...newClient,
+      return createClient({
         user: {
           first_name: newClient.first_name,
           last_name: newClient.last_name,
           email: newClient.email,
-          phone: newClient.phone,
-        }
+        },
+        phone: newClient.phone ?? "",
+        status: newClient.status,
+        goal: newClient.goal ?? "",
       });
-      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients"] });

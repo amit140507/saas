@@ -9,17 +9,21 @@ from rest_framework.views import APIView
 
 from core.tenants.permissions import HasPermission, IsTenantMember
 from core.tenants.permission_codes import Perms
+from core.tenants.rbac_service import user_has_permission
 
 from .gateway import GatewayFactory
 from .models import CheckoutIntent
 from .serializers import (
+    AdminManualPaymentCreateSerializer,
     AdminPaymentLinkCreateSerializer,
     CheckoutIntentSerializer,
     PaymentLinkSummarySerializer,
     UserCheckoutIntentCreateSerializer,
 )
 from .services import (
+    build_order_items_from_snapshot,
     build_payment_link_url,
+    create_paid_order_from_snapshot,
     create_checkout_intent,
     finalize_checkout_intent,
     serialize_checkout_snapshot,
@@ -88,9 +92,118 @@ class CheckoutIntentDetailView(APIView):
             id=intent_id,
             tenant=request.tenant,
         )
-        if intent.client.user != request.user and not request.user.is_superuser:
+        can_manage_orders = user_has_permission(request.user, request.tenant, Perms.MANAGE_ORDERS)
+        if intent.client.user != request.user and intent.created_by_id != request.user.id and not request.user.is_superuser and not can_manage_orders:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         return Response(CheckoutIntentSerializer(intent).data)
+
+
+class AdminCheckoutIntentCreateView(APIView):
+    permission_classes = [IsAuthenticated, HasPermission(Perms.MANAGE_ORDERS)]
+
+    def post(self, request):
+        serializer = AdminPaymentLinkCreateSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+
+        adapter = GatewayFactory.get_adapter(request.tenant)
+        items = [
+            serialize_line_item(
+                item["product"],
+                item["quantity"],
+                item["unit_price"],
+                item["total_price"],
+            )
+            for item in serializer.validated_data["items"]
+        ]
+        snapshot = serialize_checkout_snapshot(
+            client=serializer.validated_data["client"],
+            items=items,
+            subtotal=serializer.validated_data["subtotal"],
+            discount_amount=serializer.validated_data["discount_amount"],
+            tax_amount=serializer.validated_data["tax_amount"],
+            total_amount=serializer.validated_data["total_amount"],
+            coupon=serializer.validated_data.get("coupon"),
+            notes=serializer.validated_data.get("notes", ""),
+        )
+        intent = create_checkout_intent(
+            tenant=request.tenant,
+            client=serializer.validated_data["client"],
+            source=CheckoutIntent.SourceChoices.USER_CHECKOUT,
+            gateway=adapter.provider_name,
+            amount=serializer.validated_data["total_amount"],
+            currency=request.tenant.currency or "INR",
+            snapshot=snapshot,
+            created_by=request.user,
+        )
+        checkout_data = adapter.create_order(intent)
+        intent.provider_order_id = checkout_data["provider_order_id"]
+        intent.status = CheckoutIntent.StatusChoices.PROCESSING
+        intent.save(update_fields=["provider_order_id", "status", "updated_at"])
+        return Response(
+            {
+                **checkout_data,
+                "status": intent.status,
+                "snapshot": intent.order_snapshot,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AdminManualPaymentView(APIView):
+    permission_classes = [IsAuthenticated, HasPermission(Perms.MANAGE_ORDERS)]
+
+    def post(self, request):
+        serializer = AdminManualPaymentCreateSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        payment_method = serializer.validated_data["payment_method"]
+
+        items = [
+            serialize_line_item(
+                item["product"],
+                item["quantity"],
+                item["unit_price"],
+                item["total_price"],
+            )
+            for item in serializer.validated_data["items"]
+        ]
+        snapshot = serialize_checkout_snapshot(
+            client=serializer.validated_data["client"],
+            items=items,
+            subtotal=serializer.validated_data["subtotal"],
+            discount_amount=serializer.validated_data["discount_amount"],
+            tax_amount=serializer.validated_data["tax_amount"],
+            total_amount=serializer.validated_data["total_amount"],
+            coupon=serializer.validated_data.get("coupon"),
+            notes=serializer.validated_data.get("notes", ""),
+        )
+        order = create_paid_order_from_snapshot(
+            tenant=request.tenant,
+            client=serializer.validated_data["client"],
+            snapshot=snapshot,
+            items_data=build_order_items_from_snapshot(tenant=request.tenant, snapshot=snapshot),
+            payment_method=payment_method,
+            gateway=payment_method,
+            amount=serializer.validated_data["total_amount"],
+            currency=request.tenant.currency or "INR",
+            created_by=request.user,
+            gateway_response={
+                "source": "admin_manual_payment",
+                "payment_method": payment_method,
+            },
+        )
+        return Response(
+            {
+                "order_id": str(order.id),
+                "order_number": order.order_number,
+                "status": order.status,
+                "payment_method": order.payment_method,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AdminCashPaymentView(AdminManualPaymentView):
+    pass
 
 
 class AdminPaymentLinkView(APIView):

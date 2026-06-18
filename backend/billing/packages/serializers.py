@@ -24,7 +24,7 @@ class PackageFeatureSerializer(serializers.ModelSerializer):
 
     def get_feature_details(self, obj):
         return {
-            'id': obj.feature_id,
+            'id': str(obj.feature_id),
             'name': obj.feature.name,
             'code': obj.feature.code,
             'description': obj.feature.description,

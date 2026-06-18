@@ -226,6 +226,7 @@ class MembershipService:
     @staticmethod
     def _build_plan_snapshot(plan: PackagePlan):
         package_data = PackagePlanSerializer(plan).data
+        package_data['package'] = str(plan.package_id)
         package_data['package_details'] = {
             'id': str(plan.package_id),
             'name': plan.package.name,

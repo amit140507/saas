@@ -1,5 +1,6 @@
 export type OrderStatus = "pending" | "confirmed" | "cancelled" | "refunded";
-export type OrderPaymentMethod = "card" | "payment_link";
+export type ManualPaymentMethod = "cash" | "upi" | "card" | "bank_transfer" | "pos";
+export type OrderPaymentMethod = ManualPaymentMethod | "checkout" | "payment_link";
 
 export interface OrderItem {
     id: string;

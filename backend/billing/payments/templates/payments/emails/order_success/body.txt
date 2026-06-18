@@ -1,0 +1,24 @@
+Hi {{ customer_name }},
+
+Your order has been confirmed successfully.
+
+Order number: {{ order.order_number }}
+Payment method: {{ order.payment_method }}
+Total paid: {{ currency }} {{ order.total_amount }}
+
+Items:
+{% for item in items %}
+- {{ item.description }} x {{ item.quantity }}: {{ currency }} {{ item.total_price }}
+{% empty %}
+- Order item details are not available.
+{% endfor %}
+
+{% if invoice_url %}
+Invoice: {{ invoice_url }}
+{% elif invoice %}
+Your invoice has been generated and will be available from your account.
+{% else %}
+Your invoice is being prepared and will be available from your account.
+{% endif %}
+
+Thank you for your purchase.

@@ -8,7 +8,7 @@ from core.tenants.models import Organization, Role, OrganizationMember, Permissi
 from core.tenants.permission_codes import Perms
 from core.clients.models import ClientProfile
 from core.staff.models import StaffProfile
-from workout.planning.models import MuscleGroup, Exercise, WorkoutPlan, WorkoutDay, WorkoutExercise, WorkoutPlanAssignment
+from workout.models.planning import Muscle, MuscleGroup, Exercise, WorkoutPlan, WorkoutDay, WorkoutExercise, WorkoutPlanAssignment
 from meal.models.planning import FoodItem, DietPlan, DietPlanAssignment, PlannedMeal, PlannedMealItem, MealSlot
 from progress.checkins.models import CheckIn, CheckinLog
 from progress.measurement.models import WeeklyMeasurement
@@ -149,13 +149,27 @@ class Command(BaseCommand):
             food_objs.append(f)
         self.stdout.write("Synced global food items.")
 
-        # 0.2 Global Muscle Groups
-        muscle_names = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core']
+        # 0.2 Global muscle hierarchy
+        anatomy = {
+            'Pectorals': ['Pectoralis Major', 'Pectoralis Minor'],
+            'Lats': ['Latissimus Dorsi'],
+            'Upper Back': ['Trapezius', 'Rhomboids'],
+            'Quads': ['Rectus Femoris', 'Vastus Lateralis', 'Vastus Medialis', 'Vastus Intermedius'],
+            'Hamstrings': ['Biceps Femoris', 'Semitendinosus', 'Semimembranosus'],
+            'Glutes': ['Gluteus Maximus'],
+            'Deltoids': ['Anterior Deltoid', 'Lateral Deltoid', 'Posterior Deltoid'],
+            'Biceps': ['Biceps Brachii'],
+            'Triceps': ['Triceps Brachii'],
+            'Abs': ['Rectus Abdominis'],
+            'Obliques': ['External Obliques'],
+        }
         muscles = {}
-        for name in muscle_names:
-            mg, _ = MuscleGroup.objects.get_or_create(name=name)
-            muscles[name] = mg
-        self.stdout.write("Synced global muscle groups.")
+        for group_name, muscle_names in anatomy.items():
+            group, _ = MuscleGroup.objects.get_or_create(name=group_name)
+            for muscle_name in muscle_names:
+                muscle, _ = Muscle.objects.get_or_create(muscle_group=group, name=muscle_name)
+                muscles[muscle_name] = muscle
+        self.stdout.write("Synced global muscle hierarchy.")
 
         # 1. Gyms Configuration (5 Gyms)
         gyms_data = [
@@ -237,13 +251,13 @@ class Command(BaseCommand):
             # 4. Exercises for this tenant
             exercises = []
             exercise_names = [
-                ('Bench Press', 'Chest'), ('Deadlift', 'Back'), ('Squat', 'Legs'), 
-                ('OHP', 'Shoulders'), ('Bicep Curl', 'Arms'), ('Plank', 'Core')
+                ('Bench Press', 'Pectoralis Major'), ('Deadlift', 'Latissimus Dorsi'), ('Squat', 'Rectus Femoris'),
+                ('OHP', 'Anterior Deltoid'), ('Bicep Curl', 'Biceps Brachii'), ('Plank', 'Rectus Abdominis')
             ]
-            for ex_name, m_name in exercise_names:
+            for ex_name, muscle_name in exercise_names:
                 ex, _ = Exercise.objects.get_or_create(
                     name=ex_name, tenant=tenant,
-                    defaults={'muscle_group': muscles[m_name], 'equipment_required': True}
+                    defaults={'primary_muscle': muscles[muscle_name], 'equipment_required': True}
                 )
                 exercises.append(ex)
 

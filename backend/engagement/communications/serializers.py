@@ -32,7 +32,7 @@ class EmailLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmailLog
         fields = '__all__'
-        read_only_fields = ('id', 'sent_at', 'tenant')
+        read_only_fields = ('id', 'tenant', 'created_at', 'sent_at')
 
 class WhatsAppTemplateSerializer(serializers.ModelSerializer):
     class Meta:

@@ -142,7 +142,7 @@ class Promo(TenantAwareModel):
     )
     custom_recipient_ids = models.JSONField(default=list)  # client PKs for CUSTOM
     coupon = models.ForeignKey(
-        'packages.Coupon', on_delete=models.SET_NULL, null=True, blank=True,
+        'coupons.Coupon', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='promos'
     )
     status = models.CharField(
@@ -182,12 +182,33 @@ class EmailTemplate(TenantAwareModel):
 
 
 class EmailLog(TenantAwareModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    class StatusChoices(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        SENT = 'sent', 'Sent'
+        FAILED = 'failed', 'Failed'
+
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     recipient_email = models.EmailField()
     subject = models.CharField(max_length=255)
-    sent_at = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(max_length=20, choices=[('success', 'Success'), ('failed', 'Failed')], default='success')
+    template_name = models.CharField(max_length=150, blank=True)
+    context_data = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=20, choices=StatusChoices.choices, default=StatusChoices.PENDING)
     error_message = models.TextField(blank=True)
+    related_object_type = models.CharField(max_length=100, blank=True)
+    related_object_id = models.CharField(max_length=64, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status']),
+            models.Index(fields=['tenant', 'created_at']),
+            models.Index(fields=['recipient_email']),
+            models.Index(fields=['related_object_type', 'related_object_id']),
+        ]
 
     def __str__(self):
         return f"Email to {self.recipient_email} - {self.status}"

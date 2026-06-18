@@ -17,17 +17,18 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
 # Load environment variables from .env file
 app_env = os.environ.get('APP_ENV', 'local')
 env_file = f'.env.{app_env}'
+env_path = BASE_DIR / env_file
 
-if os.path.exists(env_file):
-    load_dotenv(env_file)
+if env_path.exists():
+    load_dotenv(env_path)
 else:
-    load_dotenv()
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -67,8 +68,7 @@ INSTALLED_APPS = [
     'authentication',
     'health.reports',
     'meal',
-    'workout.planning',
-    'workout.tracking',
+    'workout',
     'progress.checkins',
     'progress.measurement',
     'billing.packages',
@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     'billing.subscriptions',
     'billing.payments',
     'billing.invoices',
+    'engagement.communications',
     'axes',
 ]
 
@@ -253,7 +254,7 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "core.common.exceptions.custom_exception_handler",
 }
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-PAYMENT_LINK_BASE_URL = os.environ.get("PAYMENT_LINK_BASE_URL", FRONTEND_URL).rstrip("/")
+PAYMENT_LINK_BASE_URL = os.environ.get("PAYMENT_LINK_BASE_URL", "").rstrip("/")
 GOOGLE_OAUTH_CALLBACK_URL = os.environ.get(
     "GOOGLE_OAUTH_CALLBACK_URL",
     f"{FRONTEND_URL}/auth/google/callback/",

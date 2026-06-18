@@ -11,6 +11,15 @@ from core.tenants.rbac_service import get_member
 from .models import CheckoutIntent
 
 
+MANUAL_PAYMENT_METHOD_CHOICES = (
+    ("cash", "Cash"),
+    ("upi", "UPI"),
+    ("card", "Card"),
+    ("bank_transfer", "Bank Transfer"),
+    ("pos", "POS"),
+)
+
+
 class CheckoutIntentItemInputSerializer(serializers.Serializer):
     product = serializers.PrimaryKeyRelatedField(queryset=PackagePlan.objects.all())
     quantity = serializers.IntegerField(min_value=1)
@@ -110,6 +119,14 @@ class AdminPaymentLinkCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError({"total_amount": "Total amount must equal subtotal - discount + tax."})
 
         return attrs
+
+
+class AdminManualPaymentCreateSerializer(AdminPaymentLinkCreateSerializer):
+    payment_method = serializers.ChoiceField(
+        choices=MANUAL_PAYMENT_METHOD_CHOICES,
+        required=False,
+        default="cash",
+    )
 
 
 class CheckoutIntentSerializer(serializers.ModelSerializer):

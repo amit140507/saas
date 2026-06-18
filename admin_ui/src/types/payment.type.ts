@@ -1,3 +1,5 @@
+import type { ManualPaymentMethod } from "@/types/order.type";
+
 export interface AdminPaymentLinkRequest {
     id: string;
     status: string;
@@ -31,6 +33,10 @@ export interface AdminPaymentLinkPayload {
     items: AdminPaymentLinkPayloadItem[];
 }
 
+export interface AdminManualPaymentPayload extends AdminPaymentLinkPayload {
+    payment_method: ManualPaymentMethod;
+}
+
 export interface AdminPaymentLinkResponse {
     id: string;
     status: string;
@@ -42,4 +48,27 @@ export interface AdminPaymentLinkResponse {
         client_name: string;
         client_email: string;
     };
+}
+
+export interface AdminCheckoutIntentResponse {
+    gateway: string;
+    provider_order_id: string;
+    key: string;
+    amount: number;
+    currency: string;
+    intent_id: string;
+    status: string;
+}
+
+export interface AdminManualPaymentResponse {
+    order_id: string;
+    order_number: string;
+    status: string;
+    payment_method: ManualPaymentMethod;
+}
+
+export interface CheckoutIntentStatus {
+    id: string;
+    status: string;
+    order: string | null;
 }

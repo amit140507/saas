@@ -19,11 +19,9 @@ Faker
 pyinstrument
 celery
 python-dotenv
-weasyprint
 boto3
 psycopg[binary]
 # psycopg2-binary
 # django-unfold
 Faker
 django-silk
-weasyprint
