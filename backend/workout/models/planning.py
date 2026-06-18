@@ -13,18 +13,12 @@ class WorkoutPlan(TenantAwareModel):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
-    class PlanType(models.TextChoices):
-        WORKOUT = 'workout', 'Workout'
-        DIET = 'diet', 'Diet'
-        HYBRID = 'hybrid', 'Hybrid (Workout + Diet)'
-
     class DifficultyLevel(models.TextChoices):
         BEGINNER = 'beginner', 'Beginner'
         INTERMEDIATE = 'intermediate', 'Intermediate'
         ADVANCED = 'advanced', 'Advanced'
 
     title = models.CharField(max_length=255)
-    plan_type = models.CharField(max_length=20, choices=PlanType.choices)
     difficulty = models.CharField(
         max_length=20,
         choices=DifficultyLevel.choices,
@@ -47,11 +41,11 @@ class WorkoutPlan(TenantAwareModel):
         verbose_name = 'Plan'
         verbose_name_plural = 'Plans'
         indexes = [
-            models.Index(fields=['tenant', 'plan_type', 'is_active']),
+            models.Index(fields=['tenant', 'is_active'], name='workout_plan_tenant_active_idx'),
         ]
 
     def __str__(self):
-        return f"{self.title} ({self.get_plan_type_display()})"
+        return self.title
 
 
 class WorkoutPlanAssignment(TenantAwareModel):

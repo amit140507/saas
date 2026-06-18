@@ -289,7 +289,6 @@ class Command(BaseCommand):
                     .filter(
                         tenant=tenant,
                         title=f"Plan for {client_user.first_name}",
-                        plan_type=WorkoutPlan.PlanType.WORKOUT,
                     )
                     .order_by('created_at')
                     .first()
@@ -298,7 +297,6 @@ class Command(BaseCommand):
                     w_plan = WorkoutPlan.objects.create(
                         tenant=tenant,
                         title=f"Plan for {client_user.first_name}",
-                        plan_type=WorkoutPlan.PlanType.WORKOUT,
                         created_by=assigned_trainer.user,
                     )
 

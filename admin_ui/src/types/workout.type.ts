@@ -1,4 +1,3 @@
-export type WorkoutPlanType = "workout" | "diet" | "hybrid";
 export type WorkoutDifficulty = "beginner" | "intermediate" | "advanced";
 export type WorkoutAssignmentStatus = "active" | "completed" | "paused" | "cancelled";
 
@@ -76,7 +75,6 @@ export interface WorkoutPlan {
     id: string;
     tenant?: string;
     title: string;
-    plan_type: WorkoutPlanType;
     difficulty: WorkoutDifficulty;
     description: string | null;
     goal: string | null;
@@ -91,7 +89,6 @@ export interface WorkoutPlan {
 export interface WorkoutPlanPayload {
     tenant?: string;
     title: string;
-    plan_type: WorkoutPlanType;
     difficulty: WorkoutDifficulty;
     description: string;
     goal: string;

@@ -17,8 +17,8 @@ from .models.tracking import SetLog, WorkoutLog, WorkoutSession
 # Planning tables
 @admin.register(WorkoutPlan)
 class WorkoutPlanAdmin(admin.ModelAdmin):
-    list_display = ('title', 'plan_type', 'difficulty', 'duration_weeks', 'is_active', 'tenant')
-    list_filter = ('plan_type', 'difficulty', 'is_active')
+    list_display = ('title', 'difficulty', 'duration_weeks', 'is_active', 'tenant')
+    list_filter = ('difficulty', 'is_active')
     search_fields = ('title', 'goal')
 
 

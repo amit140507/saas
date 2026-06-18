@@ -54,7 +54,6 @@ import type {
     WorkoutPlanAssignment,
     WorkoutPlanAssignmentPayload,
     WorkoutPlanPayload,
-    WorkoutPlanType,
     WorkoutSession,
     WorkoutSessionPayload,
 } from "@/types/workout.type";
@@ -82,7 +81,6 @@ interface ApiErrorShape {
 
 interface PlanForm {
     title: string;
-    plan_type: WorkoutPlanType;
     difficulty: WorkoutDifficulty;
     goal: string;
     duration_weeks: string;
@@ -131,7 +129,6 @@ const tabs: Array<{ id: TabId; label: string; icon: typeof DumbbellIcon }> = [
 
 const emptyPlanForm: PlanForm = {
     title: "",
-    plan_type: "workout",
     difficulty: "beginner",
     goal: "",
     duration_weeks: "12",
@@ -319,7 +316,7 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
     const filteredPlans = useMemo(() => {
         return plans.filter((plan) => {
             if (!query) return true;
-            return [plan.title, plan.goal || "", plan.difficulty, plan.plan_type].some((value) => value.toLowerCase().includes(query));
+            return [plan.title, plan.goal || "", plan.difficulty].some((value) => value.toLowerCase().includes(query));
         });
     }, [plans, query]);
 
@@ -458,7 +455,6 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
         setFormError("");
         setPlanForm(item ? {
             title: item.title,
-            plan_type: item.plan_type,
             difficulty: item.difficulty,
             goal: item.goal || "",
             duration_weeks: String(item.duration_weeks || 12),
@@ -535,7 +531,6 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
             payload: {
                 ...tenantPayload,
                 title: planForm.title.trim(),
-                plan_type: planForm.plan_type,
                 difficulty: planForm.difficulty,
                 goal: planForm.goal.trim(),
                 duration_weeks: durationWeeks,
@@ -757,11 +752,6 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                         <div className="grid gap-4 md:grid-cols-2">
                             <TextField label="Title" value={planForm.title} onChange={(value) => setPlanForm({ ...planForm, title: value })} required />
                             <TextField label="Goal" value={planForm.goal} onChange={(value) => setPlanForm({ ...planForm, goal: value })} />
-                            <SelectField label="Plan Type" value={planForm.plan_type} onChange={(value) => setPlanForm({ ...planForm, plan_type: value as WorkoutPlanType })}>
-                                <option value="workout">Workout</option>
-                                <option value="diet">Diet</option>
-                                <option value="hybrid">Hybrid</option>
-                            </SelectField>
                             <SelectField label="Difficulty" value={planForm.difficulty} onChange={(value) => setPlanForm({ ...planForm, difficulty: value as WorkoutDifficulty })}>
                                 <option value="beginner">Beginner</option>
                                 <option value="intermediate">Intermediate</option>
@@ -963,7 +953,7 @@ function Metric({ label, value }: { label: string; value: number }) {
 function PlansTab({ plans, onAdd, onEdit, onDelete }: { plans: WorkoutPlan[]; onAdd: () => void; onEdit: (plan: WorkoutPlan) => void; onDelete: (plan: WorkoutPlan) => void }) {
     return (
         <Panel title="Workout Plans" actionLabel="New Plan" onAction={onAdd}>
-            <DataTable emptyText="No workout plans found." columns={["Status", "Plan", "Type", "Difficulty", "Duration", "Actions"]}>
+            <DataTable emptyText="No workout plans found." columns={["Status", "Plan", "Difficulty", "Duration", "Actions"]}>
                 {plans.map((plan) => (
                     <tr key={plan.id} className="transition hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
                         <td className="px-6 py-4"><Badge className={plan.is_active ? statusClasses("active") : statusClasses("cancelled")}>{plan.is_active ? "Active" : "Inactive"}</Badge></td>
@@ -971,7 +961,6 @@ function PlansTab({ plans, onAdd, onEdit, onDelete }: { plans: WorkoutPlan[]; on
                             <div className="font-semibold text-zinc-900 dark:text-white">{plan.title}</div>
                             <div className="text-xs text-zinc-500">{plan.goal || "No goal set"}</div>
                         </td>
-                        <td className="px-6 py-4 capitalize">{plan.plan_type}</td>
                         <td className="px-6 py-4 capitalize">{plan.difficulty}</td>
                         <td className="px-6 py-4">{plan.duration_weeks} weeks</td>
                         <td className="px-6 py-4 text-right"><RowActions onEdit={() => onEdit(plan)} onDelete={() => onDelete(plan)} /></td>
