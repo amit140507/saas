@@ -1,4 +1,8 @@
-from rest_framework import viewsets
+from django.core.exceptions import ValidationError
+from django.http import HttpResponse
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from workout.models.planning import (
     Exercise,
@@ -11,6 +15,7 @@ from workout.models.planning import (
 )
 from workout.models.tracking import SetLog, WorkoutLog, WorkoutSession
 from workout.selectors import get_tenant_queryset
+from workout.services.pdf_service import create_workout_plan_pdf, send_workout_plan_email
 
 from .serializers import (
     ExerciseSerializer,
@@ -67,6 +72,26 @@ class WorkoutPlanAssignmentViewSet(TenantScopedViewSet):
         ).prefetch_related(
             'workout_days__exercises__exercise__media',
         )
+
+    @action(detail=True, methods=['post'], url_path='download-pdf')
+    def download_pdf(self, request, pk=None):
+        assignment = self.get_object()
+        pdf_bytes = create_workout_plan_pdf(assignment)
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = 'attachment; filename="workout_plan.pdf"'
+        return response
+
+    @action(detail=True, methods=['post'], url_path='send-pdf')
+    def send_pdf(self, request, pk=None):
+        assignment = self.get_object()
+        try:
+            pdf_bytes = create_workout_plan_pdf(assignment)
+            send_workout_plan_email(assignment, pdf_bytes)
+        except ValidationError as exc:
+            message = exc.messages[0] if hasattr(exc, 'messages') else str(exc)
+            return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'message': 'Workout Plan PDF sent successfully.'}, status=status.HTTP_200_OK)
 
 
 class WorkoutDayViewSet(TenantScopedViewSet):

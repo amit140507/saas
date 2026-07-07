@@ -51,6 +51,8 @@ export const API_ENDPOINTS = {
         planDetail: (id: string) => `workout/plans/${id}/`,
         assignments: "workout/assignments/",
         assignmentDetail: (id: string) => `workout/assignments/${id}/`,
+        assignmentDownloadPdf: (id: string) => `workout/assignments/${id}/download-pdf/`,
+        assignmentSendPdf: (id: string) => `workout/assignments/${id}/send-pdf/`,
         days: "workout/days/",
         dayDetail: (id: string | number) => `workout/days/${id}/`,
         exercises: "workout/exercises/",

@@ -146,6 +146,25 @@ export async function deleteWorkoutAssignment(id: string): Promise<void> {
     await api.delete(API_ENDPOINTS.workout.assignmentDetail(id));
 }
 
+export async function downloadWorkoutAssignmentPdf(assignmentId: string): Promise<void> {
+    const response = await api.post(API_ENDPOINTS.workout.assignmentDownloadPdf(assignmentId), undefined, {
+        responseType: "blob",
+    });
+
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "workout_plan.pdf";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+}
+
+export async function sendWorkoutAssignmentPdf(assignmentId: string): Promise<void> {
+    await api.post(API_ENDPOINTS.workout.assignmentSendPdf(assignmentId));
+}
+
 export async function getWorkoutDays(): Promise<WorkoutDay[]> {
     const response = await api.get<ListResponse<WorkoutDay>>(API_ENDPOINTS.workout.days);
     return normalizeList(response.data);

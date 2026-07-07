@@ -1,7 +1,9 @@
 from datetime import date
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core import mail
+from django.test import TestCase, override_settings
+from rest_framework.test import APIClient
 
 from core.clients.models import ClientProfile
 from core.tenants.models import Organization, OrganizationMember
@@ -308,3 +310,103 @@ class WorkoutPlanVersioningTests(TestCase):
         assignment = serializer.save(tenant=self.tenant)
 
         self.assertEqual(assignment.workout_days.count(), 1)
+
+    def test_assignment_pdf_download_returns_pdf(self):
+        assignment = assign_workout_plan(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan=self.plan,
+            assigned_by=None,
+            start_date=date(2026, 7, 1),
+        )
+        api_client = APIClient()
+
+        response = api_client.post(
+            f'/api/v1/workout/assignments/{assignment.id}/download-pdf/',
+            HTTP_X_TENANT_SLUG=self.tenant.slug,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertIn('filename="workout_plan.pdf"', response['Content-Disposition'])
+        self.assertTrue(response.content.startswith(b'%PDF'))
+
+    @override_settings(DEFAULT_FROM_EMAIL='coach@example.com')
+    def test_assignment_pdf_send_emails_client_attachment(self):
+        assignment = assign_workout_plan(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan=self.plan,
+            assigned_by=None,
+            start_date=date(2026, 7, 1),
+        )
+        api_client = APIClient()
+
+        response = api_client.post(
+            f'/api/v1/workout/assignments/{assignment.id}/send-pdf/',
+            HTTP_X_TENANT_SLUG=self.tenant.slug,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.user.email])
+        self.assertEqual(mail.outbox[0].attachments[0][0], 'workout_plan.pdf')
+        self.assertEqual(mail.outbox[0].attachments[0][2], 'application/pdf')
+
+    def test_assignment_pdf_download_is_tenant_scoped(self):
+        other_tenant = Organization.objects.create(name='Other Gym', slug='other-gym')
+        other_user = get_user_model().objects.create_user(
+            username='other@example.com',
+            email='other@example.com',
+            password='testpass123',
+        )
+        other_member = OrganizationMember.objects.create(user=other_user, tenant=other_tenant)
+        other_client_profile = ClientProfile.objects.create(
+            tenant=other_tenant,
+            org_client=other_member,
+            status=ClientProfile.StatusChoices.ACTIVE,
+        )
+        other_plan = WorkoutPlan.objects.create(
+            tenant=other_tenant,
+            title='Other Strength Builder',
+            difficulty=WorkoutPlan.DifficultyLevel.BEGINNER,
+            duration_weeks=8,
+            is_active=True,
+        )
+        other_assignment = assign_workout_plan(
+            tenant=other_tenant,
+            client=other_client_profile,
+            plan=other_plan,
+            assigned_by=None,
+            start_date=date(2026, 7, 1),
+        )
+        api_client = APIClient()
+
+        response = api_client.post(
+            f'/api/v1/workout/assignments/{other_assignment.id}/download-pdf/',
+            HTTP_X_TENANT_SLUG=self.tenant.slug,
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    @override_settings(DEFAULT_FROM_EMAIL='coach@example.com')
+    def test_assignment_pdf_send_requires_client_email(self):
+        self.user.email = ''
+        self.user.save(update_fields=['email'])
+        assignment = assign_workout_plan(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan=self.plan,
+            assigned_by=None,
+            start_date=date(2026, 7, 1),
+        )
+        api_client = APIClient()
+
+        response = api_client.post(
+            f'/api/v1/workout/assignments/{assignment.id}/send-pdf/',
+            HTTP_X_TENANT_SLUG=self.tenant.slug,
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data['error'], 'Assigned client does not have an email address.')
+        self.assertEqual(len(mail.outbox), 0)

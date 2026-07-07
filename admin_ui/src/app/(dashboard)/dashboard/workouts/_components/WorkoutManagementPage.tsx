@@ -4,6 +4,7 @@ import { FormEvent, useMemo, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     ActivityIcon,
+    DownloadIcon,
     DumbbellIcon,
     EditIcon,
     EyeIcon,
@@ -13,6 +14,7 @@ import {
     Loader2Icon,
     PlusIcon,
     SearchIcon,
+    SendIcon,
     Trash2Icon,
     UsersIcon,
     XIcon,
@@ -32,12 +34,14 @@ import {
     deleteWorkoutAssignment,
     deleteWorkoutPlan,
     deleteWorkoutSession,
+    downloadWorkoutAssignmentPdf,
     getExercises,
     getMuscleGroups,
     getMuscles,
     getWorkoutAssignments,
     getWorkoutPlans,
     getWorkoutSessions,
+    sendWorkoutAssignmentPdf,
     updateExercise,
     updateMuscle,
     updateMuscleGroup,
@@ -425,6 +429,7 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
     const [assignmentView, setAssignmentView] = useState<WorkoutPlanAssignment | null>(null);
     const [sessionModal, setSessionModal] = useState<{ mode: ModalMode; item: WorkoutSession | null } | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+    const [pdfAction, setPdfAction] = useState<{ assignmentId: string; action: "download" | "send" } | null>(null);
 
     const [planForm, setPlanForm] = useState<PlanForm>(emptyPlanForm);
     const [exerciseForm, setExerciseForm] = useState<ExerciseForm>(emptyExerciseForm);
@@ -625,6 +630,33 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
         },
         onError: (error) => setFormError(getErrorMessage(error)),
     });
+
+    const handleDownloadAssignmentPdf = async (assignment: WorkoutPlanAssignment) => {
+        setFormError("");
+        setPdfAction({ assignmentId: assignment.id, action: "download" });
+
+        try {
+            await downloadWorkoutAssignmentPdf(assignment.id);
+        } catch (error) {
+            setFormError(getErrorMessage(error));
+        } finally {
+            setPdfAction(null);
+        }
+    };
+
+    const handleSendAssignmentPdf = async (assignment: WorkoutPlanAssignment) => {
+        setFormError("");
+        setPdfAction({ assignmentId: assignment.id, action: "send" });
+
+        try {
+            await sendWorkoutAssignmentPdf(assignment.id);
+            alert("Workout plan sent successfully.");
+        } catch (error) {
+            setFormError(getErrorMessage(error));
+        } finally {
+            setPdfAction(null);
+        }
+    };
 
     const openPlanModal = (mode: ModalMode, item: WorkoutPlan | null = null) => {
         setFormError("");
@@ -1127,6 +1159,9 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                             onView={(assignment) => setAssignmentView(assignment)}
                             onEdit={(assignment) => openAssignmentModal("edit", assignment)}
                             onDelete={(assignment) => setDeleteTarget({ type: "assignment", id: assignment.id, label: assignment.plan_title || planById.get(assignment.plan)?.title || "Assignment" })}
+                            onDownload={handleDownloadAssignmentPdf}
+                            onSend={handleSendAssignmentPdf}
+                            pdfAction={pdfAction}
                         />
                     )}
                     {activeTab === "sessions" && (
@@ -1335,6 +1370,9 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                     clientLabel={assignmentView.client_name || clientName(clientById.get(assignmentView.client))}
                     planLabel={assignmentView.plan_title || planById.get(assignmentView.plan)?.title || assignmentView.plan}
                     fallbackDays={planById.get(assignmentView.plan)?.template_days || []}
+                    onDownload={() => handleDownloadAssignmentPdf(assignmentView)}
+                    onSend={() => handleSendAssignmentPdf(assignmentView)}
+                    pdfAction={pdfAction?.assignmentId === assignmentView.id ? pdfAction.action : null}
                     onClose={() => setAssignmentView(null)}
                 />
             )}
@@ -1817,6 +1855,9 @@ function AssignmentsTab({
     onView,
     onEdit,
     onDelete,
+    onDownload,
+    onSend,
+    pdfAction,
 }: {
     assignments: WorkoutPlanAssignment[];
     clients: ClientData[];
@@ -1826,6 +1867,9 @@ function AssignmentsTab({
     onView: (assignment: WorkoutPlanAssignment) => void;
     onEdit: (assignment: WorkoutPlanAssignment) => void;
     onDelete: (assignment: WorkoutPlanAssignment) => void;
+    onDownload: (assignment: WorkoutPlanAssignment) => void;
+    onSend: (assignment: WorkoutPlanAssignment) => void;
+    pdfAction: { assignmentId: string; action: "download" | "send" } | null;
 }) {
     const sortedAssignments = [...assignments].sort((a, b) => {
         if (a.status === "active" && b.status !== "active") return -1;
@@ -1849,7 +1893,17 @@ function AssignmentsTab({
                                 <div>{assignment.start_date}</div>
                                 <div className="text-xs text-zinc-500">{assignment.end_date || "No end date"}</div>
                             </td>
-                            <td className="px-6 py-4 text-right"><RowActions onView={() => onView(assignment)} onEdit={() => onEdit(assignment)} onDelete={() => onDelete(assignment)} /></td>
+                            <td className="px-6 py-4 text-right">
+                                <RowActions
+                                    onView={() => onView(assignment)}
+                                    onEdit={() => onEdit(assignment)}
+                                    onDelete={() => onDelete(assignment)}
+                                    onDownload={() => onDownload(assignment)}
+                                    onSend={() => onSend(assignment)}
+                                    downloading={pdfAction?.assignmentId === assignment.id && pdfAction.action === "download"}
+                                    sending={pdfAction?.assignmentId === assignment.id && pdfAction.action === "send"}
+                                />
+                            </td>
                         </tr>
                     );
                 })}
@@ -1863,12 +1917,18 @@ function AssignmentPlanViewModal({
     clientLabel,
     planLabel,
     fallbackDays,
+    onDownload,
+    onSend,
+    pdfAction,
     onClose,
 }: {
     assignment: WorkoutPlanAssignment;
     clientLabel: string;
     planLabel: string;
     fallbackDays: WorkoutDay[];
+    onDownload: () => void;
+    onSend: () => void;
+    pdfAction: "download" | "send" | null;
     onClose: () => void;
 }) {
     const days = [...((assignment.workout_days?.length ? assignment.workout_days : fallbackDays) || [])]
@@ -1877,6 +1937,26 @@ function AssignmentPlanViewModal({
     return (
         <ModalFrame title="View Workout Plan" onClose={onClose} maxWidth="max-w-5xl">
             <div className="space-y-5 p-6">
+                <div className="flex flex-wrap justify-end gap-2">
+                    <button
+                        type="button"
+                        onClick={onDownload}
+                        disabled={pdfAction !== null}
+                        className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    >
+                        {pdfAction === "download" ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <DownloadIcon className="h-4 w-4" />}
+                        Download
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onSend}
+                        disabled={pdfAction !== null}
+                        className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                    >
+                        {pdfAction === "send" ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <SendIcon className="h-4 w-4" />}
+                        Send
+                    </button>
+                </div>
                 <div className="grid gap-3 md:grid-cols-4">
                     <InfoTile label="Client" value={clientLabel} />
                     <InfoTile label="Plan" value={planLabel} />
@@ -2041,12 +2121,38 @@ function DataTable({ columns, emptyText, children }: { columns: string[]; emptyT
     );
 }
 
-function RowActions({ onView, onEdit, onDelete }: { onView?: () => void; onEdit: () => void; onDelete: () => void }) {
+function RowActions({
+    onView,
+    onEdit,
+    onDelete,
+    onDownload,
+    onSend,
+    downloading,
+    sending,
+}: {
+    onView?: () => void;
+    onEdit: () => void;
+    onDelete: () => void;
+    onDownload?: () => void;
+    onSend?: () => void;
+    downloading?: boolean;
+    sending?: boolean;
+}) {
     return (
         <div className="flex items-center justify-end gap-2">
             {onView && (
                 <button type="button" onClick={onView} className="rounded-md p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-sky-600 dark:hover:bg-zinc-800 dark:hover:text-sky-300" title="View">
                     <EyeIcon className="h-4 w-4" />
+                </button>
+            )}
+            {onDownload && (
+                <button type="button" onClick={onDownload} disabled={downloading || sending} className="rounded-md p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-emerald-600 disabled:opacity-60 dark:hover:bg-zinc-800 dark:hover:text-emerald-300" title="Download PDF">
+                    {downloading ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <DownloadIcon className="h-4 w-4" />}
+                </button>
+            )}
+            {onSend && (
+                <button type="button" onClick={onSend} disabled={downloading || sending} className="rounded-md p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-indigo-600 disabled:opacity-60 dark:hover:bg-zinc-800 dark:hover:text-indigo-300" title="Send PDF">
+                    {sending ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <SendIcon className="h-4 w-4" />}
                 </button>
             )}
             <button type="button" onClick={onEdit} className="rounded-md p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-indigo-600 dark:hover:bg-zinc-800 dark:hover:text-indigo-300" title="Edit">
