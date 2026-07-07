@@ -3,7 +3,7 @@ import uuid
 from django.conf import settings
 from django.db import models
 
-from core.tenants.models import TenantAwareModel
+from core.tenants.models import TenantAwareModel, TimeAwareModel
 
 
 class WorkoutPlan(TenantAwareModel):
@@ -100,10 +100,19 @@ class WorkoutPlanAssignment(TenantAwareModel):
 
 
 class WorkoutDay(TenantAwareModel):
+    plan = models.ForeignKey(
+        WorkoutPlan,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='template_days',
+    )
     plan_assignment = models.ForeignKey(
         WorkoutPlanAssignment,
         on_delete=models.CASCADE,
-        related_name='workout_day',
+        null=True,
+        blank=True,
+        related_name='workout_days',
     )
     name = models.CharField(max_length=100)
     day_number = models.PositiveSmallIntegerField()
@@ -111,13 +120,37 @@ class WorkoutDay(TenantAwareModel):
 
     class Meta:
         ordering = ['day_number']
-        unique_together = ('plan_assignment', 'day_number')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['plan', 'day_number'],
+                condition=models.Q(plan__isnull=False),
+                name='uniq_workout_day_plan_day',
+            ),
+            models.UniqueConstraint(
+                fields=['plan_assignment', 'day_number'],
+                condition=models.Q(plan_assignment__isnull=False),
+                name='uniq_workout_day_assignment_day',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(plan__isnull=False, plan_assignment__isnull=True)
+                    | models.Q(plan__isnull=True, plan_assignment__isnull=False)
+                ),
+                name='workout_day_has_one_owner',
+            ),
+        ]
 
     def __str__(self):
+        if self.plan_id:
+            return f"{self.plan.title} - {self.name}"
         return f"{self.plan_assignment.plan.title} - {self.name}"
 
 
-class Exercise(TenantAwareModel):
+class Exercise(TimeAwareModel):
+    """
+    Global exercise catalog shared across all tenants.
+    """
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     primary_muscle = models.ForeignKey(
@@ -132,8 +165,9 @@ class Exercise(TenantAwareModel):
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        ordering = ['name']
         indexes = [
-            models.Index(fields=['tenant', 'primary_muscle']),
+            models.Index(fields=['primary_muscle', 'is_active'], name='work_exe_primary_active_idx'),
         ]
 
     def __str__(self):
@@ -178,7 +212,14 @@ class ExerciseMuscle(models.Model):
         related_name='muscles',
     )
     muscle = models.ForeignKey(Muscle, on_delete=models.CASCADE)
+    sequence = models.PositiveSmallIntegerField(default=1)
     is_primary = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['sequence', 'id']
+        indexes = [
+            models.Index(fields=['exercise', 'sequence'], name='exercise_muscle_sequence_idx'),
+        ]
 
 
 class ExerciseMedia(models.Model):
@@ -191,12 +232,23 @@ class ExerciseMedia(models.Model):
 
 
 class WorkoutExercise(models.Model):
-    workout_day = models.ForeignKey(WorkoutDay, on_delete=models.CASCADE)
-    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE)
+    workout_day = models.ForeignKey(
+        WorkoutDay,
+        on_delete=models.CASCADE,
+        related_name='exercises',
+    )
+    exercise = models.ForeignKey(
+        Exercise,
+        on_delete=models.CASCADE,
+        related_name='planned_instances',
+    )
+    sequence = models.PositiveSmallIntegerField(default=1)
+    body_part = models.CharField(max_length=100, blank=True, null=True)
+    video_url = models.URLField(blank=True, null=True)
     weight = models.FloatField(null=True, blank=True)
     sets = models.IntegerField()
     reps = models.CharField(max_length=50)
-    rest = models.IntegerField(help_text='rest in minutes')
+    rest = models.IntegerField(help_text='rest in seconds')
     notes = models.TextField(blank=True, null=True)
 
     class ExerciseType(models.IntegerChoices):
@@ -208,3 +260,9 @@ class WorkoutExercise(models.Model):
         choices=ExerciseType.choices,
         default=ExerciseType.FREE_WEIGHT,
     )
+
+    class Meta:
+        ordering = ['sequence', 'id']
+        indexes = [
+            models.Index(fields=['workout_day', 'sequence'], name='workout_ex_day_sequence_idx'),
+        ]

@@ -1,13 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { CalculatorIcon, UserIcon, ActivityIcon, TargetIcon, DumbbellIcon, HeartPulseIcon, ArrowRightIcon } from "lucide-react";
+import { calculateMacroResults } from "@/utils/macroCalculator";
+import type {
+  MacroCalculatorInput,
+  MacroCalculatorResults,
+} from "@/types/macroCalculator.type";
 
 export default function MacroCalculator() {
   const router = useRouter();
   
-  const [data, setData] = useState({
+  const [data, setData] = useState<MacroCalculatorInput>({
     weight: 80,
     weightUnit: "kg",
     height: 180,
@@ -30,7 +35,7 @@ export default function MacroCalculator() {
     fat_g_kg: 1.0,
   });
 
-  const [results, setResults] = useState({
+  const [results, setResults] = useState<MacroCalculatorResults>({
     bmr: 0,
     tdee: 0,
     tdeePlusEe: 0,
@@ -53,104 +58,30 @@ export default function MacroCalculator() {
   });
 
   useEffect(() => {
-    calculateAll();
+    setResults(calculateMacroResults(data));
   }, [data]);
 
-  const handleChange = (e: any) => {
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
     const { name, value, type } = e.target;
-    let parsedValue = value;
-    if (type === "number") parsedValue = value === "" ? "" : Number(value);
+    const numberFields = new Set([
+      "weight",
+      "height",
+      "age",
+      "activityFactor",
+      "weightChangePerWeek",
+      "trainingSessions",
+      "trainingDuration",
+      "cardioSessions",
+      "cardioDuration",
+      "protein_g_kg",
+      "fat_g_kg",
+    ]);
+    const parsedValue =
+      type === "number" || numberFields.has(name) ? Number(value) : value;
     
     setData(prev => ({ ...prev, [name]: parsedValue }));
-  };
-
-  const calculateAll = () => {
-    // 1. Base Calcs
-    const weightKg = data.weightUnit === "lbs" ? Number(data.weight) * 0.453592 : Number(data.weight);
-    const heightCm = Number(data.height);
-    const age = Number(data.age);
-
-    let bmr = 0;
-    if (data.bmrFormula === "mifflin") {
-      bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age) + (data.gender === "male" ? 5 : -161);
-    } else {
-      // Harris-Benedict
-      bmr = data.gender === "male"
-        ? (13.397 * weightKg) + (4.799 * heightCm) - (5.677 * age) + 88.362
-        : (9.247 * weightKg) + (3.098 * heightCm) - (4.330 * age) + 447.593;
-    }
-
-    const tdee = bmr * Number(data.activityFactor);
-
-    // 2. Training EE
-    const metsMap: any = {
-      light: 3,
-      moderate: 5,
-      high: 7,
-      none: 0,
-    };
-    const tMet = metsMap[data.trainingType] || 0;
-    const kcalPerMinTrain = (tMet * 3.5 * weightKg) / 200;
-    const trainingPerSession = kcalPerMinTrain * Number(data.trainingDuration);
-    const trainingWeekly = trainingPerSession * Number(data.trainingSessions);
-    const trainingDaily = trainingWeekly / 7;
-
-    // 3. Cardio EE
-    const cMetsMap: any = {
-      light: 4,
-      moderate: 7,
-      hard: 10,
-      none: 0,
-    };
-    const cMet = cMetsMap[data.cardioType] || 0;
-    const kcalPerMinCardio = (cMet * 3.5 * weightKg) / 200;
-    const cardioPerSession = kcalPerMinCardio * Number(data.cardioDuration);
-    const cardioWeekly = cardioPerSession * Number(data.cardioSessions);
-    const cardioDaily = cardioWeekly / 7;
-
-    const tdeePlusEe = tdee + trainingDaily + cardioDaily;
-
-    // 4. Goals & Modification
-    // 1kg fat = 7700 kcal
-    const weightChangeAmount = weightKg * (Number(data.weightChangePerWeek) / 100);
-    const weightChangeAmountLbs = weightChangeAmount * 2.20462;
-    const kcalChangeWeekly = weightChangeAmount * 7700;
-    const defSurplusDaily = kcalChangeWeekly / 7;
-
-    let calorieGoal = tdeePlusEe;
-    if (data.goal === "fat_loss") {
-      calorieGoal -= defSurplusDaily;
-    } else if (data.goal === "muscle_gain") {
-      calorieGoal += defSurplusDaily;
-    }
-
-    // 5. Macros
-    const protGrams = weightKg * Number(data.protein_g_kg);
-    const fatGrams = weightKg * Number(data.fat_g_kg);
-    const protKcal = protGrams * 4;
-    const fatKcal = fatGrams * 9;
-    
-    let carbsGrams = (calorieGoal - protKcal - fatKcal) / 4;
-    if (carbsGrams < 0) carbsGrams = 0;
-
-    setResults({
-      bmr,
-      tdee,
-      tdeePlusEe,
-      deficitSurplusNeeded: defSurplusDaily,
-      calorieGoal,
-      recommendedGainRate: Number(data.weightChangePerWeek),
-      recommendedGainAmount: weightChangeAmount,
-      trainingWeekly,
-      trainingDaily,
-      trainingPerSession,
-      cardioWeekly,
-      cardioDaily,
-      cardioPerSession,
-      proteinGrams: protGrams,
-      fatGrams: fatGrams,
-      carbsGrams: carbsGrams,
-    });
   };
 
   return (
@@ -245,7 +176,14 @@ export default function MacroCalculator() {
                 </div>
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">Weight Change Per Week (%)</label>
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <label className="block text-sm font-medium">Weight Change Per Week (%)</label>
+                  <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                    {data.goal === "maintenance"
+                      ? "0.00 kg/week"
+                      : `${results.recommendedGainAmount.toFixed(2)} kg/week`}
+                  </span>
+                </div>
                 <input type="number" step="0.1" name="weightChangePerWeek" value={data.weightChangePerWeek} onChange={handleChange} className="w-full bg-zinc-50 border border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" disabled={data.goal === "maintenance"} />
               </div>
             </div>

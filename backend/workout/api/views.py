@@ -30,6 +30,9 @@ class TenantScopedViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return get_tenant_queryset(self.model, self.request.tenant)
 
+    def perform_create(self, serializer):
+        serializer.save(tenant=self.request.tenant)
+
 
 class MuscleGroupViewSet(viewsets.ModelViewSet):
     queryset = MuscleGroup.objects.all()
@@ -47,6 +50,11 @@ class WorkoutPlanViewSet(TenantScopedViewSet):
     model = WorkoutPlan
     serializer_class = WorkoutPlanSerializer
 
+    def get_queryset(self):
+        return WorkoutPlan.objects.filter(tenant=self.request.tenant).prefetch_related(
+            'template_days__exercises__exercise__media',
+        )
+
 
 class WorkoutPlanAssignmentViewSet(TenantScopedViewSet):
     model = WorkoutPlanAssignment
@@ -58,8 +66,11 @@ class WorkoutDayViewSet(TenantScopedViewSet):
     serializer_class = WorkoutDaySerializer
 
 
-class ExerciseViewSet(TenantScopedViewSet):
-    model = Exercise
+class ExerciseViewSet(viewsets.ModelViewSet):
+    queryset = Exercise.objects.select_related('primary_muscle__muscle_group').prefetch_related(
+        'muscles__muscle__muscle_group',
+        'media',
+    )
     serializer_class = ExerciseSerializer
     search_fields = ['name']
 

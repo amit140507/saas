@@ -13,22 +13,19 @@ from workout.models import (
 
 def _normalize_muscle_links(primary_muscle, muscle_links=None):
     normalized = []
-    seen = set()
 
     if primary_muscle:
         normalized.append({'muscle': primary_muscle, 'is_primary': True})
-        seen.add(primary_muscle.pk)
 
     for link in muscle_links or []:
         muscle = link.get('muscle')
-        if not muscle or muscle.pk in seen:
+        if not muscle:
             continue
 
         normalized.append({
             'muscle': muscle,
             'is_primary': bool(link.get('is_primary', False)),
         })
-        seen.add(muscle.pk)
 
     return normalized
 
@@ -40,9 +37,13 @@ def _sync_exercise_relations(exercise, *, muscle_links=None, media_items=None):
             ExerciseMuscle(
                 exercise=exercise,
                 muscle=link['muscle'],
+                sequence=sequence,
                 is_primary=link['is_primary'],
             )
-            for link in _normalize_muscle_links(exercise.primary_muscle, muscle_links)
+            for sequence, link in enumerate(
+                _normalize_muscle_links(exercise.primary_muscle, muscle_links),
+                start=1,
+            )
         ])
 
     if media_items is not None:
@@ -116,11 +117,13 @@ def record_set_log(
     reps,
     weight,
     rest_sec,
+    sequence=1,
     is_pr=False,
 ):
     return SetLog.objects.create(
         tenant=tenant,
         workout_log=workout_log,
+        sequence=sequence,
         set_number=set_number,
         reps=reps,
         weight=weight,

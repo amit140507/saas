@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from ..models.planning import FoodItem, DietPlan, DietPlanAssignment, PlannedMeal, PlannedMealItem
 from ..models.tracking import Meal, MealItem, DietLog
@@ -59,7 +60,7 @@ class GenerateDietPlanPDFView(APIView):
             data = request.data
             pdf_bytes = create_diet_plan_pdf(data)
             
-            email = data.get('client_email')
+            email = data.get('clientEmail') or data.get('client_email')
             if email:
                 send_diet_plan_email(email, pdf_bytes)
                 
@@ -67,6 +68,23 @@ class GenerateDietPlanPDFView(APIView):
                 {"message": "Diet Plan PDF generated and sent successfully."},
                 status=status.HTTP_200_OK
             )
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class DownloadDietPlanPDFView(APIView):
+    """
+    View to generate and download a diet plan PDF for admin users.
+    """
+    def post(self, request):
+        try:
+            pdf_bytes = create_diet_plan_pdf(request.data)
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            response['Content-Disposition'] = 'attachment; filename="diet_plan.pdf"'
+            return response
         except Exception as e:
             return Response(
                 {"error": str(e)},

@@ -17,7 +17,6 @@ class ExerciseSerializerTests(TestCase):
 
     def test_create_exercise_with_primary_muscle_and_media(self):
         serializer = ExerciseSerializer(data={
-            'tenant': self.tenant.id,
             'name': 'Bench Press',
             'primary_muscle': self.chest.id,
             'equipment_required': True,
@@ -36,7 +35,6 @@ class ExerciseSerializerTests(TestCase):
 
     def test_create_exercise_with_secondary_muscles(self):
         serializer = ExerciseSerializer(data={
-            'tenant': self.tenant.id,
             'name': 'Push Up',
             'primary_muscle': self.chest.id,
             'equipment_required': False,
@@ -59,7 +57,6 @@ class ExerciseSerializerTests(TestCase):
 
     def test_update_replaces_muscle_links_and_media(self):
         exercise = Exercise.objects.create(
-            tenant=self.tenant,
             name='Old Press',
             primary_muscle=self.chest,
             equipment_required=True,
@@ -71,7 +68,6 @@ class ExerciseSerializerTests(TestCase):
         ExerciseMedia.objects.create(exercise=exercise, youtube_url='https://www.youtube.com/watch?v=old123')
 
         serializer = ExerciseSerializer(exercise, data={
-            'tenant': self.tenant.id,
             'name': 'Incline Press',
             'primary_muscle': self.shoulders.id,
             'equipment_required': True,
@@ -90,9 +86,8 @@ class ExerciseSerializerTests(TestCase):
         self.assertFalse(updated.muscles.get(muscle=self.chest).is_primary)
         self.assertEqual(list(updated.media.values_list('youtube_url', flat=True)), ['https://www.youtube.com/watch?v=new123'])
 
-    def test_duplicate_muscle_links_are_ignored(self):
+    def test_duplicate_muscle_links_are_preserved(self):
         serializer = ExerciseSerializer(data={
-            'tenant': self.tenant.id,
             'name': 'Dip',
             'primary_muscle': self.chest.id,
             'equipment_required': True,
@@ -108,12 +103,12 @@ class ExerciseSerializerTests(TestCase):
         self.assertTrue(serializer.is_valid(), serializer.errors)
         exercise = serializer.save()
 
-        self.assertEqual(exercise.muscles.count(), 2)
-        self.assertEqual(exercise.muscles.filter(muscle=self.triceps).count(), 1)
+        self.assertEqual(exercise.muscles.count(), 4)
+        self.assertEqual(exercise.muscles.filter(muscle=self.chest).count(), 2)
+        self.assertEqual(exercise.muscles.filter(muscle=self.triceps).count(), 2)
 
     def test_read_shape_includes_nested_muscles_and_media(self):
         exercise = Exercise.objects.create(
-            tenant=self.tenant,
             name='Cable Fly',
             primary_muscle=self.chest,
             equipment_required=True,

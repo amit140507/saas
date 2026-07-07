@@ -6,6 +6,7 @@ import {
     ActivityIcon,
     DumbbellIcon,
     EditIcon,
+    GripVerticalIcon,
     LayersIcon,
     LibraryIcon,
     Loader2Icon,
@@ -49,7 +50,11 @@ import type {
     MuscleGroup,
     MuscleGroupPayload,
     WorkoutAssignmentStatus,
+    WorkoutDay,
+    WorkoutDayTemplatePayload,
     WorkoutDifficulty,
+    WorkoutExercise,
+    WorkoutExerciseTemplatePayload,
     WorkoutPlan,
     WorkoutPlanAssignment,
     WorkoutPlanAssignmentPayload,
@@ -86,6 +91,29 @@ interface PlanForm {
     duration_weeks: string;
     description: string;
     is_active: boolean;
+    days: PlanDayForm[];
+}
+
+interface PlanDayForm {
+    id: string;
+    name: string;
+    day_number: string;
+    notes: string;
+    exercises: PlanExerciseRowForm[];
+}
+
+interface PlanExerciseRowForm {
+    id: string;
+    muscle_group: string;
+    body_part: string;
+    exercise: string;
+    exercise_search: string;
+    sets: string;
+    reps: string;
+    rest: string;
+    video_url: string;
+    notes: string;
+    exercise_type: 1 | 2 | 3;
 }
 
 interface ExerciseForm {
@@ -127,6 +155,38 @@ const tabs: Array<{ id: TabId; label: string; icon: typeof DumbbellIcon }> = [
     { id: "sessions", label: "Session Logs", icon: ActivityIcon },
 ];
 
+function createFormId(): string {
+    return `form-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function createPlanExerciseRow(overrides: Partial<PlanExerciseRowForm> = {}): PlanExerciseRowForm {
+    return {
+        id: createFormId(),
+        muscle_group: "",
+        body_part: "",
+        exercise: "",
+        exercise_search: "",
+        sets: "3",
+        reps: "8-12",
+        rest: "90",
+        video_url: "",
+        notes: "",
+        exercise_type: 3,
+        ...overrides,
+    };
+}
+
+function createPlanDay(overrides: Partial<PlanDayForm> = {}): PlanDayForm {
+    return {
+        id: createFormId(),
+        name: "MONDAY: BACK, SHOULDERS & CORE",
+        day_number: "1",
+        notes: "",
+        exercises: [createPlanExerciseRow()],
+        ...overrides,
+    };
+}
+
 const emptyPlanForm: PlanForm = {
     title: "",
     difficulty: "beginner",
@@ -134,6 +194,7 @@ const emptyPlanForm: PlanForm = {
     duration_weeks: "12",
     description: "",
     is_active: true,
+    days: [createPlanDay()],
 };
 
 const emptyExerciseForm: ExerciseForm = {
@@ -214,6 +275,58 @@ function getTodayInputDate(): string {
     return new Date().toISOString().slice(0, 10);
 }
 
+function getOrderLabel(index: number): string {
+    let value = index + 1;
+    let label = "";
+
+    while (value > 0) {
+        value -= 1;
+        label = String.fromCharCode(65 + (value % 26)) + label;
+        value = Math.floor(value / 26);
+    }
+
+    return label;
+}
+
+function getExerciseBodyPart(exercise?: Exercise): string {
+    return exercise?.muscle_group_name || exercise?.primary_muscle_name || "";
+}
+
+function getExerciseMuscleGroupId(exercise?: Exercise): string {
+    return exercise?.muscle_group ? String(exercise.muscle_group) : "";
+}
+
+function getExerciseVideoUrls(exercise?: Exercise): string[] {
+    return (exercise?.media || []).map((media) => media.youtube_url || "").filter(Boolean);
+}
+
+function mapWorkoutExerciseToForm(row: WorkoutExercise, exerciseById: Map<string, Exercise>): PlanExerciseRowForm {
+    const exercise = exerciseById.get(row.exercise);
+
+    return createPlanExerciseRow({
+        muscle_group: getExerciseMuscleGroupId(exercise),
+        body_part: row.body_part || "",
+        exercise: row.exercise,
+        exercise_search: row.exercise_name || exercise?.name || "",
+        sets: String(row.sets || 1),
+        reps: row.reps || "",
+        rest: String(row.rest || 0),
+        video_url: row.video_url || row.exercise_video_urls?.[0] || "",
+        notes: row.notes || "",
+        exercise_type: row.exercise_type,
+    });
+}
+
+function mapWorkoutDayToForm(day: WorkoutDay, exerciseById: Map<string, Exercise>): PlanDayForm {
+    const sortedExercises = [...(day.exercises || [])].sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+    return createPlanDay({
+        name: day.name,
+        day_number: String(day.day_number),
+        notes: day.notes || "",
+        exercises: sortedExercises.length ? sortedExercises.map((row) => mapWorkoutExerciseToForm(row, exerciseById)) : [createPlanExerciseRow()],
+    });
+}
+
 function subscribeHydrationStore() {
     return () => undefined;
 }
@@ -230,14 +343,16 @@ function ModalFrame({
     title,
     children,
     onClose,
+    maxWidth = "max-w-2xl",
 }: {
     title: string;
     children: React.ReactNode;
     onClose: () => void;
+    maxWidth?: string;
 }) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+            <div className={`max-h-[90vh] w-full ${maxWidth} overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900`}>
                 <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
                     <h2 className="text-lg font-bold text-zinc-900 dark:text-white">{title}</h2>
                     <button
@@ -310,6 +425,7 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
     const assignmentById = useMemo(() => new Map(assignments.map((assignment) => [assignment.id, assignment])), [assignments]);
     const muscleGroupById = useMemo(() => new Map(muscleGroups.map((group) => [String(group.id), group])), [muscleGroups]);
     const muscleById = useMemo(() => new Map(muscles.map((muscle) => [String(muscle.id), muscle])), [muscles]);
+    const exerciseById = useMemo(() => new Map(exercises.map((exercise) => [exercise.id, exercise])), [exercises]);
 
     const query = search.trim().toLowerCase();
 
@@ -460,7 +576,12 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
             duration_weeks: String(item.duration_weeks || 12),
             description: item.description || "",
             is_active: item.is_active,
-        } : emptyPlanForm);
+            days: (item.template_days || []).length
+                ? [...(item.template_days || [])]
+                    .sort((a, b) => a.day_number - b.day_number)
+                    .map((day) => mapWorkoutDayToForm(day, exerciseById))
+                : [createPlanDay()],
+        } : { ...emptyPlanForm, days: [createPlanDay()] });
         setPlanModal({ mode, item });
     };
 
@@ -513,6 +634,108 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
 
     const tenantPayload = tenantId ? { tenant: tenantId } : {};
 
+    const updatePlanDay = (dayId: string, updates: Partial<PlanDayForm>) => {
+        setPlanForm((current) => ({
+            ...current,
+            days: current.days.map((day) => day.id === dayId ? { ...day, ...updates } : day),
+        }));
+    };
+
+    const addPlanDay = () => {
+        setPlanForm((current) => ({
+            ...current,
+            days: [
+                ...current.days,
+                createPlanDay({
+                    name: `DAY ${current.days.length + 1}`,
+                    day_number: String(current.days.length + 1),
+                }),
+            ],
+        }));
+    };
+
+    const removePlanDay = (dayId: string) => {
+        setPlanForm((current) => ({
+            ...current,
+            days: current.days.length > 1 ? current.days.filter((day) => day.id !== dayId) : current.days,
+        }));
+    };
+
+    const updatePlanExerciseRow = (dayId: string, rowId: string, updates: Partial<PlanExerciseRowForm>) => {
+        setPlanForm((current) => ({
+            ...current,
+            days: current.days.map((day) => {
+                if (day.id !== dayId) return day;
+                return {
+                    ...day,
+                    exercises: day.exercises.map((row) => row.id === rowId ? { ...row, ...updates } : row),
+                };
+            }),
+        }));
+    };
+
+    const selectPlanExercise = (dayId: string, rowId: string, exerciseId: string) => {
+        const selectedExercise = exerciseById.get(exerciseId);
+        updatePlanExerciseRow(dayId, rowId, {
+            exercise: exerciseId,
+            muscle_group: getExerciseMuscleGroupId(selectedExercise),
+            body_part: getExerciseBodyPart(selectedExercise),
+            exercise_search: selectedExercise?.name || "",
+            video_url: getExerciseVideoUrls(selectedExercise)[0] || "",
+        });
+    };
+
+    const selectPlanMuscleGroup = (dayId: string, rowId: string, muscleGroupId: string) => {
+        updatePlanExerciseRow(dayId, rowId, {
+            muscle_group: muscleGroupId,
+            body_part: muscleGroupById.get(muscleGroupId)?.name || "",
+            exercise: "",
+            exercise_search: "",
+            video_url: "",
+        });
+    };
+
+    const movePlanExerciseRow = (dayId: string, draggedRowId: string, targetRowId: string) => {
+        if (draggedRowId === targetRowId) return;
+
+        setPlanForm((current) => ({
+            ...current,
+            days: current.days.map((day) => {
+                if (day.id !== dayId) return day;
+
+                const fromIndex = day.exercises.findIndex((row) => row.id === draggedRowId);
+                const toIndex = day.exercises.findIndex((row) => row.id === targetRowId);
+                if (fromIndex === -1 || toIndex === -1) return day;
+
+                const nextRows = [...day.exercises];
+                const [movedRow] = nextRows.splice(fromIndex, 1);
+                nextRows.splice(toIndex, 0, movedRow);
+                return { ...day, exercises: nextRows };
+            }),
+        }));
+    };
+
+    const addPlanExerciseRow = (dayId: string) => {
+        setPlanForm((current) => ({
+            ...current,
+            days: current.days.map((day) => (
+                day.id === dayId
+                    ? { ...day, exercises: [...day.exercises, createPlanExerciseRow()] }
+                    : day
+            )),
+        }));
+    };
+
+    const removePlanExerciseRow = (dayId: string, rowId: string) => {
+        setPlanForm((current) => ({
+            ...current,
+            days: current.days.map((day) => {
+                if (day.id !== dayId || day.exercises.length === 1) return day;
+                return { ...day, exercises: day.exercises.filter((row) => row.id !== rowId) };
+            }),
+        }));
+    };
+
     const submitPlan = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         const durationWeeks = Number(planForm.duration_weeks);
@@ -523,6 +746,62 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
         if (!Number.isInteger(durationWeeks) || durationWeeks < 1) {
             setFormError("Duration must be a whole number greater than zero.");
             return;
+        }
+
+        const daysPayload: WorkoutDayTemplatePayload[] = [];
+        for (const [dayIndex, day] of planForm.days.entries()) {
+            const dayNumber = Number(day.day_number);
+            if (!day.name.trim()) {
+                setFormError("Each workout day needs a title.");
+                return;
+            }
+            if (!Number.isInteger(dayNumber) || dayNumber < 1) {
+                setFormError("Each workout day needs a valid day number.");
+                return;
+            }
+
+            const exercisesPayload: WorkoutExerciseTemplatePayload[] = [];
+            for (const [rowIndex, row] of day.exercises.entries()) {
+                const selectedExercise = exerciseById.get(row.exercise);
+                const sets = Number(row.sets);
+                const rest = Number(row.rest);
+                if (!row.exercise) {
+                    setFormError("Each workout row needs an exercise.");
+                    return;
+                }
+                if (!Number.isInteger(sets) || sets < 1) {
+                    setFormError("Sets must be a whole number greater than zero.");
+                    return;
+                }
+                if (!row.reps.trim()) {
+                    setFormError("Rep range is required for every workout row.");
+                    return;
+                }
+                if (!Number.isInteger(rest) || rest < 0) {
+                    setFormError("Rest must be a whole number of seconds.");
+                    return;
+                }
+
+                exercisesPayload.push({
+                    exercise: row.exercise,
+                    sequence: rowIndex + 1,
+                    body_part: getExerciseBodyPart(selectedExercise) || null,
+                    video_url: row.video_url.trim() || null,
+                    weight: null,
+                    sets,
+                    reps: row.reps.trim(),
+                    rest,
+                    notes: row.notes.trim(),
+                    exercise_type: row.exercise_type,
+                });
+            }
+
+            daysPayload.push({
+                name: day.name.trim(),
+                day_number: dayNumber || dayIndex + 1,
+                notes: day.notes.trim(),
+                exercises: exercisesPayload,
+            });
         }
 
         planMutation.mutate({
@@ -536,6 +815,7 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                 duration_weeks: durationWeeks,
                 description: planForm.description.trim(),
                 is_active: planForm.is_active,
+                days: daysPayload,
             },
         });
     };
@@ -746,7 +1026,7 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
             )}
 
             {planModal && (
-                <ModalFrame title={planModal.mode === "add" ? "Create Workout Plan" : "Edit Workout Plan"} onClose={() => setPlanModal(null)}>
+                <ModalFrame title={planModal.mode === "add" ? "Create Workout Plan" : "Edit Workout Plan"} onClose={() => setPlanModal(null)} maxWidth="max-w-7xl">
                     <form onSubmit={submitPlan} className="space-y-4 p-6">
                         <ErrorText message={formError} />
                         <div className="grid gap-4 md:grid-cols-2">
@@ -761,6 +1041,20 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                         </div>
                         <TextArea label="Description" value={planForm.description} onChange={(value) => setPlanForm({ ...planForm, description: value })} />
                         <CheckboxField label="Active plan" checked={planForm.is_active} onChange={(checked) => setPlanForm({ ...planForm, is_active: checked })} />
+                        <PlanTemplateEditor
+                            days={planForm.days}
+                            exercises={exercises}
+                            muscleGroups={muscleGroups}
+                            onAddDay={addPlanDay}
+                            onRemoveDay={removePlanDay}
+                            onUpdateDay={updatePlanDay}
+                            onAddRow={addPlanExerciseRow}
+                            onRemoveRow={removePlanExerciseRow}
+                            onUpdateRow={updatePlanExerciseRow}
+                            onSelectExercise={selectPlanExercise}
+                            onSelectMuscleGroup={selectPlanMuscleGroup}
+                            onMoveRow={movePlanExerciseRow}
+                        />
                         <ModalActions loading={planMutation.isPending} submitLabel={planModal.mode === "add" ? "Create Plan" : "Save Changes"} onCancel={() => setPlanModal(null)} />
                     </form>
                 </ModalFrame>
@@ -938,6 +1232,268 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                 </div>
             )}
         </div>
+    );
+}
+
+function PlanTemplateEditor({
+    days,
+    exercises,
+    muscleGroups,
+    onAddDay,
+    onRemoveDay,
+    onUpdateDay,
+    onAddRow,
+    onRemoveRow,
+    onUpdateRow,
+    onSelectExercise,
+    onSelectMuscleGroup,
+    onMoveRow,
+}: {
+    days: PlanDayForm[];
+    exercises: Exercise[];
+    muscleGroups: MuscleGroup[];
+    onAddDay: () => void;
+    onRemoveDay: (dayId: string) => void;
+    onUpdateDay: (dayId: string, updates: Partial<PlanDayForm>) => void;
+    onAddRow: (dayId: string) => void;
+    onRemoveRow: (dayId: string, rowId: string) => void;
+    onUpdateRow: (dayId: string, rowId: string, updates: Partial<PlanExerciseRowForm>) => void;
+    onSelectExercise: (dayId: string, rowId: string, exerciseId: string) => void;
+    onSelectMuscleGroup: (dayId: string, rowId: string, muscleGroupId: string) => void;
+    onMoveRow: (dayId: string, draggedRowId: string, targetRowId: string) => void;
+}) {
+    const exerciseById = useMemo(() => new Map(exercises.map((exercise) => [exercise.id, exercise])), [exercises]);
+    const [draggedRow, setDraggedRow] = useState<{ dayId: string; rowId: string } | null>(null);
+
+    return (
+        <section className="space-y-4 rounded-xl border border-sky-200 bg-sky-50/50 p-4 text-zinc-950 dark:border-sky-900/60 dark:bg-sky-950/20">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <h3 className="text-sm font-black uppercase tracking-wide text-sky-900 dark:text-sky-100">Workout Template</h3>
+                    <p className="text-xs text-sky-700 dark:text-sky-300">Build reusable day tables. Order labels are saved as row sequence.</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={onAddDay}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-sky-800"
+                >
+                    <PlusIcon className="h-4 w-4" />
+                    Add Day
+                </button>
+            </div>
+
+            <div className="space-y-5">
+                {days.map((day) => (
+                    <div key={day.id} className="overflow-hidden rounded-xl border border-zinc-300 bg-white text-zinc-950 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                        <div className="border-b border-black  p-3 ">
+                            <div className="grid gap-3 md:grid-cols-[1fr_120px_auto] md:items-end">
+                                <label className="block">
+                                    <span className="mb-1 block text-xs font-black uppercase text-black">Day Title</span>
+                                    <input
+                                        value={day.name}
+                                        onChange={(event) => onUpdateDay(day.id, { name: event.target.value })}
+                                        className="w-full rounded-md border border-sky-300 bg-white px-3 py-2 text-center text-sm font-black uppercase text-zinc-950 outline-none focus:border-white"
+                                    />
+                                </label>
+                                <label className="block">
+                                    <span className="mb-1 block text-xs font-black uppercase text-black">Day #</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={day.day_number}
+                                        onChange={(event) => onUpdateDay(day.id, { day_number: event.target.value })}
+                                        className="w-full rounded-md border border-sky-300 bg-white px-3 py-2 text-sm font-bold text-zinc-950 outline-none focus:border-white"
+                                    />
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => onRemoveDay(day.id)}
+                                    disabled={days.length === 1}
+                                    className="inline-flex items-center justify-center gap-2 rounded-md bg-black/20 px-3 py-2 text-sm font-bold text-white transition hover:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <Trash2Icon className="h-4 w-4" />
+                                    Remove
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="min-w-[1120px] w-full border-collapse text-center text-xs">
+                                <thead>
+                                    <tr className=" text-white">
+                                        {["Body Part", "Order", "Exercise", "Sets", "Rep Range", "Rest", "Video Link", "Notes", ""].map((column) => (
+                                            <th key={column} className="border border-black px-3 py-2 font-black uppercase">{column}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {day.exercises.map((row, index) => {
+                                        const selectedExercise = exerciseById.get(row.exercise);
+                                        const bodyPart = getExerciseBodyPart(selectedExercise) || row.body_part || "Select exercise";
+                                        const selectedMuscleGroup = muscleGroups.find((group) => String(group.id) === row.muscle_group);
+                                        const filteredExercises = row.muscle_group
+                                            ? exercises
+                                                .filter((exercise) => String(exercise.muscle_group || "") === row.muscle_group)
+                                                .filter((exercise) => exercise.name.toLowerCase().includes(row.exercise_search.trim().toLowerCase()))
+                                            : [];
+                                        const videoUrls = getExerciseVideoUrls(selectedExercise);
+                                        const videoListId = `video-options-${day.id}-${row.id}`;
+
+                                        return (
+                                            <tr
+                                                key={row.id}
+                                                draggable
+                                                onDragStart={() => setDraggedRow({ dayId: day.id, rowId: row.id })}
+                                                onDragEnd={() => setDraggedRow(null)}
+                                                onDragOver={(event) => event.preventDefault()}
+                                                onDrop={(event) => {
+                                                    event.preventDefault();
+                                                    if (draggedRow?.dayId === day.id) {
+                                                        onMoveRow(day.id, draggedRow.rowId, row.id);
+                                                    }
+                                                    setDraggedRow(null);
+                                                }}
+                                                className={draggedRow?.rowId === row.id ? "opacity-50" : ""}
+                                            >
+                                                <td className="border border-black  px-2 py-2 text-white">
+                                                    <select
+                                                        value={row.muscle_group}
+                                                        onChange={(event) => onSelectMuscleGroup(day.id, row.id, event.target.value)}
+                                                        className="w-36 rounded border border-sky-300 bg-white px-2 py-1 text-center text-xs font-bold uppercase text-black outline-none focus:border-white"
+                                                    >
+                                                        <option value="">Select</option>
+                                                        {muscleGroups.map((group) => (
+                                                            <option key={group.id} value={group.id}>{group.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td className="border border-black  px-3 py-2 font-black text-white">{getOrderLabel(index)}</td>
+                                                <td className="border border-black bg-white px-2 py-2">
+                                                    <input
+                                                        value={row.exercise_search}
+                                                        disabled={!row.muscle_group}
+                                                        onChange={(event) => onUpdateRow(day.id, row.id, {
+                                                            exercise_search: event.target.value,
+                                                            exercise: "",
+                                                            video_url: "",
+                                                        })}
+                                                        className="w-full min-w-72 rounded border border-zinc-300 bg-white px-2 py-1 text-center text-xs font-bold uppercase text-black outline-none focus:border-sky-500 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500"
+                                                        placeholder={row.muscle_group ? "Search exercise" : "Select body part first"}
+                                                    />
+                                                    <div className="mt-2 max-h-28 min-w-72 overflow-y-auto rounded border border-zinc-200 bg-white text-left shadow-sm">
+                                                        {!row.muscle_group ? (
+                                                            <div className="px-3 py-2 text-xs font-semibold uppercase text-zinc-500">Select body part first</div>
+                                                        ) : filteredExercises.length === 0 ? (
+                                                            <div className="px-3 py-2 text-xs font-semibold uppercase text-zinc-500">No exercise found</div>
+                                                        ) : filteredExercises.map((exercise) => (
+                                                            <button
+                                                                key={exercise.id}
+                                                                type="button"
+                                                                onClick={() => onSelectExercise(day.id, row.id, exercise.id)}
+                                                                className={`block w-full px-3 py-2 text-left text-xs font-bold uppercase transition hover:bg-sky-50 hover:text-sky-700 ${row.exercise === exercise.id ? "bg-sky-100 text-sky-800" : "text-black"}`}
+                                                            >
+                                                                {exercise.name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <div className="mt-1 text-[10px] font-bold uppercase text-zinc-500">{selectedMuscleGroup?.name || bodyPart}</div>
+                                                </td>
+                                                <td className="border border-black bg-white px-2 py-2 text-black">
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={row.sets}
+                                                        onChange={(event) => onUpdateRow(day.id, row.id, { sets: event.target.value })}
+                                                        className="w-16 rounded border border-zinc-300 px-2 py-1 text-center text-xs font-bold text-black outline-none focus:border-sky-500"
+                                                    />
+                                                </td>
+                                                <td className="border border-black bg-white px-2 py-2 text-black">
+                                                    <input
+                                                        value={row.reps}
+                                                        onChange={(event) => onUpdateRow(day.id, row.id, { reps: event.target.value })}
+                                                        className="w-24 rounded border border-zinc-300 px-2 py-1 text-center text-xs font-bold text-black outline-none focus:border-sky-500"
+                                                        placeholder="8-12"
+                                                    />
+                                                </td>
+                                                <td className="border border-black bg-white px-2 py-2 text-black">
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={row.rest}
+                                                        onChange={(event) => onUpdateRow(day.id, row.id, { rest: event.target.value })}
+                                                        className="w-20 rounded border border-zinc-300 px-2 py-1 text-center text-xs font-bold text-black outline-none focus:border-sky-500"
+                                                        title="Rest in seconds"
+                                                    />
+                                                    <div className="mt-1 text-[10px] font-bold uppercase text-zinc-500">Secs</div>
+                                                </td>
+                                                <td className="border border-black bg-white px-2 py-2 text-black">
+                                                    <input
+                                                        list={videoListId}
+                                                        value={row.video_url}
+                                                        onChange={(event) => onUpdateRow(day.id, row.id, { video_url: event.target.value })}
+                                                        className="w-40 rounded border border-zinc-300 px-2 py-1 text-center text-xs font-bold text-blue-700 underline outline-none focus:border-sky-500"
+                                                        placeholder="Link"
+                                                    />
+                                                    <datalist id={videoListId}>
+                                                        {videoUrls.map((url) => <option key={url} value={url} />)}
+                                                    </datalist>
+                                                </td>
+                                                <td className="border border-black bg-white px-2 py-2 text-black">
+                                                    <input
+                                                        value={row.notes}
+                                                        onChange={(event) => onUpdateRow(day.id, row.id, { notes: event.target.value })}
+                                                        className="w-44 rounded border border-zinc-300 px-2 py-1 text-center text-xs font-semibold text-black outline-none focus:border-sky-500"
+                                                        placeholder="Prefer using cuffs"
+                                                    />
+                                                </td>
+                                                <td className="border border-black bg-white px-2 py-2 text-black">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <button
+                                                            type="button"
+                                                            className="cursor-grab rounded-md p-2 text-zinc-500 transition hover:bg-sky-50 hover:text-sky-700 active:cursor-grabbing"
+                                                            title="Drag to reorder"
+                                                            aria-label="Drag to reorder workout row"
+                                                        >
+                                                            <GripVerticalIcon className="h-4 w-4" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onRemoveRow(day.id, row.id)}
+                                                            disabled={day.exercises.length === 1}
+                                                            className="rounded-md p-2 text-zinc-500 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                                                            title="Remove row"
+                                                        >
+                                                            <Trash2Icon className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="flex flex-col gap-3 border-t border-zinc-200 p-3 dark:border-zinc-800 md:flex-row md:items-center md:justify-between">
+                            <input
+                                value={day.notes}
+                                onChange={(event) => onUpdateDay(day.id, { notes: event.target.value })}
+                                className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-sky-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white"
+                                placeholder="Optional notes for this day"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => onAddRow(day.id)}
+                                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-sky-200 px-4 py-2 text-sm font-bold text-sky-700 transition hover:bg-sky-50 dark:border-sky-900 dark:text-sky-300 dark:hover:bg-sky-950"
+                            >
+                                <PlusIcon className="h-4 w-4" />
+                                Add Row
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </section>
     );
 }
 

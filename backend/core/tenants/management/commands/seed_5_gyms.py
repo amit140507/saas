@@ -248,7 +248,7 @@ class Command(BaseCommand):
                 }
             )
 
-            # 4. Exercises for this tenant
+            # 4. Shared exercise catalog
             exercises = []
             exercise_names = [
                 ('Bench Press', 'Pectoralis Major'), ('Deadlift', 'Latissimus Dorsi'), ('Squat', 'Rectus Femoris'),
@@ -256,7 +256,7 @@ class Command(BaseCommand):
             ]
             for ex_name, muscle_name in exercise_names:
                 ex, _ = Exercise.objects.get_or_create(
-                    name=ex_name, tenant=tenant,
+                    name=ex_name,
                     defaults={'primary_muscle': muscles[muscle_name], 'equipment_required': True}
                 )
                 exercises.append(ex)
@@ -322,11 +322,11 @@ class Command(BaseCommand):
                         day_number=d,
                         defaults={'name': f"Day {d}"}
                     )
-                    for ex in random.sample(exercises, 2):
+                    for sequence, ex in enumerate(random.sample(exercises, 2), start=1):
                         WorkoutExercise.objects.get_or_create(
                             workout_day=day,
                             exercise=ex,
-                            defaults={'sets': 3, 'reps': '12', 'rest': 90}
+                            defaults={'sequence': sequence, 'sets': 3, 'reps': '12', 'rest': 90}
                         )
 
                 # 7. Diet Plan for Client

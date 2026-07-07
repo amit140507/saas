@@ -61,6 +61,7 @@ const navigation: NavigationItem[] = [
     { name: "Email Logs", href: "/dashboard/email-logs", icon: MailIcon, permission: PERMISSIONS.MANAGE_SETTINGS },
     // { name: "Security", href: "/dashboard/security", icon: ShieldCheckIcon },
     { name: "Macro Calculator", href: "/dashboard/macro-calculator", icon: CalculatorIcon, permission: PERMISSIONS.VIEW_PLANS },
+    { name: "Diet/Meal Plan", href: "/dashboard/diet-plan-creator", icon: PackageIcon, permission: PERMISSIONS.MANAGE_DIET },
     { name: "Client Trackers", href: "/dashboard/check-in-tracker", icon: ActivityIcon, permission: PERMISSIONS.VIEW_PROGRESS },
     { name: "Measurements", href: "/dashboard/measurements", icon: RulerIcon, permission: PERMISSIONS.VIEW_PROGRESS },
     { name: "Settings", href: "/dashboard/settings", icon: SettingsIcon, permission: PERMISSIONS.MANAGE_SETTINGS },

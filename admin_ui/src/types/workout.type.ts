@@ -84,6 +84,7 @@ export interface WorkoutPlan {
     is_active: boolean;
     created_at: string;
     updated_at: string;
+    template_days?: WorkoutDay[];
 }
 
 export interface WorkoutPlanPayload {
@@ -94,6 +95,7 @@ export interface WorkoutPlanPayload {
     goal: string;
     duration_weeks: number;
     is_active: boolean;
+    days?: WorkoutDayTemplatePayload[];
 }
 
 export interface WorkoutPlanAssignment {
@@ -127,6 +129,10 @@ export interface WorkoutExercise {
     workout_day: string | number;
     exercise: string;
     exercise_name?: string;
+    exercise_video_urls?: string[];
+    sequence: number;
+    body_part: string | null;
+    video_url: string | null;
     weight: number | null;
     sets: number;
     reps: string;
@@ -138,6 +144,9 @@ export interface WorkoutExercise {
 export interface WorkoutExercisePayload {
     workout_day: string | number;
     exercise: string;
+    sequence?: number;
+    body_part?: string | null;
+    video_url?: string | null;
     weight: number | null;
     sets: number;
     reps: string;
@@ -149,7 +158,8 @@ export interface WorkoutExercisePayload {
 export interface WorkoutDay {
     id: string | number;
     tenant?: string;
-    plan_assignment: string;
+    plan?: string | null;
+    plan_assignment?: string | null;
     name: string;
     day_number: number;
     notes: string | null;
@@ -158,10 +168,31 @@ export interface WorkoutDay {
 
 export interface WorkoutDayPayload {
     tenant?: string;
-    plan_assignment: string;
+    plan?: string | null;
+    plan_assignment?: string | null;
     name: string;
     day_number: number;
     notes: string;
+}
+
+export interface WorkoutExerciseTemplatePayload {
+    exercise: string;
+    sequence: number;
+    body_part: string | null;
+    video_url: string | null;
+    weight: number | null;
+    sets: number;
+    reps: string;
+    rest: number;
+    notes: string;
+    exercise_type: 1 | 2 | 3;
+}
+
+export interface WorkoutDayTemplatePayload {
+    name: string;
+    day_number: number;
+    notes: string;
+    exercises: WorkoutExerciseTemplatePayload[];
 }
 
 export interface WorkoutSession {

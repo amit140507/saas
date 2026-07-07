@@ -92,6 +92,7 @@ class SetLog(TenantAwareModel):
         on_delete=models.CASCADE,
         related_name='sets',
     )
+    sequence = models.PositiveSmallIntegerField(default=1)
     set_number = models.IntegerField()
     reps = models.IntegerField()
     weight = models.FloatField()
@@ -99,5 +100,7 @@ class SetLog(TenantAwareModel):
     is_pr = models.BooleanField(default=False)
 
     class Meta:
-        ordering = ['set_number']
-
+        ordering = ['sequence', 'set_number', 'id']
+        indexes = [
+            models.Index(fields=['workout_log', 'sequence'], name='setlog_workout_sequence_idx'),
+        ]

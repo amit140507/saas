@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.db import transaction
 
 from workout.services import save_exercise
 from workout.models.planning import (
@@ -89,26 +90,128 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
 class WorkoutExerciseSerializer(serializers.ModelSerializer):
     exercise_name = serializers.ReadOnlyField(source='exercise.name')
+    exercise_video_urls = serializers.SerializerMethodField()
 
     class Meta:
         model = WorkoutExercise
         fields = '__all__'
 
+    def get_exercise_video_urls(self, obj):
+        return [
+            media.youtube_url
+            for media in obj.exercise.media.all()
+            if media.youtube_url
+        ]
+
 
 class WorkoutDaySerializer(serializers.ModelSerializer):
-    exercises = WorkoutExerciseSerializer(source='workoutexercise_set', many=True, read_only=True)
+    exercises = WorkoutExerciseSerializer(many=True, read_only=True)
 
     class Meta:
         model = WorkoutDay
         fields = '__all__'
 
 
+class WorkoutExerciseTemplatePayloadSerializer(serializers.Serializer):
+    exercise = serializers.PrimaryKeyRelatedField(queryset=Exercise.objects.all())
+    sequence = serializers.IntegerField(min_value=1, required=False)
+    body_part = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    video_url = serializers.URLField(required=False, allow_blank=True, allow_null=True)
+    weight = serializers.FloatField(required=False, allow_null=True)
+    sets = serializers.IntegerField(min_value=1)
+    reps = serializers.CharField(max_length=50)
+    rest = serializers.IntegerField(min_value=0)
+    notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    exercise_type = serializers.ChoiceField(
+        choices=WorkoutExercise.ExerciseType.choices,
+        default=WorkoutExercise.ExerciseType.FREE_WEIGHT,
+    )
+
+
+class WorkoutDayTemplatePayloadSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100)
+    day_number = serializers.IntegerField(min_value=1)
+    notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    exercises = WorkoutExerciseTemplatePayloadSerializer(many=True, required=False)
+
+
 class WorkoutPlanSerializer(serializers.ModelSerializer):
     created_by_name = serializers.ReadOnlyField(source='created_by.get_full_name')
+    template_days = WorkoutDaySerializer(many=True, read_only=True)
+    days = WorkoutDayTemplatePayloadSerializer(many=True, write_only=True, required=False)
 
     class Meta:
         model = WorkoutPlan
-        fields = '__all__'
+        fields = [
+            'id',
+            'tenant',
+            'title',
+            'difficulty',
+            'description',
+            'goal',
+            'duration_weeks',
+            'created_by',
+            'created_by_name',
+            'is_active',
+            'created_at',
+            'updated_at',
+            'template_days',
+            'days',
+        ]
+        read_only_fields = ['created_by', 'created_at', 'updated_at']
+
+    @transaction.atomic
+    def create(self, validated_data):
+        days = validated_data.pop('days', None)
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            validated_data.setdefault('created_by', request.user)
+
+        plan = super().create(validated_data)
+        if days is not None:
+            self._sync_template_days(plan, days)
+        return plan
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        days = validated_data.pop('days', None)
+        plan = super().update(instance, validated_data)
+        if days is not None:
+            self._sync_template_days(plan, days)
+        return plan
+
+    def _sync_template_days(self, plan, days):
+        plan.template_days.all().delete()
+        workout_days = []
+
+        for index, day_data in enumerate(days, start=1):
+            exercises = day_data.pop('exercises', [])
+            workout_day = WorkoutDay.objects.create(
+                tenant=plan.tenant,
+                plan=plan,
+                name=day_data['name'],
+                day_number=day_data.get('day_number') or index,
+                notes=day_data.get('notes') or '',
+            )
+            workout_days.append((workout_day, exercises))
+
+        for workout_day, exercises in workout_days:
+            WorkoutExercise.objects.bulk_create([
+                WorkoutExercise(
+                    workout_day=workout_day,
+                    exercise=exercise_data['exercise'],
+                    sequence=exercise_data.get('sequence') or sequence,
+                    body_part=exercise_data.get('body_part') or None,
+                    video_url=exercise_data.get('video_url') or None,
+                    weight=exercise_data.get('weight'),
+                    sets=exercise_data['sets'],
+                    reps=exercise_data['reps'],
+                    rest=exercise_data['rest'],
+                    notes=exercise_data.get('notes') or '',
+                    exercise_type=exercise_data.get('exercise_type') or WorkoutExercise.ExerciseType.FREE_WEIGHT,
+                )
+                for sequence, exercise_data in enumerate(exercises, start=1)
+            ])
 
 
 class WorkoutPlanAssignmentSerializer(serializers.ModelSerializer):

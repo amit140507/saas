@@ -10,7 +10,8 @@ export const API_ENDPOINTS = {
         deactivate: (id: string) => `clients/clients/${id}/deactivate/`,
     },
     meal: {
-        generateDietPlanPdf: "meal/api/v1/generate-pdf/",
+        generateDietPlanPdf: "meal/generate-pdf/",
+        downloadDietPlanPdf: "meal/download-pdf/",
     },
     features: {
         list: "features/",

@@ -30,9 +30,9 @@ class WorkoutPlanAssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(WorkoutDay)
 class WorkoutDayAdmin(admin.ModelAdmin):
-    list_display = ('name', 'plan_assignment', 'day_number')
+    list_display = ('name', 'plan', 'plan_assignment', 'day_number')
     list_filter = ('day_number',)
-    search_fields = ('name', 'plan_assignment__plan__title')
+    search_fields = ('name', 'plan__title', 'plan_assignment__plan__title')
 
 
 @admin.register(Exercise)
@@ -57,7 +57,7 @@ class MuscleAdmin(admin.ModelAdmin):
 
 @admin.register(ExerciseMuscle)
 class ExerciseMuscleAdmin(admin.ModelAdmin):
-    list_display = ('exercise', 'muscle', 'is_primary')
+    list_display = ('exercise', 'sequence', 'muscle', 'is_primary')
     list_filter = ('exercise', 'muscle', 'is_primary')
 
 
@@ -69,7 +69,7 @@ class ExerciseMediaAdmin(admin.ModelAdmin):
 
 @admin.register(WorkoutExercise)
 class WorkoutExerciseAdmin(admin.ModelAdmin):
-    list_display = ('workout_day', 'exercise', 'sets', 'reps', 'rest')
+    list_display = ('workout_day', 'sequence', 'body_part', 'exercise', 'sets', 'reps', 'rest')
     list_filter = ('workout_day',)
     search_fields = ('workout_day__name', 'exercise__name')
 
@@ -88,5 +88,5 @@ class WorkoutLogAdmin(admin.ModelAdmin):
 
 @admin.register(SetLog)
 class SetLogAdmin(admin.ModelAdmin):
-    list_display = ('workout_log', 'set_number', 'reps', 'weight', 'is_pr')
+    list_display = ('workout_log', 'sequence', 'set_number', 'reps', 'weight', 'is_pr')
     list_filter = ('is_pr',)

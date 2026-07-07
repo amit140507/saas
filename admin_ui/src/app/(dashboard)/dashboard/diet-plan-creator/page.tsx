@@ -2,9 +2,10 @@
 
 import { useState, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { FileTextIcon, SendIcon, PlusIcon, TrashIcon } from "lucide-react";
+import { DownloadIcon, FileTextIcon, SendIcon, PlusIcon, TrashIcon } from "lucide-react";
+import type { AxiosError } from "axios";
 import { foodDb, supplementsDb } from "@/lib/foodDb";
-import { generateDietPlanPdf } from "@/services/diet-plan.service";
+import { downloadDietPlanPdf, generateDietPlanPdf } from "@/services/diet-plan.service";
 
 function DietPlanCreatorContent() {
   const searchParams = useSearchParams();
@@ -26,6 +27,7 @@ function DietPlanCreatorContent() {
     clientEmail: "",
     clientPhone: "",
   });
+  const [downloading, setDownloading] = useState(false);
 
   // Meals State
   const [meals, setMeals] = useState<any[]>([
@@ -53,6 +55,46 @@ function DietPlanCreatorContent() {
 
     return { cal, pro, fat, carb };
   }, [meals]);
+
+  const getMacroStatus = (consumedValue: number, targetValue: number, tolerance: number, unit: string) => {
+    const difference = targetValue - consumedValue;
+    const roundedDifference = Math.abs(Math.round(difference));
+
+    if (Math.abs(difference) <= tolerance) {
+      return {
+        label: "On target",
+        value: roundedDifference === 0 ? `0 ${unit}` : `${roundedDifference} ${unit}`,
+        colorClass: "text-emerald-600 dark:text-emerald-400",
+        badgeClass: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30",
+        barClass: "bg-emerald-500",
+      };
+    }
+
+    if (difference > 0) {
+      return {
+        label: "Remaining",
+        value: `${roundedDifference} ${unit}`,
+        colorClass: "text-yellow-600 dark:text-yellow-400",
+        badgeClass: "bg-yellow-50 text-yellow-700 ring-yellow-200 dark:bg-yellow-500/10 dark:text-yellow-300 dark:ring-yellow-500/30",
+        barClass: "bg-yellow-500",
+      };
+    }
+
+    return {
+      label: "Over",
+      value: `${roundedDifference} ${unit}`,
+      colorClass: "text-red-600 dark:text-red-400",
+      badgeClass: "bg-red-50 text-red-700 ring-red-200 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-500/30",
+      barClass: "bg-red-500",
+    };
+  };
+
+  const macroSummaries = [
+    { name: "Calories", consumedValue: consumed.cal, targetValue: targetCals, tolerance: 50, unit: "kcal" },
+    { name: "Protein", consumedValue: consumed.pro, targetValue: targetPro, tolerance: 5, unit: "g" },
+    { name: "Fat", consumedValue: consumed.fat, targetValue: targetFat, tolerance: 5, unit: "g" },
+    { name: "Carbs", consumedValue: consumed.carb, targetValue: targetCarb, tolerance: 10, unit: "g" },
+  ];
 
   // Handlers
   const handleDetailChange = (e: any) => {
@@ -164,17 +206,14 @@ function DietPlanCreatorContent() {
     }));
   };
 
-  const generatePlan = async () => {
-    setLoading(true);
-    
-    // Clean up internal IDs before sending payload
+  const buildPlanPayload = () => {
     const cleanedMeals = meals.map(m => ({
       time: m.time,
       foods: m.foods.map((f:any) => ({ name: f.name, amount: f.amount, unit: f.unit })),
       supplements: m.supplements.map((s:any) => ({ name: s.name, amount: s.amount, unit: s.unit })),
     }));
 
-    const payload = {
+    return {
       ...details,
       calories: targetCals,
       protein: targetPro,
@@ -183,15 +222,37 @@ function DietPlanCreatorContent() {
       weightGain: targetGain,
       meals: cleanedMeals
     };
+  };
+
+  const getErrorMessage = (e: unknown) => {
+    const error = e as AxiosError<{ error?: string }>;
+    return error.response?.data?.error || "Please try again.";
+  };
+
+  const generatePlan = async () => {
+    setLoading(true);
 
     try {
-      await generateDietPlanPdf(payload);
+      await generateDietPlanPdf(buildPlanPayload());
       alert("Plan Generated and Sent successfully!");
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      alert("Failed to generate plan. Check the configured backend URL. " + (e.response?.data?.error || ""));
+      alert(`Failed to generate plan. ${getErrorMessage(e)}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const downloadPlan = async () => {
+    setDownloading(true);
+
+    try {
+      await downloadDietPlanPdf(buildPlanPayload());
+    } catch (e: unknown) {
+      console.error(e);
+      alert(`Failed to download plan. ${getErrorMessage(e)}`);
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -209,35 +270,31 @@ function DietPlanCreatorContent() {
       </div>
 
       {/* Sticky HUD */}
-      <div className="sticky top-0 z-10 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-lg p-4 grid grid-cols-4 gap-4 text-center">
-        <div>
-          <div className="text-xs uppercase tracking-wide text-zinc-500 font-semibold mb-1">Calories</div>
-          <div className={`text-xl font-bold ${Math.abs(targetCals - consumed.cal) < 50 ? 'text-emerald-500' : 'text-zinc-900 dark:text-white'}`}>
-            {Math.round(consumed.cal)} / {Math.round(targetCals)} <span className="text-xs text-zinc-400 font-normal">kcal</span>
-          </div>
-          <div className="text-xs text-zinc-500 mt-1">Left: {Math.round(targetCals - consumed.cal)}</div>
-        </div>
-        <div>
-          <div className="text-xs uppercase tracking-wide text-zinc-500 font-semibold mb-1">Protein</div>
-          <div className={`text-xl font-bold ${Math.abs(targetPro - consumed.pro) < 5 ? 'text-emerald-500' : 'text-zinc-900 dark:text-white'}`}>
-            {Math.round(consumed.pro)} / {Math.round(targetPro)} <span className="text-xs text-zinc-400 font-normal">g</span>
-          </div>
-          <div className="text-xs text-zinc-500 mt-1">Left: {Math.round(targetPro - consumed.pro)}</div>
-        </div>
-        <div>
-          <div className="text-xs uppercase tracking-wide text-zinc-500 font-semibold mb-1">Fat</div>
-          <div className={`text-xl font-bold ${Math.abs(targetFat - consumed.fat) < 5 ? 'text-emerald-500' : 'text-zinc-900 dark:text-white'}`}>
-            {Math.round(consumed.fat)} / {Math.round(targetFat)} <span className="text-xs text-zinc-400 font-normal">g</span>
-          </div>
-          <div className="text-xs text-zinc-500 mt-1">Left: {Math.round(targetFat - consumed.fat)}</div>
-        </div>
-        <div>
-          <div className="text-xs uppercase tracking-wide text-zinc-500 font-semibold mb-1">Carbs</div>
-          <div className={`text-xl font-bold ${Math.abs(targetCarb - consumed.carb) < 10 ? 'text-emerald-500' : 'text-zinc-900 dark:text-white'}`}>
-            {Math.round(consumed.carb)} / {Math.round(targetCarb)} <span className="text-xs text-zinc-400 font-normal">g</span>
-          </div>
-          <div className="text-xs text-zinc-500 mt-1">Left: {Math.round(targetCarb - consumed.carb)}</div>
-        </div>
+      <div className="sticky top-0 z-10 grid grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-center shadow-lg dark:border-zinc-800 dark:bg-zinc-950 sm:grid-cols-2 lg:grid-cols-4">
+        {macroSummaries.map((macro) => {
+          const status = getMacroStatus(
+            macro.consumedValue,
+            macro.targetValue,
+            macro.tolerance,
+            macro.unit,
+          );
+
+          return (
+            <div key={macro.name} className="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className={`h-1 ${status.barClass}`} />
+              <div className="p-3">
+                <div className="mb-1 text-xs font-semibold uppercase text-zinc-500">{macro.name}</div>
+                <div className={`text-xl font-bold ${status.colorClass}`}>
+                  {Math.round(macro.consumedValue)} / {Math.round(macro.targetValue)}
+                  <span className="ml-1 text-xs font-normal text-zinc-400">{macro.unit}</span>
+                </div>
+                <div className={`mt-2 inline-flex min-w-28 items-center justify-center rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${status.badgeClass}`}>
+                  {status.label}: {status.value}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Plan Details */}
@@ -383,6 +440,10 @@ function DietPlanCreatorContent() {
 
       {/* Footer Actions */}
       <div className="fixed bottom-0 left-64 right-0 p-4 bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <button disabled={downloading || loading} onClick={downloadPlan} className="flex items-center gap-2 px-6 py-2.5 border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 font-bold rounded-lg shadow-sm disabled:opacity-50">
+          <DownloadIcon className="w-4 h-4" />
+          {downloading ? "Downloading..." : "Download PDF"}
+        </button>
         <button disabled={loading} onClick={generatePlan} className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-sm disabled:opacity-50">
           <SendIcon className="w-4 h-4" />
           {loading ? "Generating..." : "Generate PDF & Send"}

@@ -1,7 +1,15 @@
-import io
 from fpdf import FPDF
 from django.core.mail import EmailMessage
 from django.conf import settings
+
+
+def _content_width(pdf):
+    return pdf.w - pdf.l_margin - pdf.r_margin
+
+
+def _write_wrapped_line(pdf, text, height=6, indent=0):
+    pdf.set_x(pdf.l_margin + indent)
+    pdf.multi_cell(_content_width(pdf) - indent, height, str(text), new_x="LMARGIN", new_y="NEXT")
 
 
 def create_diet_plan_pdf(data):
@@ -50,7 +58,7 @@ def create_diet_plan_pdf(data):
         "5. Separate Step Goals: Hit your step count independent of your cardio sessions."
     ]
     for ins in instructions_1:
-        pdf.multi_cell(0, 5, ins)
+        _write_wrapped_line(pdf, ins, height=5)
     
     pdf.ln(2)
 
@@ -65,7 +73,7 @@ def create_diet_plan_pdf(data):
         "- Salt mentioned is to be used for cooking or mixed with food after cooking."
     ]
     for ins in instructions_2:
-        pdf.multi_cell(0, 5, ins)
+        _write_wrapped_line(pdf, ins, height=5)
     
     pdf.ln(8)
 
@@ -87,8 +95,8 @@ def create_diet_plan_pdf(data):
             pdf.cell(0, 6, "Foods:", new_x="LMARGIN", new_y="NEXT")
             pdf.set_font("helvetica", "", 10)
             for food in foods:
-                pdf.cell(10, 6, "-", new_x="RIGHT")
-                pdf.cell(0, 6, f"{food.get('amount', '')} {food.get('unit', '')} {food.get('name', '')}", new_x="LMARGIN", new_y="NEXT")
+                item_text = f"- {food.get('amount', '')} {food.get('unit', '')} {food.get('name', '')}"
+                _write_wrapped_line(pdf, item_text, height=6, indent=5)
         
         supps = meal.get("supplements", [])
         if supps:
@@ -96,8 +104,8 @@ def create_diet_plan_pdf(data):
             pdf.cell(0, 6, "Supplements:", new_x="LMARGIN", new_y="NEXT")
             pdf.set_font("helvetica", "", 10)
             for supp in supps:
-                pdf.cell(10, 6, "-", new_x="RIGHT")
-                pdf.cell(0, 6, f"{supp.get('amount', '')} {supp.get('unit', '')} {supp.get('name', '')}", new_x="LMARGIN", new_y="NEXT")
+                item_text = f"- {supp.get('amount', '')} {supp.get('unit', '')} {supp.get('name', '')}"
+                _write_wrapped_line(pdf, item_text, height=6, indent=5)
                 
         pdf.ln(5)
 
