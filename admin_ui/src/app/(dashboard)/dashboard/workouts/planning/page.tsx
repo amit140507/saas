@@ -4,8 +4,8 @@ export default function WorkoutPlanningPage() {
     return (
         <WorkoutManagementPage
             title="Workout Planning"
-            description="Create workout plans, maintain the exercise library, and assign plans to clients."
-            allowedTabs={["plans", "library", "muscleGroups", "assignments"]}
+            description="Create workout plans and assign them to clients."
+            allowedTabs={["plans", "assignments"]}
         />
     );
 }

@@ -380,8 +380,11 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
     const queryClient = useQueryClient();
     const { tenantId } = useCurrentUserPermissions();
     const visibleTabs = useMemo(() => tabs.filter((tab) => allowedTabs.includes(tab.id)), [allowedTabs]);
-    const isPlanningPage = allowedTabs.some((tab) => tab === "plans" || tab === "library" || tab === "muscleGroups" || tab === "assignments");
-    const isTrackingPage = allowedTabs.includes("sessions");
+    const needsPlans = allowedTabs.some((tab) => tab === "plans" || tab === "assignments");
+    const needsLibrary = allowedTabs.some((tab) => tab === "plans" || tab === "library" || tab === "muscleGroups");
+    const needsAssignments = allowedTabs.some((tab) => tab === "assignments" || tab === "sessions");
+    const needsClients = needsAssignments;
+    const needsSessions = allowedTabs.includes("sessions");
     const hasHydrated = useSyncExternalStore(
         subscribeHydrationStore,
         getClientHydrationSnapshot,
@@ -404,13 +407,13 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
     const [assignmentForm, setAssignmentForm] = useState<AssignmentForm>(emptyAssignmentForm);
     const [sessionForm, setSessionForm] = useState<SessionForm>(emptySessionForm);
 
-    const plansQuery = useQuery({ queryKey: ["workout-plans"], queryFn: getWorkoutPlans, enabled: hasHydrated && (isPlanningPage || isTrackingPage) });
-    const muscleGroupsQuery = useQuery({ queryKey: ["workout-muscle-groups"], queryFn: getMuscleGroups, enabled: hasHydrated && isPlanningPage });
-    const musclesQuery = useQuery({ queryKey: ["workout-muscles"], queryFn: getMuscles, enabled: hasHydrated && isPlanningPage });
-    const exercisesQuery = useQuery({ queryKey: ["workout-exercises"], queryFn: getExercises, enabled: hasHydrated && isPlanningPage });
-    const assignmentsQuery = useQuery({ queryKey: ["workout-assignments"], queryFn: getWorkoutAssignments, enabled: hasHydrated });
-    const sessionsQuery = useQuery({ queryKey: ["workout-sessions"], queryFn: getWorkoutSessions, enabled: hasHydrated && isTrackingPage });
-    const clientsQuery = useQuery({ queryKey: ["clients-management"], queryFn: getClients, enabled: hasHydrated });
+    const plansQuery = useQuery({ queryKey: ["workout-plans"], queryFn: getWorkoutPlans, enabled: hasHydrated && needsPlans });
+    const muscleGroupsQuery = useQuery({ queryKey: ["workout-muscle-groups"], queryFn: getMuscleGroups, enabled: hasHydrated && needsLibrary });
+    const musclesQuery = useQuery({ queryKey: ["workout-muscles"], queryFn: getMuscles, enabled: hasHydrated && needsLibrary });
+    const exercisesQuery = useQuery({ queryKey: ["workout-exercises"], queryFn: getExercises, enabled: hasHydrated && needsLibrary });
+    const assignmentsQuery = useQuery({ queryKey: ["workout-assignments"], queryFn: getWorkoutAssignments, enabled: hasHydrated && needsAssignments });
+    const sessionsQuery = useQuery({ queryKey: ["workout-sessions"], queryFn: getWorkoutSessions, enabled: hasHydrated && needsSessions });
+    const clientsQuery = useQuery({ queryKey: ["clients-management"], queryFn: getClients, enabled: hasHydrated && needsClients });
 
     const plans = plansQuery.data ?? emptyPlans;
     const muscleGroups = muscleGroupsQuery.data ?? emptyMuscleGroups;
@@ -906,12 +909,17 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
         });
     };
 
-    const planningIsLoading = plansQuery.isLoading || muscleGroupsQuery.isLoading || musclesQuery.isLoading || exercisesQuery.isLoading || assignmentsQuery.isLoading || clientsQuery.isLoading;
-    const trackingIsLoading = sessionsQuery.isLoading || assignmentsQuery.isLoading || clientsQuery.isLoading;
-    const planningError = plansQuery.error || muscleGroupsQuery.error || musclesQuery.error || exercisesQuery.error || assignmentsQuery.error || clientsQuery.error;
-    const trackingError = sessionsQuery.error || assignmentsQuery.error || clientsQuery.error;
-    const isLoading = !hasHydrated || (isPlanningPage && planningIsLoading) || (isTrackingPage && trackingIsLoading);
-    const pageError = (isPlanningPage ? planningError : null) || (isTrackingPage ? trackingError : null);
+    const isLoading = !hasHydrated
+        || (needsPlans && plansQuery.isLoading)
+        || (needsLibrary && (muscleGroupsQuery.isLoading || musclesQuery.isLoading || exercisesQuery.isLoading))
+        || (needsAssignments && assignmentsQuery.isLoading)
+        || (needsClients && clientsQuery.isLoading)
+        || (needsSessions && sessionsQuery.isLoading);
+    const pageError = (needsPlans ? plansQuery.error : null)
+        || (needsLibrary ? muscleGroupsQuery.error || musclesQuery.error || exercisesQuery.error : null)
+        || (needsAssignments ? assignmentsQuery.error : null)
+        || (needsClients ? clientsQuery.error : null)
+        || (needsSessions ? sessionsQuery.error : null);
 
     return (
         <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">

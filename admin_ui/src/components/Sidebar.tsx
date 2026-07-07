@@ -52,6 +52,7 @@ const navigation: NavigationItem[] = [
         icon: DumbbellIcon,
         permission: PERMISSIONS.MANAGE_WORKOUTS,
         children: [
+            { name: "Exercise Creation", href: "/dashboard/workouts/exercises" },
             { name: "Planning", href: "/dashboard/workouts/planning" },
             { name: "Tracking", href: "/dashboard/workouts/tracking" },
         ],
