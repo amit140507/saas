@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.db import transaction
 
-from workout.services import save_exercise
+from workout.services import assign_workout_plan, replace_client_workout_assignment, save_exercise
 from workout.models.planning import (
     Exercise,
     ExerciseMedia,
@@ -217,10 +217,53 @@ class WorkoutPlanSerializer(serializers.ModelSerializer):
 class WorkoutPlanAssignmentSerializer(serializers.ModelSerializer):
     plan_title = serializers.ReadOnlyField(source='plan.title')
     client_name = serializers.ReadOnlyField(source='client.user.get_full_name')
+    workout_days = WorkoutDaySerializer(many=True, read_only=True)
 
     class Meta:
         model = WorkoutPlanAssignment
         fields = '__all__'
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        assigned_by = validated_data.pop('assigned_by', None)
+        if request and request.user and request.user.is_authenticated:
+            assigned_by = assigned_by or request.user
+
+        return assign_workout_plan(
+            assigned_by=assigned_by,
+            **validated_data,
+        )
+
+    def update(self, instance, validated_data):
+        if self._should_create_replacement(instance, validated_data):
+            request = self.context.get('request')
+            assigned_by = validated_data.pop('assigned_by', None)
+            if request and request.user and request.user.is_authenticated:
+                assigned_by = assigned_by or request.user
+
+            return replace_client_workout_assignment(
+                assignment=instance,
+                client=validated_data.get('client'),
+                plan=validated_data.get('plan'),
+                assigned_by=assigned_by,
+                start_date=validated_data.get('start_date'),
+                end_date=validated_data.get('end_date'),
+                status=validated_data.get('status'),
+                notes=validated_data.get('notes'),
+            )
+
+        return super().update(instance, validated_data)
+
+    def _should_create_replacement(self, instance, validated_data):
+        if instance.status != WorkoutPlanAssignment.StatusChoices.ACTIVE:
+            return False
+
+        versioned_fields = ('client', 'plan', 'start_date')
+        for field in versioned_fields:
+            if field in validated_data and getattr(instance, field) != validated_data[field]:
+                return True
+
+        return False
 
 
 class SetLogSerializer(serializers.ModelSerializer):

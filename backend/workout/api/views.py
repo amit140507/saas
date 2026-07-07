@@ -60,6 +60,14 @@ class WorkoutPlanAssignmentViewSet(TenantScopedViewSet):
     model = WorkoutPlanAssignment
     serializer_class = WorkoutPlanAssignmentSerializer
 
+    def get_queryset(self):
+        return WorkoutPlanAssignment.objects.filter(tenant=self.request.tenant).select_related(
+            'client__org_client__user',
+            'plan',
+        ).prefetch_related(
+            'workout_days__exercises__exercise__media',
+        )
+
 
 class WorkoutDayViewSet(TenantScopedViewSet):
     model = WorkoutDay

@@ -1,8 +1,24 @@
+from datetime import date
+
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from core.tenants.models import Organization
-from workout.api.serializers import ExerciseSerializer
-from workout.models import Exercise, ExerciseMedia, ExerciseMuscle, Muscle, MuscleGroup
+from core.clients.models import ClientProfile
+from core.tenants.models import Organization, OrganizationMember
+from workout.api.serializers import ExerciseSerializer, WorkoutPlanAssignmentSerializer
+from workout.models import (
+    Exercise,
+    ExerciseMedia,
+    ExerciseMuscle,
+    Muscle,
+    MuscleGroup,
+    WorkoutDay,
+    WorkoutExercise,
+    WorkoutPlan,
+    WorkoutPlanAssignment,
+    WorkoutSession,
+)
+from workout.services import assign_workout_plan, replace_client_workout_assignment
 
 
 class ExerciseSerializerTests(TestCase):
@@ -124,3 +140,171 @@ class ExerciseSerializerTests(TestCase):
         self.assertEqual(data['primary_muscle_name'], 'Pectoralis Major')
         self.assertEqual(data['muscles'][0]['muscle_name'], 'Pectoralis Major')
         self.assertEqual(data['media'][0]['youtube_url'], 'https://www.youtube.com/watch?v=fly123')
+
+
+class WorkoutPlanVersioningTests(TestCase):
+    def setUp(self):
+        self.tenant = Organization.objects.create(name='Version Gym', slug='version-gym')
+        self.user = get_user_model().objects.create_user(
+            username='client@example.com',
+            email='client@example.com',
+            password='testpass123',
+        )
+        self.member = OrganizationMember.objects.create(user=self.user, tenant=self.tenant)
+        self.client_profile = ClientProfile.objects.create(
+            tenant=self.tenant,
+            org_client=self.member,
+            status=ClientProfile.StatusChoices.ACTIVE,
+        )
+        self.muscle_group = MuscleGroup.objects.create(name='Legs')
+        self.muscle = Muscle.objects.create(muscle_group=self.muscle_group, name='Quadriceps')
+        self.exercise = Exercise.objects.create(
+            name='Squat',
+            primary_muscle=self.muscle,
+            equipment_required=True,
+            instructions='Brace and sit down.',
+            is_active=True,
+        )
+        self.updated_exercise = Exercise.objects.create(
+            name='Leg Press',
+            primary_muscle=self.muscle,
+            equipment_required=True,
+            instructions='Control the sled.',
+            is_active=True,
+        )
+        self.plan = WorkoutPlan.objects.create(
+            tenant=self.tenant,
+            title='Strength Builder',
+            difficulty=WorkoutPlan.DifficultyLevel.BEGINNER,
+            duration_weeks=8,
+            is_active=True,
+        )
+        self.template_day = WorkoutDay.objects.create(
+            tenant=self.tenant,
+            plan=self.plan,
+            name='Day 1',
+            day_number=1,
+            notes='Original day',
+        )
+        self.template_exercise = WorkoutExercise.objects.create(
+            workout_day=self.template_day,
+            exercise=self.exercise,
+            sequence=1,
+            body_part='Legs',
+            weight=20,
+            sets=3,
+            reps='10',
+            rest=90,
+            notes='Original exercise',
+        )
+
+    def test_assigning_plan_creates_assignment_snapshot(self):
+        assignment = assign_workout_plan(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan=self.plan,
+            assigned_by=None,
+            start_date=date(2026, 7, 1),
+        )
+
+        snapshot_day = assignment.workout_days.get()
+        snapshot_exercise = snapshot_day.exercises.get()
+
+        self.assertIsNone(snapshot_day.plan_id)
+        self.assertEqual(snapshot_day.plan_assignment, assignment)
+        self.assertEqual(snapshot_day.name, 'Day 1')
+        self.assertEqual(snapshot_exercise.exercise, self.exercise)
+        self.assertEqual(snapshot_exercise.sets, 3)
+
+    def test_template_updates_do_not_change_existing_assignment_snapshot(self):
+        assignment = assign_workout_plan(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan=self.plan,
+            assigned_by=None,
+            start_date=date(2026, 7, 1),
+        )
+        snapshot_day = assignment.workout_days.get()
+        snapshot_exercise = snapshot_day.exercises.get()
+
+        self.template_day.name = 'Updated Day 1'
+        self.template_day.save()
+        self.template_exercise.exercise = self.updated_exercise
+        self.template_exercise.sets = 5
+        self.template_exercise.save()
+
+        snapshot_day.refresh_from_db()
+        snapshot_exercise.refresh_from_db()
+
+        self.assertEqual(snapshot_day.name, 'Day 1')
+        self.assertEqual(snapshot_exercise.exercise, self.exercise)
+        self.assertEqual(snapshot_exercise.sets, 3)
+
+    def test_replacing_assignment_closes_old_one_and_snapshots_updated_template(self):
+        old_assignment = assign_workout_plan(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan=self.plan,
+            assigned_by=None,
+            start_date=date(2026, 7, 1),
+        )
+        self.template_exercise.exercise = self.updated_exercise
+        self.template_exercise.sets = 5
+        self.template_exercise.save()
+
+        new_assignment = replace_client_workout_assignment(
+            assignment=old_assignment,
+            start_date=date(2026, 7, 8),
+            notes='Week 2 update',
+        )
+        old_assignment.refresh_from_db()
+
+        self.assertEqual(old_assignment.status, WorkoutPlanAssignment.StatusChoices.COMPLETED)
+        self.assertEqual(old_assignment.end_date, date(2026, 7, 7))
+        self.assertEqual(new_assignment.status, WorkoutPlanAssignment.StatusChoices.ACTIVE)
+        self.assertEqual(new_assignment.start_date, date(2026, 7, 8))
+        self.assertEqual(new_assignment.workout_days.get().exercises.get().exercise, self.updated_exercise)
+        self.assertEqual(new_assignment.workout_days.get().exercises.get().sets, 5)
+
+    def test_old_sessions_remain_linked_to_old_assignment_snapshot(self):
+        old_assignment = assign_workout_plan(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan=self.plan,
+            assigned_by=None,
+            start_date=date(2026, 7, 1),
+        )
+        old_day = old_assignment.workout_days.get()
+        session = WorkoutSession.objects.create(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan_assignment=old_assignment,
+            workout_day=old_day,
+            session_date=date(2026, 7, 3),
+        )
+
+        new_assignment = replace_client_workout_assignment(
+            assignment=old_assignment,
+            start_date=date(2026, 7, 8),
+        )
+        session.refresh_from_db()
+
+        self.assertEqual(session.plan_assignment_id, old_assignment.id)
+        self.assertEqual(session.workout_day_id, old_day.id)
+        self.assertNotEqual(session.plan_assignment_id, new_assignment.id)
+
+    def test_assignment_serializer_create_snapshots_template_days(self):
+        serializer = WorkoutPlanAssignmentSerializer(data={
+            'tenant': self.tenant.id,
+            'client': self.client_profile.id,
+            'plan': self.plan.id,
+            'start_date': '2026-07-01',
+            'end_date': None,
+            'status': WorkoutPlanAssignment.StatusChoices.ACTIVE,
+            'notes': '',
+        })
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        assignment = serializer.save(tenant=self.tenant)
+
+        self.assertEqual(assignment.workout_days.count(), 1)
