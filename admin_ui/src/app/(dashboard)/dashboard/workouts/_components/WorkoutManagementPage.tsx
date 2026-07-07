@@ -6,6 +6,7 @@ import {
     ActivityIcon,
     DumbbellIcon,
     EditIcon,
+    EyeIcon,
     GripVerticalIcon,
     LayersIcon,
     LibraryIcon,
@@ -20,11 +21,13 @@ import {
 import { getClients } from "@/services/client.service";
 import {
     createExercise,
+    createMuscle,
     createMuscleGroup,
     createWorkoutAssignment,
     createWorkoutPlan,
     createWorkoutSession,
     deleteExercise,
+    deleteMuscle,
     deleteMuscleGroup,
     deleteWorkoutAssignment,
     deleteWorkoutPlan,
@@ -36,6 +39,7 @@ import {
     getWorkoutPlans,
     getWorkoutSessions,
     updateExercise,
+    updateMuscle,
     updateMuscleGroup,
     updateWorkoutAssignment,
     updateWorkoutPlan,
@@ -47,6 +51,7 @@ import type {
     Exercise,
     ExercisePayload,
     Muscle,
+    MusclePayload,
     MuscleGroup,
     MuscleGroupPayload,
     WorkoutAssignmentStatus,
@@ -63,11 +68,12 @@ import type {
     WorkoutSessionPayload,
 } from "@/types/workout.type";
 
-export type WorkoutSection = "plans" | "library" | "muscleGroups" | "assignments" | "sessions";
+export type WorkoutSection = "plans" | "library" | "muscles" | "muscleGroups" | "assignments" | "sessions";
 type TabId = WorkoutSection;
 type ModalMode = "add" | "edit";
 type DeleteTarget =
     | { type: "plan"; id: string; label: string }
+    | { type: "muscleGroup"; id: string | number; label: string }
     | { type: "muscle"; id: string | number; label: string }
     | { type: "exercise"; id: string; label: string }
     | { type: "assignment"; id: string; label: string }
@@ -131,6 +137,11 @@ interface MuscleForm {
     name: string;
 }
 
+interface MuscleItemForm {
+    muscle_group: string;
+    name: string;
+}
+
 interface AssignmentForm {
     client: string;
     plan: string;
@@ -150,6 +161,7 @@ interface SessionForm {
 const tabs: Array<{ id: TabId; label: string; icon: typeof DumbbellIcon }> = [
     { id: "plans", label: "Plans", icon: DumbbellIcon },
     { id: "library", label: "Exercise Library", icon: LibraryIcon },
+    { id: "muscles", label: "Muscles", icon: DumbbellIcon },
     { id: "muscleGroups", label: "Muscle Groups", icon: LayersIcon },
     { id: "assignments", label: "Assignments", icon: UsersIcon },
     { id: "sessions", label: "Session Logs", icon: ActivityIcon },
@@ -209,6 +221,11 @@ const emptyExerciseForm: ExerciseForm = {
 };
 
 const emptyMuscleForm: MuscleForm = {
+    name: "",
+};
+
+const emptyMuscleItemForm: MuscleItemForm = {
+    muscle_group: "",
     name: "",
 };
 
@@ -300,6 +317,12 @@ function getExerciseVideoUrls(exercise?: Exercise): string[] {
     return (exercise?.media || []).map((media) => media.youtube_url || "").filter(Boolean);
 }
 
+function getWorkoutExerciseTypeLabel(type: 1 | 2 | 3): string {
+    if (type === 1) return "Body Weight";
+    if (type === 2) return "Pin Loaded";
+    return "Free Weight";
+}
+
 function mapWorkoutExerciseToForm(row: WorkoutExercise, exerciseById: Map<string, Exercise>): PlanExerciseRowForm {
     const exercise = exerciseById.get(row.exercise);
 
@@ -381,7 +404,7 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
     const { tenantId } = useCurrentUserPermissions();
     const visibleTabs = useMemo(() => tabs.filter((tab) => allowedTabs.includes(tab.id)), [allowedTabs]);
     const needsPlans = allowedTabs.some((tab) => tab === "plans" || tab === "assignments");
-    const needsLibrary = allowedTabs.some((tab) => tab === "plans" || tab === "library" || tab === "muscleGroups");
+    const needsLibrary = allowedTabs.some((tab) => tab === "plans" || tab === "library" || tab === "muscles" || tab === "muscleGroups");
     const needsAssignments = allowedTabs.some((tab) => tab === "assignments" || tab === "sessions");
     const needsClients = needsAssignments;
     const needsSessions = allowedTabs.includes("sessions");
@@ -397,13 +420,16 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
     const [planModal, setPlanModal] = useState<{ mode: ModalMode; item: WorkoutPlan | null } | null>(null);
     const [exerciseModal, setExerciseModal] = useState<{ mode: ModalMode; item: Exercise | null } | null>(null);
     const [muscleModal, setMuscleModal] = useState<{ mode: ModalMode; item: MuscleGroup | null } | null>(null);
+    const [muscleItemModal, setMuscleItemModal] = useState<{ mode: ModalMode; item: Muscle | null } | null>(null);
     const [assignmentModal, setAssignmentModal] = useState<{ mode: ModalMode; item: WorkoutPlanAssignment | null } | null>(null);
+    const [assignmentView, setAssignmentView] = useState<WorkoutPlanAssignment | null>(null);
     const [sessionModal, setSessionModal] = useState<{ mode: ModalMode; item: WorkoutSession | null } | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
     const [planForm, setPlanForm] = useState<PlanForm>(emptyPlanForm);
     const [exerciseForm, setExerciseForm] = useState<ExerciseForm>(emptyExerciseForm);
     const [muscleForm, setMuscleForm] = useState<MuscleForm>(emptyMuscleForm);
+    const [muscleItemForm, setMuscleItemForm] = useState<MuscleItemForm>(emptyMuscleItemForm);
     const [assignmentForm, setAssignmentForm] = useState<AssignmentForm>(emptyAssignmentForm);
     const [sessionForm, setSessionForm] = useState<SessionForm>(emptySessionForm);
 
@@ -450,6 +476,16 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
             ].some((value) => value.toLowerCase().includes(query));
         });
     }, [exercises, query]);
+
+    const filteredMuscles = useMemo(() => {
+        return muscles.filter((muscle) => {
+            if (!query) return true;
+            return [
+                muscle.name,
+                muscle.muscle_group_name || muscleGroupById.get(String(muscle.muscle_group))?.name || "",
+            ].some((value) => value.toLowerCase().includes(query));
+        });
+    }, [muscleGroupById, muscles, query]);
 
     const filteredAssignments = useMemo(() => {
         return assignments.filter((assignment) => {
@@ -518,6 +554,25 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
         onError: (error) => setFormError(getErrorMessage(error)),
     });
 
+    const muscleItemMutation = useMutation({
+        mutationFn: ({ mode, id, payload }: { mode: ModalMode; id?: string | number; payload: MusclePayload }) => (
+            mode === "add" ? createMuscle(payload) : updateMuscle(id || "", payload)
+        ),
+        onSuccess: async (muscle, variables) => {
+            await invalidateLibrary();
+            setMuscleItemModal(null);
+            if (variables.mode === "add" && exerciseModal) {
+                setExerciseForm((current) => ({
+                    ...current,
+                    muscle_group: String(muscle.muscle_group),
+                    primary_muscle: String(muscle.id),
+                    secondary_muscles: current.secondary_muscles.filter((selectedMuscle) => selectedMuscle !== String(muscle.id)),
+                }));
+            }
+        },
+        onError: (error) => setFormError(getErrorMessage(error)),
+    });
+
     const exerciseMutation = useMutation({
         mutationFn: ({ mode, id, payload }: { mode: ModalMode; id?: string; payload: ExercisePayload }) => (
             mode === "add" ? createExercise(payload) : updateExercise(id || "", payload)
@@ -554,7 +609,8 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
     const deleteMutation = useMutation({
         mutationFn: async (target: DeleteTarget) => {
             if (target.type === "plan") await deleteWorkoutPlan(target.id);
-            if (target.type === "muscle") await deleteMuscleGroup(target.id);
+            if (target.type === "muscleGroup") await deleteMuscleGroup(target.id);
+            if (target.type === "muscle") await deleteMuscle(target.id);
             if (target.type === "exercise") await deleteExercise(target.id);
             if (target.type === "assignment") await deleteWorkoutAssignment(target.id);
             if (target.type === "session") await deleteWorkoutSession(target.id);
@@ -562,7 +618,7 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
         },
         onSuccess: async (type) => {
             if (type === "plan") await invalidatePlans();
-            if (type === "muscle" || type === "exercise") await invalidateLibrary();
+            if (type === "muscleGroup" || type === "muscle" || type === "exercise") await invalidateLibrary();
             if (type === "assignment") await invalidateAssignments();
             if (type === "session") await invalidateSessions();
             setDeleteTarget(null);
@@ -611,6 +667,18 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
         setMuscleModal({ mode, item });
     };
 
+    const openMuscleItemModal = (mode: ModalMode, item: Muscle | null = null, presetMuscleGroup = exerciseForm.muscle_group) => {
+        setFormError("");
+        setMuscleItemForm(item ? {
+            muscle_group: String(item.muscle_group),
+            name: item.name,
+        } : {
+            ...emptyMuscleItemForm,
+            muscle_group: presetMuscleGroup,
+        });
+        setMuscleItemModal({ mode, item });
+    };
+
     const openAssignmentModal = (mode: ModalMode, item: WorkoutPlanAssignment | null = null) => {
         setFormError("");
         setAssignmentForm(item ? {
@@ -636,6 +704,15 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
     };
 
     const tenantPayload = tenantId ? { tenant: tenantId } : {};
+    const createsAssignmentVersion = Boolean(
+        assignmentModal?.mode === "edit"
+        && assignmentModal.item?.status === "active"
+        && (
+            assignmentForm.client !== assignmentModal.item.client
+            || assignmentForm.plan !== assignmentModal.item.plan
+            || assignmentForm.start_date !== assignmentModal.item.start_date
+        ),
+    );
 
     const updatePlanDay = (dayId: string, updates: Partial<PlanDayForm>) => {
         setPlanForm((current) => ({
@@ -837,6 +914,27 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
         });
     };
 
+    const submitMuscleItem = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!muscleItemForm.muscle_group) {
+            setFormError("Muscle group is required.");
+            return;
+        }
+        if (!muscleItemForm.name.trim()) {
+            setFormError("Muscle name is required.");
+            return;
+        }
+
+        muscleItemMutation.mutate({
+            mode: muscleItemModal?.mode || "add",
+            id: muscleItemModal?.item?.id,
+            payload: {
+                muscle_group: muscleItemForm.muscle_group,
+                name: muscleItemForm.name.trim(),
+            },
+        });
+    };
+
     const submitExercise = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (!exerciseForm.name.trim()) {
@@ -934,7 +1032,8 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                 <div className="grid grid-cols-2 gap-3 text-sm md:flex">
                     {allowedTabs.includes("plans") && <Metric label="Plans" value={plans.length} />}
                     {allowedTabs.includes("library") && <Metric label="Exercises" value={exercises.length} />}
-                    {/* {allowedTabs.includes("muscleGroups") && <Metric label="Muscle Groups" value={muscleGroups.length} />} */}
+                    {allowedTabs.includes("muscles") && <Metric label="Muscles" value={muscles.length} />}
+                    {allowedTabs.includes("muscleGroups") && <Metric label="Muscle Groups" value={muscleGroups.length} />}
                     {allowedTabs.includes("assignments") && <Metric label="Assignments" value={assignments.length} />}
                     {allowedTabs.includes("sessions") && <Metric label="Sessions" value={sessions.length} />}
                 </div>
@@ -999,6 +1098,15 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                             onDeleteExercise={(exercise) => setDeleteTarget({ type: "exercise", id: exercise.id, label: exercise.name })}
                         />
                     )}
+                    {activeTab === "muscles" && (
+                        <MusclesTab
+                            muscles={filteredMuscles}
+                            muscleGroupById={muscleGroupById}
+                            onAddMuscle={() => openMuscleItemModal("add", null, "")}
+                            onEditMuscle={(muscle) => openMuscleItemModal("edit", muscle)}
+                            onDeleteMuscle={(muscle) => setDeleteTarget({ type: "muscle", id: muscle.id, label: muscle.name })}
+                        />
+                    )}
                     {activeTab === "muscleGroups" && (
                         <MuscleGroupsTab
                             muscleGroups={muscleGroups}
@@ -1006,7 +1114,7 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                             onAddMuscle={() => openMuscleModal("add")}
                             onAddExerciseForMuscle={(muscleGroup) => openExerciseModal("add", null, String(muscleGroup.id))}
                             onEditMuscle={(muscle) => openMuscleModal("edit", muscle)}
-                            onDeleteMuscle={(muscle) => setDeleteTarget({ type: "muscle", id: muscle.id, label: muscle.name })}
+                            onDeleteMuscle={(muscle) => setDeleteTarget({ type: "muscleGroup", id: muscle.id, label: muscle.name })}
                         />
                     )}
                     {activeTab === "assignments" && (
@@ -1016,6 +1124,7 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                             planById={planById}
                             clientById={clientById}
                             onAdd={() => openAssignmentModal("add")}
+                            onView={(assignment) => setAssignmentView(assignment)}
                             onEdit={(assignment) => openAssignmentModal("edit", assignment)}
                             onDelete={(assignment) => setDeleteTarget({ type: "assignment", id: assignment.id, label: assignment.plan_title || planById.get(assignment.plan)?.title || "Assignment" })}
                         />
@@ -1088,12 +1197,25 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                                 <option value="">Select muscle group</option>
                                 {muscleGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
                             </SelectField>
-                            <SelectField label="Primary Muscle" value={exerciseForm.primary_muscle} onChange={(value) => setExerciseForm({ ...exerciseForm, primary_muscle: value, secondary_muscles: exerciseForm.secondary_muscles.filter((muscle) => muscle !== value) })} required>
-                                <option value="">Select primary muscle</option>
-                                {muscles
-                                    .filter((muscle) => String(muscle.muscle_group) === exerciseForm.muscle_group)
-                                    .map((muscle) => <option key={muscle.id} value={muscle.id}>{muscle.name}</option>)}
-                            </SelectField>
+                            <div className="md:col-span-2">
+                                <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                                    <SelectField label="Primary Muscle" value={exerciseForm.primary_muscle} onChange={(value) => setExerciseForm({ ...exerciseForm, primary_muscle: value, secondary_muscles: exerciseForm.secondary_muscles.filter((muscle) => muscle !== value) })} required>
+                                        <option value="">Select primary muscle</option>
+                                        {muscles
+                                            .filter((muscle) => String(muscle.muscle_group) === exerciseForm.muscle_group)
+                                            .map((muscle) => <option key={muscle.id} value={muscle.id}>{muscle.name}</option>)}
+                                    </SelectField>
+                                    <button
+                                        type="button"
+                                        onClick={() => openMuscleItemModal("add")}
+                                        disabled={!exerciseForm.muscle_group}
+                                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-indigo-200 px-4 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-950"
+                                    >
+                                        <PlusIcon className="h-4 w-4" />
+                                        Add Muscle
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         <div>
                             <div className="mb-2 text-xs font-bold uppercase text-zinc-500">Secondary Muscles</div>
@@ -1165,6 +1287,20 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                 </ModalFrame>
             )}
 
+            {muscleItemModal && (
+                <ModalFrame title={muscleItemModal.mode === "add" ? "Create Muscle" : "Edit Muscle"} onClose={() => setMuscleItemModal(null)}>
+                    <form onSubmit={submitMuscleItem} className="space-y-4 p-6">
+                        <ErrorText message={formError} />
+                        <SelectField label="Muscle Group" value={muscleItemForm.muscle_group} onChange={(value) => setMuscleItemForm({ ...muscleItemForm, muscle_group: value })} required>
+                            <option value="">Select muscle group</option>
+                            {muscleGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+                        </SelectField>
+                        <TextField label="Muscle Name" value={muscleItemForm.name} onChange={(value) => setMuscleItemForm({ ...muscleItemForm, name: value })} required />
+                        <ModalActions loading={muscleItemMutation.isPending} submitLabel={muscleItemModal.mode === "add" ? "Create Muscle" : "Save Changes"} onCancel={() => setMuscleItemModal(null)} />
+                    </form>
+                </ModalFrame>
+            )}
+
             {assignmentModal && (
                 <ModalFrame title={assignmentModal.mode === "add" ? "Assign Workout Plan" : "Edit Assignment"} onClose={() => setAssignmentModal(null)}>
                     <form onSubmit={submitAssignment} className="space-y-4 p-6">
@@ -1188,9 +1324,19 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                             </SelectField>
                         </div>
                         <TextArea label="Notes" value={assignmentForm.notes} onChange={(value) => setAssignmentForm({ ...assignmentForm, notes: value })} />
-                        <ModalActions loading={assignmentMutation.isPending} submitLabel={assignmentModal.mode === "add" ? "Assign Plan" : "Save Changes"} onCancel={() => setAssignmentModal(null)} />
+                        <ModalActions loading={assignmentMutation.isPending} submitLabel={assignmentModal.mode === "add" ? "Assign Plan" : createsAssignmentVersion ? "Save New Version" : "Save Changes"} onCancel={() => setAssignmentModal(null)} />
                     </form>
                 </ModalFrame>
+            )}
+
+            {assignmentView && (
+                <AssignmentPlanViewModal
+                    assignment={assignmentView}
+                    clientLabel={assignmentView.client_name || clientName(clientById.get(assignmentView.client))}
+                    planLabel={assignmentView.plan_title || planById.get(assignmentView.plan)?.title || assignmentView.plan}
+                    fallbackDays={planById.get(assignmentView.plan)?.template_days || []}
+                    onClose={() => setAssignmentView(null)}
+                />
             )}
 
             {sessionModal && (
@@ -1514,6 +1660,15 @@ function Metric({ label, value }: { label: string; value: number }) {
     );
 }
 
+function InfoTile({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="text-xs font-semibold uppercase text-zinc-500">{label}</div>
+            <div className="mt-1 text-sm font-bold text-zinc-900 dark:text-white">{value}</div>
+        </div>
+    );
+}
+
 function PlansTab({ plans, onAdd, onEdit, onDelete }: { plans: WorkoutPlan[]; onAdd: () => void; onEdit: (plan: WorkoutPlan) => void; onDelete: (plan: WorkoutPlan) => void }) {
     return (
         <Panel title="Workout Plans" actionLabel="New Plan" onAction={onAdd}>
@@ -1580,6 +1735,34 @@ function LibraryTab({
     );
 }
 
+function MusclesTab({
+    muscles,
+    muscleGroupById,
+    onAddMuscle,
+    onEditMuscle,
+    onDeleteMuscle,
+}: {
+    muscles: Muscle[];
+    muscleGroupById: Map<string, MuscleGroup>;
+    onAddMuscle: () => void;
+    onEditMuscle: (muscle: Muscle) => void;
+    onDeleteMuscle: (muscle: Muscle) => void;
+}) {
+    return (
+        <Panel title="Muscles" actionLabel="New Muscle" onAction={onAddMuscle}>
+            <DataTable emptyText="No muscles found." columns={["Muscle", "Muscle Group", "Actions"]}>
+                {muscles.map((muscle) => (
+                    <tr key={muscle.id} className="transition hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
+                        <td className="px-6 py-4 font-semibold text-zinc-900 dark:text-white">{muscle.name}</td>
+                        <td className="px-6 py-4">{muscle.muscle_group_name || muscleGroupById.get(String(muscle.muscle_group))?.name || "No group"}</td>
+                        <td className="px-6 py-4 text-right"><RowActions onEdit={() => onEditMuscle(muscle)} onDelete={() => onDeleteMuscle(muscle)} /></td>
+                    </tr>
+                ))}
+            </DataTable>
+        </Panel>
+    );
+}
+
 function MuscleGroupsTab({
     muscleGroups,
     muscles,
@@ -1631,6 +1814,7 @@ function AssignmentsTab({
     planById,
     clientById,
     onAdd,
+    onView,
     onEdit,
     onDelete,
 }: {
@@ -1639,26 +1823,117 @@ function AssignmentsTab({
     planById: Map<string, WorkoutPlan>;
     clientById: Map<string, ClientData>;
     onAdd: () => void;
+    onView: (assignment: WorkoutPlanAssignment) => void;
     onEdit: (assignment: WorkoutPlanAssignment) => void;
     onDelete: (assignment: WorkoutPlanAssignment) => void;
 }) {
+    const sortedAssignments = [...assignments].sort((a, b) => {
+        if (a.status === "active" && b.status !== "active") return -1;
+        if (a.status !== "active" && b.status === "active") return 1;
+        return b.start_date.localeCompare(a.start_date);
+    });
+
     return (
         <Panel title="Client Plan Assignments" actionLabel="Assign Plan" onAction={onAdd}>
-            <DataTable emptyText="No workout assignments found." columns={["Status", "Client", "Plan", "Dates", "Actions"]}>
-                {assignments.map((assignment) => (
-                    <tr key={assignment.id} className="transition hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
-                        <td className="px-6 py-4"><Badge className={statusClasses(assignment.status)}>{assignment.status}</Badge></td>
-                        <td className="px-6 py-4 font-semibold text-zinc-900 dark:text-white">{assignment.client_name || clientName(clientById.get(assignment.client))}</td>
-                        <td className="px-6 py-4">{assignment.plan_title || planById.get(assignment.plan)?.title || assignment.plan}</td>
-                        <td className="px-6 py-4">
-                            <div>{assignment.start_date}</div>
-                            <div className="text-xs text-zinc-500">{assignment.end_date || "No end date"}</div>
-                        </td>
-                        <td className="px-6 py-4 text-right"><RowActions onEdit={() => onEdit(assignment)} onDelete={() => onDelete(assignment)} /></td>
-                    </tr>
-                ))}
+            <DataTable emptyText="No workout assignments found." columns={["Status", "Client", "Plan", "Snapshot", "Dates", "Actions"]}>
+                {sortedAssignments.map((assignment) => {
+                    const snapshotDays = assignment.workout_days?.length || 0;
+                    const snapshotExercises = assignment.workout_days?.reduce((total, day) => total + (day.exercises?.length || 0), 0) || 0;
+                    return (
+                        <tr key={assignment.id} className="transition hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
+                            <td className="px-6 py-4"><Badge className={statusClasses(assignment.status)}>{assignment.status}</Badge></td>
+                            <td className="px-6 py-4 font-semibold text-zinc-900 dark:text-white">{assignment.client_name || clientName(clientById.get(assignment.client))}</td>
+                            <td className="px-6 py-4">{assignment.plan_title || planById.get(assignment.plan)?.title || assignment.plan}</td>
+                            <td className="px-6 py-4 text-xs text-zinc-500">{snapshotDays} days / {snapshotExercises} exercises</td>
+                            <td className="px-6 py-4">
+                                <div>{assignment.start_date}</div>
+                                <div className="text-xs text-zinc-500">{assignment.end_date || "No end date"}</div>
+                            </td>
+                            <td className="px-6 py-4 text-right"><RowActions onView={() => onView(assignment)} onEdit={() => onEdit(assignment)} onDelete={() => onDelete(assignment)} /></td>
+                        </tr>
+                    );
+                })}
             </DataTable>
         </Panel>
+    );
+}
+
+function AssignmentPlanViewModal({
+    assignment,
+    clientLabel,
+    planLabel,
+    fallbackDays,
+    onClose,
+}: {
+    assignment: WorkoutPlanAssignment;
+    clientLabel: string;
+    planLabel: string;
+    fallbackDays: WorkoutDay[];
+    onClose: () => void;
+}) {
+    const days = [...((assignment.workout_days?.length ? assignment.workout_days : fallbackDays) || [])]
+        .sort((a, b) => a.day_number - b.day_number);
+
+    return (
+        <ModalFrame title="View Workout Plan" onClose={onClose} maxWidth="max-w-5xl">
+            <div className="space-y-5 p-6">
+                <div className="grid gap-3 md:grid-cols-4">
+                    <InfoTile label="Client" value={clientLabel} />
+                    <InfoTile label="Plan" value={planLabel} />
+                    <InfoTile label="Status" value={assignment.status} />
+                    <InfoTile label="Dates" value={`${assignment.start_date} - ${assignment.end_date || "No end date"}`} />
+                </div>
+                {assignment.notes && (
+                    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+                        {assignment.notes}
+                    </div>
+                )}
+                <div className="space-y-4">
+                    {days.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400 dark:border-zinc-800">
+                            No workout days found for this assignment.
+                        </div>
+                    ) : days.map((day) => (
+                        <section key={day.id} className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
+                            <div className="flex flex-col gap-1 border-b border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950 md:flex-row md:items-center md:justify-between">
+                                <div>
+                                    <h3 className="font-bold text-zinc-900 dark:text-white">Day {day.day_number}: {day.name}</h3>
+                                    {day.notes && <p className="mt-1 text-sm text-zinc-500">{day.notes}</p>}
+                                </div>
+                                <Badge className="bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                                    {day.exercises?.length || 0} exercises
+                                </Badge>
+                            </div>
+                            <DataTable emptyText="No exercises found for this day." columns={["Order", "Exercise", "Body Part", "Type", "Weight", "Sets", "Reps", "Rest", "Video", "Notes"]}>
+                                {[...(day.exercises || [])]
+                                    .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+                                    .map((exercise) => {
+                                        const videoUrl = exercise.video_url || exercise.exercise_video_urls?.[0] || "";
+                                        return (
+                                            <tr key={exercise.id} className="transition hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
+                                                <td className="px-6 py-4">{exercise.sequence}</td>
+                                                <td className="px-6 py-4 font-semibold text-zinc-900 dark:text-white">{exercise.exercise_name || exercise.exercise}</td>
+                                                <td className="px-6 py-4">{exercise.body_part || "-"}</td>
+                                                <td className="px-6 py-4">{getWorkoutExerciseTypeLabel(exercise.exercise_type)}</td>
+                                                <td className="px-6 py-4">{exercise.weight ?? "-"}</td>
+                                                <td className="px-6 py-4">{exercise.sets}</td>
+                                                <td className="px-6 py-4">{exercise.reps}</td>
+                                                <td className="px-6 py-4">{exercise.rest}s</td>
+                                                <td className="px-6 py-4">
+                                                    {videoUrl ? (
+                                                        <a className="font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-300" href={videoUrl} target="_blank" rel="noreferrer">Open</a>
+                                                    ) : "-"}
+                                                </td>
+                                                <td className="px-6 py-4"><div className="max-w-64 truncate">{exercise.notes || "-"}</div></td>
+                                            </tr>
+                                        );
+                                    })}
+                            </DataTable>
+                        </section>
+                    ))}
+                </div>
+            </div>
+        </ModalFrame>
     );
 }
 
@@ -1766,9 +2041,14 @@ function DataTable({ columns, emptyText, children }: { columns: string[]; emptyT
     );
 }
 
-function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+function RowActions({ onView, onEdit, onDelete }: { onView?: () => void; onEdit: () => void; onDelete: () => void }) {
     return (
         <div className="flex items-center justify-end gap-2">
+            {onView && (
+                <button type="button" onClick={onView} className="rounded-md p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-sky-600 dark:hover:bg-zinc-800 dark:hover:text-sky-300" title="View">
+                    <EyeIcon className="h-4 w-4" />
+                </button>
+            )}
             <button type="button" onClick={onEdit} className="rounded-md p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-indigo-600 dark:hover:bg-zinc-800 dark:hover:text-indigo-300" title="Edit">
                 <EditIcon className="h-4 w-4" />
             </button>

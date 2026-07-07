@@ -112,6 +112,7 @@ export interface WorkoutPlanAssignment {
     notes: string | null;
     created_at: string;
     updated_at: string;
+    workout_days?: WorkoutDay[];
 }
 
 export interface WorkoutPlanAssignmentPayload {
