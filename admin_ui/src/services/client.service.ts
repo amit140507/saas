@@ -30,6 +30,11 @@ export async function getClients(): Promise<ClientData[]> {
     return normalizeClientList(response.data);
 }
 
+export async function getClient(id: string): Promise<ClientData> {
+    const response = await api.get<ClientData>(API_ENDPOINTS.clients.detail(id));
+    return response.data;
+}
+
 export async function createClient(payload: ClientPayload): Promise<ClientData> {
     const response = await api.post<ClientData>(API_ENDPOINTS.clients.list, payload);
     return response.data;

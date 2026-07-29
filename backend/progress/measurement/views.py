@@ -1,47 +1,58 @@
-from rest_framework import viewsets, permissions
-from rest_framework.parsers import MultiPartParser, FormParser
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
+from django.db.models import Avg
+from django.db.models.functions import TruncWeek
+from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Avg
-from django.db import transaction
-from django.db.models.functions import TruncWeek
+from rest_framework.parsers import FormParser, MultiPartParser
 
-from .models import Measurement, MeasurementPhoto
-from .serializers import MeasurementSerializer
+from .models import MeasurementPhoto, WeeklyMeasurement
+from .serializers import WeeklyMeasurementSerializer
 
 
-class MeasurementViewSet(viewsets.ModelViewSet):
-    serializer_class = MeasurementSerializer
+class WeeklyMeasurementViewSet(viewsets.ModelViewSet):
+    serializer_class = WeeklyMeasurementSerializer
     permission_classes = [permissions.IsAuthenticated]
-
-    # ✅ IMPORTANT for multipart upload
     parser_classes = [MultiPartParser, FormParser]
 
     def get_queryset(self):
-        user = self.request.user
-        qs = Measurement.objects.all()
+        tenant = getattr(self.request, 'tenant', None)
+        if not tenant:
+            return WeeklyMeasurement.objects.none()
 
-        if getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False):
-            user_id = self.request.query_params.get('user')
-            if user_id:
-                return qs.filter(user_id=user_id)
+        qs = (
+            WeeklyMeasurement.objects
+            .filter(tenant=tenant)
+            .select_related('client', 'client__org_client__user', 'client__assigned_trainer')
+            .prefetch_related('photos')
+        )
+
+        client_id = self.request.query_params.get('client')
+        if client_id:
+            qs = qs.filter(client_id=client_id)
+
+        if getattr(self.request.user, 'is_superuser', False):
             return qs
 
-        return qs.filter(user=user)
+        member = getattr(self.request, 'tenant_member', None)
+        if member is None:
+            from core.tenants.rbac_service import get_member
+            member = get_member(self.request.user, tenant)
+
+        if member and member.is_owner:
+            return qs
+
+        try:
+            staff = self.request.user.org_memberships.get(tenant=tenant).staff_profile
+        except (ObjectDoesNotExist, AttributeError):
+            return WeeklyMeasurement.objects.none()
+
+        return qs.filter(client__assigned_trainer=staff)
 
     def perform_create(self, serializer):
-        """
-        Handles:
-        - Measurement creation
-        - Multiple photo upload
-        """
         with transaction.atomic():
-            measurement = serializer.save(
-                user=self.request.user,
-                tenant=self.request.user.tenant
-            )
-
-            # ✅ get multiple files
+            measurement = serializer.save(tenant=getattr(self.request, 'tenant', None))
             photos = self.request.FILES.getlist('photos')
 
             if len(photos) > 4:
@@ -51,27 +62,28 @@ class MeasurementViewSet(viewsets.ModelViewSet):
                 MeasurementPhoto(
                     measurement=measurement,
                     image=photo,
-                    tenant=self.request.user.tenant
+                    tenant=measurement.tenant,
                 )
                 for photo in photos
             ])
 
     @action(detail=False, methods=['get'])
     def weekly_stats(self, request):
-        """
-        Returns average weight and other body measurements grouped by week for charts.
-        """
         stats = (
             self.get_queryset()
-            .annotate(week=TruncWeek('date'))
+            .annotate(week=TruncWeek('measured_at'))
             .values('week')
             .annotate(
                 avg_weight=Avg('weight'),
-                avg_waist=Avg('waist'),
                 avg_chest=Avg('chest'),
-                avg_hips=Avg('hips'),
-                avg_biceps=Avg('biceps'),
-                avg_thighs=Avg('thighs'),
+                avg_abdomen=Avg('abdomen'),
+                avg_glutes=Avg('glutes'),
+                avg_arm_left=Avg('arm_left'),
+                avg_arm_right=Avg('arm_right'),
+                avg_thighs_left=Avg('thighs_left'),
+                avg_thighs_right=Avg('thighs_right'),
+                avg_calf_left=Avg('calf_left'),
+                avg_calf_right=Avg('calf_right'),
             )
             .order_by('week')
         )

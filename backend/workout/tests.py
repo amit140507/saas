@@ -18,7 +18,6 @@ from workout.models import (
     WorkoutExercise,
     WorkoutPlan,
     WorkoutPlanAssignment,
-    WorkoutSession,
 )
 from workout.services import assign_workout_plan, replace_client_workout_assignment
 
@@ -267,33 +266,6 @@ class WorkoutPlanVersioningTests(TestCase):
         self.assertEqual(new_assignment.start_date, date(2026, 7, 8))
         self.assertEqual(new_assignment.workout_days.get().exercises.get().exercise, self.updated_exercise)
         self.assertEqual(new_assignment.workout_days.get().exercises.get().sets, 5)
-
-    def test_old_sessions_remain_linked_to_old_assignment_snapshot(self):
-        old_assignment = assign_workout_plan(
-            tenant=self.tenant,
-            client=self.client_profile,
-            plan=self.plan,
-            assigned_by=None,
-            start_date=date(2026, 7, 1),
-        )
-        old_day = old_assignment.workout_days.get()
-        session = WorkoutSession.objects.create(
-            tenant=self.tenant,
-            client=self.client_profile,
-            plan_assignment=old_assignment,
-            workout_day=old_day,
-            session_date=date(2026, 7, 3),
-        )
-
-        new_assignment = replace_client_workout_assignment(
-            assignment=old_assignment,
-            start_date=date(2026, 7, 8),
-        )
-        session.refresh_from_db()
-
-        self.assertEqual(session.plan_assignment_id, old_assignment.id)
-        self.assertEqual(session.workout_day_id, old_day.id)
-        self.assertNotEqual(session.plan_assignment_id, new_assignment.id)
 
     def test_assignment_serializer_create_snapshots_template_days(self):
         serializer = WorkoutPlanAssignmentSerializer(data={

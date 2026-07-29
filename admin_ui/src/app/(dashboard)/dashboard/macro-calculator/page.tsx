@@ -363,7 +363,7 @@ export default function MacroCalculator() {
           </div>
 
           <button onClick={() => {
-            router.push(`/dashboard/diet-plan-creator?calories=${Math.round(results.calorieGoal)}&protein=${Math.round(results.proteinGrams)}&fat=${Math.round(results.fatGrams)}&carbs=${Math.round(results.carbsGrams)}&gain=${results.recommendedGainRate}`)
+            router.push(`/dashboard/diet-plans/planning?calories=${Math.round(results.calorieGoal)}&protein=${Math.round(results.proteinGrams)}&fat=${Math.round(results.fatGrams)}&carbs=${Math.round(results.carbsGrams)}&gain=${results.recommendedGainRate}`)
           }} className="w-full mt-4 flex justify-between items-center bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 font-bold py-3 px-4 rounded-xl hover:bg-indigo-200 dark:hover:bg-indigo-900/60 transition-colors">
             <span>Create Diet Plan from these Macros</span>
             <ArrowRightIcon className="w-5 h-5" />

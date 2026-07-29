@@ -13,7 +13,6 @@ from workout.models.planning import (
     WorkoutPlan,
     WorkoutPlanAssignment,
 )
-from workout.models.tracking import SetLog, WorkoutLog, WorkoutSession
 
 
 class MuscleGroupSerializer(serializers.ModelSerializer):
@@ -264,26 +263,3 @@ class WorkoutPlanAssignmentSerializer(serializers.ModelSerializer):
                 return True
 
         return False
-
-
-class SetLogSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SetLog
-        fields = '__all__'
-
-
-class WorkoutLogSerializer(serializers.ModelSerializer):
-    exercise_name = serializers.ReadOnlyField(source='exercise.name')
-    sets = SetLogSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = WorkoutLog
-        fields = '__all__'
-
-
-class WorkoutSessionSerializer(serializers.ModelSerializer):
-    logs = WorkoutLogSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = WorkoutSession
-        fields = '__all__'

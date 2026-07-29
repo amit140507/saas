@@ -3,7 +3,6 @@
 import { FormEvent, useMemo, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-    ActivityIcon,
     DownloadIcon,
     DumbbellIcon,
     EditIcon,
@@ -27,27 +26,23 @@ import {
     createMuscleGroup,
     createWorkoutAssignment,
     createWorkoutPlan,
-    createWorkoutSession,
     deleteExercise,
     deleteMuscle,
     deleteMuscleGroup,
     deleteWorkoutAssignment,
     deleteWorkoutPlan,
-    deleteWorkoutSession,
     downloadWorkoutAssignmentPdf,
     getExercises,
     getMuscleGroups,
     getMuscles,
     getWorkoutAssignments,
     getWorkoutPlans,
-    getWorkoutSessions,
     sendWorkoutAssignmentPdf,
     updateExercise,
     updateMuscle,
     updateMuscleGroup,
     updateWorkoutAssignment,
     updateWorkoutPlan,
-    updateWorkoutSession,
 } from "@/services/workout.service";
 import { useCurrentUserPermissions } from "@/lib/permissions";
 import type { ClientData } from "@/types/client.type";
@@ -68,11 +63,9 @@ import type {
     WorkoutPlanAssignment,
     WorkoutPlanAssignmentPayload,
     WorkoutPlanPayload,
-    WorkoutSession,
-    WorkoutSessionPayload,
 } from "@/types/workout.type";
 
-export type WorkoutSection = "plans" | "library" | "muscles" | "muscleGroups" | "assignments" | "sessions";
+export type WorkoutSection = "plans" | "library" | "muscles" | "muscleGroups" | "assignments";
 type TabId = WorkoutSection;
 type ModalMode = "add" | "edit";
 type DeleteTarget =
@@ -80,8 +73,7 @@ type DeleteTarget =
     | { type: "muscleGroup"; id: string | number; label: string }
     | { type: "muscle"; id: string | number; label: string }
     | { type: "exercise"; id: string; label: string }
-    | { type: "assignment"; id: string; label: string }
-    | { type: "session"; id: string; label: string };
+    | { type: "assignment"; id: string; label: string };
 
 interface ApiErrorShape {
     response?: {
@@ -155,20 +147,12 @@ interface AssignmentForm {
     notes: string;
 }
 
-interface SessionForm {
-    client: string;
-    plan_assignment: string;
-    workout_day: string;
-    session_date: string;
-}
-
 const tabs: Array<{ id: TabId; label: string; icon: typeof DumbbellIcon }> = [
     { id: "plans", label: "Plans", icon: DumbbellIcon },
     { id: "library", label: "Exercise Library", icon: LibraryIcon },
     { id: "muscles", label: "Muscles", icon: DumbbellIcon },
     { id: "muscleGroups", label: "Muscle Groups", icon: LayersIcon },
     { id: "assignments", label: "Assignments", icon: UsersIcon },
-    { id: "sessions", label: "Session Logs", icon: ActivityIcon },
 ];
 
 function createFormId(): string {
@@ -242,19 +226,11 @@ const emptyAssignmentForm: AssignmentForm = {
     notes: "",
 };
 
-const emptySessionForm: SessionForm = {
-    client: "",
-    plan_assignment: "",
-    workout_day: "",
-    session_date: "",
-};
-
 const emptyPlans: WorkoutPlan[] = [];
 const emptyMuscleGroups: MuscleGroup[] = [];
 const emptyMuscles: Muscle[] = [];
 const emptyExercises: Exercise[] = [];
 const emptyAssignments: WorkoutPlanAssignment[] = [];
-const emptySessions: WorkoutSession[] = [];
 const emptyClients: ClientData[] = [];
 
 function getErrorMessage(error: unknown): string {
@@ -290,10 +266,6 @@ function statusClasses(status: string): string {
 
 function compactStrings(values: string[]): string[] {
     return values.map((value) => value.trim()).filter(Boolean);
-}
-
-function getTodayInputDate(): string {
-    return new Date().toISOString().slice(0, 10);
 }
 
 function getOrderLabel(index: number): string {
@@ -409,9 +381,8 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
     const visibleTabs = useMemo(() => tabs.filter((tab) => allowedTabs.includes(tab.id)), [allowedTabs]);
     const needsPlans = allowedTabs.some((tab) => tab === "plans" || tab === "assignments");
     const needsLibrary = allowedTabs.some((tab) => tab === "plans" || tab === "library" || tab === "muscles" || tab === "muscleGroups");
-    const needsAssignments = allowedTabs.some((tab) => tab === "assignments" || tab === "sessions");
+    const needsAssignments = allowedTabs.includes("assignments");
     const needsClients = needsAssignments;
-    const needsSessions = allowedTabs.includes("sessions");
     const hasHydrated = useSyncExternalStore(
         subscribeHydrationStore,
         getClientHydrationSnapshot,
@@ -426,8 +397,8 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
     const [muscleModal, setMuscleModal] = useState<{ mode: ModalMode; item: MuscleGroup | null } | null>(null);
     const [muscleItemModal, setMuscleItemModal] = useState<{ mode: ModalMode; item: Muscle | null } | null>(null);
     const [assignmentModal, setAssignmentModal] = useState<{ mode: ModalMode; item: WorkoutPlanAssignment | null } | null>(null);
+    const [planView, setPlanView] = useState<WorkoutPlan | null>(null);
     const [assignmentView, setAssignmentView] = useState<WorkoutPlanAssignment | null>(null);
-    const [sessionModal, setSessionModal] = useState<{ mode: ModalMode; item: WorkoutSession | null } | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
     const [pdfAction, setPdfAction] = useState<{ assignmentId: string; action: "download" | "send" } | null>(null);
 
@@ -436,14 +407,12 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
     const [muscleForm, setMuscleForm] = useState<MuscleForm>(emptyMuscleForm);
     const [muscleItemForm, setMuscleItemForm] = useState<MuscleItemForm>(emptyMuscleItemForm);
     const [assignmentForm, setAssignmentForm] = useState<AssignmentForm>(emptyAssignmentForm);
-    const [sessionForm, setSessionForm] = useState<SessionForm>(emptySessionForm);
 
     const plansQuery = useQuery({ queryKey: ["workout-plans"], queryFn: getWorkoutPlans, enabled: hasHydrated && needsPlans });
     const muscleGroupsQuery = useQuery({ queryKey: ["workout-muscle-groups"], queryFn: getMuscleGroups, enabled: hasHydrated && needsLibrary });
     const musclesQuery = useQuery({ queryKey: ["workout-muscles"], queryFn: getMuscles, enabled: hasHydrated && needsLibrary });
     const exercisesQuery = useQuery({ queryKey: ["workout-exercises"], queryFn: getExercises, enabled: hasHydrated && needsLibrary });
     const assignmentsQuery = useQuery({ queryKey: ["workout-assignments"], queryFn: getWorkoutAssignments, enabled: hasHydrated && needsAssignments });
-    const sessionsQuery = useQuery({ queryKey: ["workout-sessions"], queryFn: getWorkoutSessions, enabled: hasHydrated && needsSessions });
     const clientsQuery = useQuery({ queryKey: ["clients-management"], queryFn: getClients, enabled: hasHydrated && needsClients });
 
     const plans = plansQuery.data ?? emptyPlans;
@@ -451,12 +420,10 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
     const muscles = musclesQuery.data ?? emptyMuscles;
     const exercises = exercisesQuery.data ?? emptyExercises;
     const assignments = assignmentsQuery.data ?? emptyAssignments;
-    const sessions = sessionsQuery.data ?? emptySessions;
     const clients = clientsQuery.data ?? emptyClients;
 
     const clientById = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
     const planById = useMemo(() => new Map(plans.map((plan) => [plan.id, plan])), [plans]);
-    const assignmentById = useMemo(() => new Map(assignments.map((assignment) => [assignment.id, assignment])), [assignments]);
     const muscleGroupById = useMemo(() => new Map(muscleGroups.map((group) => [String(group.id), group])), [muscleGroups]);
     const muscleById = useMemo(() => new Map(muscles.map((muscle) => [String(muscle.id), muscle])), [muscles]);
     const exerciseById = useMemo(() => new Map(exercises.map((exercise) => [exercise.id, exercise])), [exercises]);
@@ -503,19 +470,6 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
         });
     }, [assignments, clientById, planById, query]);
 
-    const filteredSessions = useMemo(() => {
-        return sessions.filter((session) => {
-            if (!query) return true;
-            const assignment = session.plan_assignment ? assignmentById.get(session.plan_assignment) : undefined;
-            return [
-                clientName(clientById.get(session.client)),
-                session.session_date,
-                assignment?.plan_title || "",
-                assignment?.client_name || "",
-            ].some((value) => value.toLowerCase().includes(query));
-        });
-    }, [assignmentById, clientById, query, sessions]);
-
     const invalidatePlans = async () => {
         await queryClient.invalidateQueries({ queryKey: ["workout-plans"] });
     };
@@ -528,10 +482,6 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
 
     const invalidateAssignments = async () => {
         await queryClient.invalidateQueries({ queryKey: ["workout-assignments"] });
-    };
-
-    const invalidateSessions = async () => {
-        await queryClient.invalidateQueries({ queryKey: ["workout-sessions"] });
     };
 
     const planMutation = useMutation({
@@ -600,17 +550,6 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
         onError: (error) => setFormError(getErrorMessage(error)),
     });
 
-    const sessionMutation = useMutation({
-        mutationFn: ({ mode, id, payload }: { mode: ModalMode; id?: string; payload: WorkoutSessionPayload }) => (
-            mode === "add" ? createWorkoutSession(payload) : updateWorkoutSession(id || "", payload)
-        ),
-        onSuccess: async () => {
-            await invalidateSessions();
-            setSessionModal(null);
-        },
-        onError: (error) => setFormError(getErrorMessage(error)),
-    });
-
     const deleteMutation = useMutation({
         mutationFn: async (target: DeleteTarget) => {
             if (target.type === "plan") await deleteWorkoutPlan(target.id);
@@ -618,14 +557,12 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
             if (target.type === "muscle") await deleteMuscle(target.id);
             if (target.type === "exercise") await deleteExercise(target.id);
             if (target.type === "assignment") await deleteWorkoutAssignment(target.id);
-            if (target.type === "session") await deleteWorkoutSession(target.id);
             return target.type;
         },
         onSuccess: async (type) => {
             if (type === "plan") await invalidatePlans();
             if (type === "muscleGroup" || type === "muscle" || type === "exercise") await invalidateLibrary();
             if (type === "assignment") await invalidateAssignments();
-            if (type === "session") await invalidateSessions();
             setDeleteTarget(null);
         },
         onError: (error) => setFormError(getErrorMessage(error)),
@@ -722,17 +659,6 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
             notes: item.notes || "",
         } : emptyAssignmentForm);
         setAssignmentModal({ mode, item });
-    };
-
-    const openSessionModal = (mode: ModalMode, item: WorkoutSession | null = null) => {
-        setFormError("");
-        setSessionForm(item ? {
-            client: item.client,
-            plan_assignment: item.plan_assignment || "",
-            workout_day: item.workout_day ? String(item.workout_day) : "",
-            session_date: item.session_date,
-        } : { ...emptySessionForm, session_date: getTodayInputDate() });
-        setSessionModal({ mode, item });
     };
 
     const tenantPayload = tenantId ? { tenant: tenantId } : {};
@@ -1019,37 +945,15 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
         });
     };
 
-    const submitSession = (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        if (!sessionForm.client || !sessionForm.session_date) {
-            setFormError("Client and session date are required.");
-            return;
-        }
-
-        sessionMutation.mutate({
-            mode: sessionModal?.mode || "add",
-            id: sessionModal?.item?.id,
-            payload: {
-                ...tenantPayload,
-                client: sessionForm.client,
-                plan_assignment: sessionForm.plan_assignment || null,
-                workout_day: sessionForm.workout_day || null,
-                session_date: sessionForm.session_date,
-            },
-        });
-    };
-
     const isLoading = !hasHydrated
         || (needsPlans && plansQuery.isLoading)
         || (needsLibrary && (muscleGroupsQuery.isLoading || musclesQuery.isLoading || exercisesQuery.isLoading))
         || (needsAssignments && assignmentsQuery.isLoading)
-        || (needsClients && clientsQuery.isLoading)
-        || (needsSessions && sessionsQuery.isLoading);
+        || (needsClients && clientsQuery.isLoading);
     const pageError = (needsPlans ? plansQuery.error : null)
         || (needsLibrary ? muscleGroupsQuery.error || musclesQuery.error || exercisesQuery.error : null)
         || (needsAssignments ? assignmentsQuery.error : null)
-        || (needsClients ? clientsQuery.error : null)
-        || (needsSessions ? sessionsQuery.error : null);
+        || (needsClients ? clientsQuery.error : null);
 
     return (
         <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
@@ -1067,7 +971,6 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                     {allowedTabs.includes("muscles") && <Metric label="Muscles" value={muscles.length} />}
                     {allowedTabs.includes("muscleGroups") && <Metric label="Muscle Groups" value={muscleGroups.length} />}
                     {allowedTabs.includes("assignments") && <Metric label="Assignments" value={assignments.length} />}
-                    {allowedTabs.includes("sessions") && <Metric label="Sessions" value={sessions.length} />}
                 </div>
             </div>
 
@@ -1118,7 +1021,13 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
             ) : (
                 <>
                     {activeTab === "plans" && (
-                        <PlansTab plans={filteredPlans} onAdd={() => openPlanModal("add")} onEdit={(plan) => openPlanModal("edit", plan)} onDelete={(plan) => setDeleteTarget({ type: "plan", id: plan.id, label: plan.title })} />
+                        <PlansTab
+                            plans={filteredPlans}
+                            onAdd={() => openPlanModal("add")}
+                            onView={(plan) => setPlanView(plan)}
+                            onEdit={(plan) => openPlanModal("edit", plan)}
+                            onDelete={(plan) => setDeleteTarget({ type: "plan", id: plan.id, label: plan.title })}
+                        />
                     )}
                     {activeTab === "library" && (
                         <LibraryTab
@@ -1162,16 +1071,6 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                             onDownload={handleDownloadAssignmentPdf}
                             onSend={handleSendAssignmentPdf}
                             pdfAction={pdfAction}
-                        />
-                    )}
-                    {activeTab === "sessions" && (
-                        <SessionsTab
-                            sessions={filteredSessions}
-                            clientById={clientById}
-                            assignmentById={assignmentById}
-                            onAdd={() => openSessionModal("add")}
-                            onEdit={(session) => openSessionModal("edit", session)}
-                            onDelete={(session) => setDeleteTarget({ type: "session", id: session.id, label: `${clientName(clientById.get(session.client))} on ${session.session_date}` })}
                         />
                     )}
                 </>
@@ -1364,42 +1263,43 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                 </ModalFrame>
             )}
 
+            {planView && (
+                <WorkoutPlanViewModal
+                    title="View Workout Plan"
+                    planLabel={planView.title}
+                    statusLabel={planView.is_active ? "active" : "inactive"}
+                    meta={[
+                        { label: "Difficulty", value: planView.difficulty },
+                        { label: "Goal", value: planView.goal || "-" },
+                        { label: "Duration", value: `${planView.duration_weeks} weeks` },
+                        { label: "Created By", value: planView.created_by_name || "-" },
+                    ]}
+                    notes={planView.description || ""}
+                    days={planView.template_days || []}
+                    emptyText="No workout days found for this plan."
+                    onClose={() => setPlanView(null)}
+                />
+            )}
+
             {assignmentView && (
-                <AssignmentPlanViewModal
-                    assignment={assignmentView}
-                    clientLabel={assignmentView.client_name || clientName(clientById.get(assignmentView.client))}
+                <WorkoutPlanViewModal
+                    title="View Workout Assignment"
                     planLabel={assignmentView.plan_title || planById.get(assignmentView.plan)?.title || assignmentView.plan}
-                    fallbackDays={planById.get(assignmentView.plan)?.template_days || []}
+                    statusLabel={assignmentView.status}
+                    meta={[
+                        { label: "Client", value: assignmentView.client_name || clientName(clientById.get(assignmentView.client)) },
+                        { label: "Plan", value: assignmentView.plan_title || planById.get(assignmentView.plan)?.title || assignmentView.plan },
+                        { label: "Status", value: assignmentView.status },
+                        { label: "Dates", value: `${assignmentView.start_date} - ${assignmentView.end_date || "No end date"}` },
+                    ]}
+                    notes={assignmentView.notes || ""}
+                    days={(assignmentView.workout_days?.length ? assignmentView.workout_days : planById.get(assignmentView.plan)?.template_days) || []}
+                    emptyText="No workout days found for this assignment."
                     onDownload={() => handleDownloadAssignmentPdf(assignmentView)}
                     onSend={() => handleSendAssignmentPdf(assignmentView)}
                     pdfAction={pdfAction?.assignmentId === assignmentView.id ? pdfAction.action : null}
                     onClose={() => setAssignmentView(null)}
                 />
-            )}
-
-            {sessionModal && (
-                <ModalFrame title={sessionModal.mode === "add" ? "Create Session" : "Edit Session"} onClose={() => setSessionModal(null)}>
-                    <form onSubmit={submitSession} className="space-y-4 p-6">
-                        <ErrorText message={formError} />
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <SelectField label="Client" value={sessionForm.client} onChange={(value) => setSessionForm({ ...sessionForm, client: value })} required>
-                                <option value="">Select client...</option>
-                                {clients.map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
-                            </SelectField>
-                            <SelectField label="Assignment" value={sessionForm.plan_assignment} onChange={(value) => setSessionForm({ ...sessionForm, plan_assignment: value })}>
-                                <option value="">No assignment</option>
-                                {assignments.map((assignment) => (
-                                    <option key={assignment.id} value={assignment.id}>
-                                        {assignment.plan_title || planById.get(assignment.plan)?.title || "Plan"} - {assignment.client_name || clientName(clientById.get(assignment.client))}
-                                    </option>
-                                ))}
-                            </SelectField>
-                            <TextField label="Workout Day ID" value={sessionForm.workout_day} onChange={(value) => setSessionForm({ ...sessionForm, workout_day: value })} />
-                            <TextField label="Session Date" type="date" value={sessionForm.session_date} onChange={(value) => setSessionForm({ ...sessionForm, session_date: value })} required />
-                        </div>
-                        <ModalActions loading={sessionMutation.isPending} submitLabel={sessionModal.mode === "add" ? "Create Session" : "Save Changes"} onCancel={() => setSessionModal(null)} />
-                    </form>
-                </ModalFrame>
             )}
 
             {deleteTarget && (
@@ -1707,7 +1607,19 @@ function InfoTile({ label, value }: { label: string; value: string }) {
     );
 }
 
-function PlansTab({ plans, onAdd, onEdit, onDelete }: { plans: WorkoutPlan[]; onAdd: () => void; onEdit: (plan: WorkoutPlan) => void; onDelete: (plan: WorkoutPlan) => void }) {
+function PlansTab({
+    plans,
+    onAdd,
+    onView,
+    onEdit,
+    onDelete,
+}: {
+    plans: WorkoutPlan[];
+    onAdd: () => void;
+    onView: (plan: WorkoutPlan) => void;
+    onEdit: (plan: WorkoutPlan) => void;
+    onDelete: (plan: WorkoutPlan) => void;
+}) {
     return (
         <Panel title="Workout Plans" actionLabel="New Plan" onAction={onAdd}>
             <DataTable emptyText="No workout plans found." columns={["Status", "Plan", "Difficulty", "Duration", "Actions"]}>
@@ -1720,7 +1632,7 @@ function PlansTab({ plans, onAdd, onEdit, onDelete }: { plans: WorkoutPlan[]; on
                         </td>
                         <td className="px-6 py-4 capitalize">{plan.difficulty}</td>
                         <td className="px-6 py-4">{plan.duration_weeks} weeks</td>
-                        <td className="px-6 py-4 text-right"><RowActions onEdit={() => onEdit(plan)} onDelete={() => onDelete(plan)} /></td>
+                        <td className="px-6 py-4 text-right"><RowActions onView={() => onView(plan)} onEdit={() => onEdit(plan)} onDelete={() => onDelete(plan)} /></td>
                     </tr>
                 ))}
             </DataTable>
@@ -1912,68 +1824,83 @@ function AssignmentsTab({
     );
 }
 
-function AssignmentPlanViewModal({
-    assignment,
-    clientLabel,
+function WorkoutPlanViewModal({
+    title,
     planLabel,
-    fallbackDays,
+    statusLabel,
+    meta,
+    notes,
+    days,
+    emptyText,
     onDownload,
     onSend,
     pdfAction,
     onClose,
 }: {
-    assignment: WorkoutPlanAssignment;
-    clientLabel: string;
+    title: string;
     planLabel: string;
-    fallbackDays: WorkoutDay[];
-    onDownload: () => void;
-    onSend: () => void;
-    pdfAction: "download" | "send" | null;
+    statusLabel: string;
+    meta: Array<{ label: string; value: string }>;
+    notes: string;
+    days: WorkoutDay[];
+    emptyText: string;
+    onDownload?: () => void;
+    onSend?: () => void;
+    pdfAction?: "download" | "send" | null;
     onClose: () => void;
 }) {
-    const days = [...((assignment.workout_days?.length ? assignment.workout_days : fallbackDays) || [])]
+    const sortedDays = [...days]
         .sort((a, b) => a.day_number - b.day_number);
 
     return (
-        <ModalFrame title="View Workout Plan" onClose={onClose} maxWidth="max-w-5xl">
+        <ModalFrame title={title} onClose={onClose} maxWidth="max-w-5xl">
             <div className="space-y-5 p-6">
-                <div className="flex flex-wrap justify-end gap-2">
-                    <button
-                        type="button"
-                        onClick={onDownload}
-                        disabled={pdfAction !== null}
-                        className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                    >
-                        {pdfAction === "download" ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <DownloadIcon className="h-4 w-4" />}
-                        Download
-                    </button>
-                    <button
-                        type="button"
-                        onClick={onSend}
-                        disabled={pdfAction !== null}
-                        className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-                    >
-                        {pdfAction === "send" ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <SendIcon className="h-4 w-4" />}
-                        Send
-                    </button>
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                        <h3 className="text-lg font-bold text-zinc-900 dark:text-white">{planLabel}</h3>
+                        <Badge className={statusClasses(statusLabel)}>{statusLabel}</Badge>
+                    </div>
+                    {(onDownload || onSend) && (
+                        <div className="flex flex-wrap justify-end gap-2">
+                            {onDownload && (
+                                <button
+                                    type="button"
+                                    onClick={onDownload}
+                                    disabled={pdfAction !== null}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                >
+                                    {pdfAction === "download" ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <DownloadIcon className="h-4 w-4" />}
+                                    Download
+                                </button>
+                            )}
+                            {onSend && (
+                                <button
+                                    type="button"
+                                    onClick={onSend}
+                                    disabled={pdfAction !== null}
+                                    className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                                >
+                                    {pdfAction === "send" ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <SendIcon className="h-4 w-4" />}
+                                    Send
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
                 <div className="grid gap-3 md:grid-cols-4">
-                    <InfoTile label="Client" value={clientLabel} />
-                    <InfoTile label="Plan" value={planLabel} />
-                    <InfoTile label="Status" value={assignment.status} />
-                    <InfoTile label="Dates" value={`${assignment.start_date} - ${assignment.end_date || "No end date"}`} />
+                    {meta.map((item) => <InfoTile key={item.label} label={item.label} value={item.value} />)}
                 </div>
-                {assignment.notes && (
+                {notes && (
                     <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-                        {assignment.notes}
+                        {notes}
                     </div>
                 )}
                 <div className="space-y-4">
-                    {days.length === 0 ? (
+                    {sortedDays.length === 0 ? (
                         <div className="rounded-lg border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400 dark:border-zinc-800">
-                            No workout days found for this assignment.
+                            {emptyText}
                         </div>
-                    ) : days.map((day) => (
+                    ) : sortedDays.map((day) => (
                         <section key={day.id} className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
                             <div className="flex flex-col gap-1 border-b border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950 md:flex-row md:items-center md:justify-between">
                                 <div>
@@ -2014,74 +1941,6 @@ function AssignmentPlanViewModal({
                 </div>
             </div>
         </ModalFrame>
-    );
-}
-
-function SessionsTab({
-    sessions,
-    clientById,
-    assignmentById,
-    onAdd,
-    onEdit,
-    onDelete,
-}: {
-    sessions: WorkoutSession[];
-    clientById: Map<string, ClientData>;
-    assignmentById: Map<string, WorkoutPlanAssignment>;
-    onAdd: () => void;
-    onEdit: (session: WorkoutSession) => void;
-    onDelete: (session: WorkoutSession) => void;
-}) {
-    return (
-        <Panel title="Workout Session Logs" actionLabel="New Session" onAction={onAdd}>
-            <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                {sessions.length === 0 ? (
-                    <div className="px-6 py-12 text-center text-sm text-zinc-400">No workout sessions found.</div>
-                ) : sessions.map((session) => {
-                    const assignment = session.plan_assignment ? assignmentById.get(session.plan_assignment) : undefined;
-                    return (
-                        <div key={session.id} className="px-6 py-5">
-                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                                <div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <h3 className="font-semibold text-zinc-900 dark:text-white">{clientName(clientById.get(session.client))}</h3>
-                                        <Badge className="bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{session.session_date}</Badge>
-                                    </div>
-                                    <div className="mt-1 text-sm text-zinc-500">
-                                        {assignment?.plan_title || "No assignment"} {session.workout_day ? `- Day ${session.workout_day}` : ""}
-                                    </div>
-                                </div>
-                                <RowActions onEdit={() => onEdit(session)} onDelete={() => onDelete(session)} />
-                            </div>
-                            <div className="mt-4 space-y-3">
-                                {(session.logs || []).length === 0 ? (
-                                    <div className="rounded-lg border border-dashed border-zinc-200 px-4 py-3 text-sm text-zinc-400 dark:border-zinc-800">No exercise logs recorded for this session.</div>
-                                ) : session.logs?.map((log) => (
-                                    <div key={log.id} className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
-                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                            <div className="font-medium text-zinc-900 dark:text-white">{log.exercise_name || log.exercise}</div>
-                                            <div className="text-xs text-zinc-500">
-                                                Planned: {log.planned_sets || "-"} sets / {log.planned_reps || "-"} reps / {log.planned_weight || "-"} kg
-                                            </div>
-                                        </div>
-                                        {log.notes && <p className="mt-2 text-sm text-zinc-500">{log.notes}</p>}
-                                        {(log.sets || []).length > 0 && (
-                                            <div className="mt-3 grid gap-2 md:grid-cols-3">
-                                                {log.sets?.map((set) => (
-                                                    <div key={set.id} className="rounded-md bg-white px-3 py-2 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
-                                                        Set {set.set_number}: {set.reps} reps, {set.weight} kg, {set.rest_sec}s rest {set.is_pr ? "(PR)" : ""}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </Panel>
     );
 }
 

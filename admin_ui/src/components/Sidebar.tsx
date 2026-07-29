@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { useQuery } from "@tanstack/react-query";
 import {
     UsersIcon,
     SettingsIcon,
@@ -13,7 +15,6 @@ import {
     LogOutIcon,
     CalculatorIcon,
     ActivityIcon,
-    RulerIcon,
     ShoppingCartIcon,
     PackageIcon,
     BadgeCheckIcon,
@@ -22,12 +23,14 @@ import {
     XIcon,
     DumbbellIcon,
     ChevronDownIcon,
+    DropletIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { can, PERMISSIONS, useCurrentUserPermissions } from "@/lib/permissions";
 import type { PermissionCode } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
+import { getCurrentAdminUser } from "@/services/auth.service";
 
 interface NavigationItem {
     name: string;
@@ -54,17 +57,34 @@ const navigation: NavigationItem[] = [
         children: [
             { name: "Exercise Creation", href: "/dashboard/workouts/exercises" },
             { name: "Planning", href: "/dashboard/workouts/planning" },
-            { name: "Tracking", href: "/dashboard/workouts/tracking" },
         ],
     },
     { name: "Orders", href: "/dashboard/orders", icon: ShoppingCartIcon, permission: PERMISSIONS.VIEW_ORDERS },
     { name: "Payments", href: "/dashboard/payments", icon: CreditCardIcon, permission: PERMISSIONS.MANAGE_ORDERS },
     { name: "Email Logs", href: "/dashboard/email-logs", icon: MailIcon, permission: PERMISSIONS.MANAGE_SETTINGS },
+    { name: "Blood Reports", href: "/dashboard/blood-reports", icon: DropletIcon, permission: PERMISSIONS.VIEW_REPORTS },
     // { name: "Security", href: "/dashboard/security", icon: ShieldCheckIcon },
     { name: "Macro Calculator", href: "/dashboard/macro-calculator", icon: CalculatorIcon, permission: PERMISSIONS.VIEW_PLANS },
-    { name: "Diet/Meal Plan", href: "/dashboard/diet-plan-creator", icon: PackageIcon, permission: PERMISSIONS.MANAGE_DIET },
-    { name: "Client Trackers", href: "/dashboard/check-in-tracker", icon: ActivityIcon, permission: PERMISSIONS.VIEW_PROGRESS },
-    { name: "Measurements", href: "/dashboard/measurements", icon: RulerIcon, permission: PERMISSIONS.VIEW_PROGRESS },
+    {
+        name: "Diet/Meal Plan",
+        href: "/dashboard/diet-plans",
+        icon: PackageIcon,
+        permission: PERMISSIONS.MANAGE_DIET,
+        children: [
+            { name: "Planning", href: "/dashboard/diet-plans/planning" },
+            { name: "Tracking", href: "/dashboard/diet-plans/tracking" },
+        ],
+    },
+    {
+        name: "Client Progress Tracker",
+        href: "/dashboard/client-tracking",
+        icon: ActivityIcon,
+        permission: PERMISSIONS.VIEW_PROGRESS,
+        children: [
+            { name: "Checkins", href: "/dashboard/client-tracking/checkins" },
+            { name: "Measurements", href: "/dashboard/client-tracking/measurements" },
+        ],
+    },
     { name: "Settings", href: "/dashboard/settings", icon: SettingsIcon, permission: PERMISSIONS.MANAGE_SETTINGS },
 ];
 
@@ -73,8 +93,19 @@ export default function Sidebar() {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
         Workouts: pathname.startsWith("/dashboard/workouts"),
+        "Diet/Meal Plan": pathname.startsWith("/dashboard/diet-plans"),
+        "Client Progress Tracker": pathname.startsWith("/dashboard/client-tracking"),
     });
-    const { userPermissions, permissionsLoading } = useCurrentUserPermissions();
+    const { userPermissions, permissionsLoading, sessionStatus, tenantId } = useCurrentUserPermissions();
+    const { data: currentUser } = useQuery({
+        queryKey: ["sidebar-current-user", tenantId],
+        enabled: sessionStatus === "authenticated",
+        queryFn: getCurrentAdminUser,
+    });
+
+    const currentMembership = currentUser?.memberships?.find((membership) => membership.tenant_id === tenantId) || currentUser?.memberships?.[0];
+    const organizationName = currentMembership?.tenant_name;
+    const organizationLogo = currentMembership?.tenant_logo || null;
 
     const visibleNavigation = permissionsLoading
         ? navigation.filter((item) => !item.permission)
@@ -87,9 +118,22 @@ export default function Sidebar() {
     const sidebarContent = (
         <>
             <div className="flex h-16 shrink-0 items-center justify-between px-6 border-b border-zinc-200 dark:border-zinc-800 transition-colors">
-                <span className="text-xl font-bold bg-gradient-to-r from-red-600 to-orange-500 dark:from-red-400 dark:to-orange-400 bg-clip-text text-transparent">
-                    SaaS Admin
-                </span>
+                <Link href="/dashboard" onClick={() => setIsMobileOpen(false)} className="min-w-0">
+                    {organizationLogo ? (
+                        <Image
+                            src={organizationLogo}
+                            alt={`${organizationName} logo`}
+                            width={160}
+                            height={40}
+                            unoptimized
+                            className="max-h-10 w-auto max-w-40 object-contain"
+                        />
+                    ) : (
+                        <span className="block truncate text-xl font-bold bg-gradient-to-r from-red-600 to-orange-500 dark:from-red-400 dark:to-orange-400 bg-clip-text text-transparent">
+                            {organizationName}
+                        </span>
+                    )}
+                </Link>
                 <button
                     type="button"
                     onClick={() => setIsMobileOpen(false)}

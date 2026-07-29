@@ -1,6 +1,6 @@
 from rest_framework import serializers
-from checkins.models import DailyLog
-from checkins.serializers import DailyLogSerializer
+from progress.checkins.models import CheckinLog
+from progress.checkins.serializers import CheckInLogSerializer
 
 class CheckInService:
     @staticmethod
@@ -16,12 +16,12 @@ class CheckInService:
             log_id = data.get('id')
             if log_id:
                 try:
-                    log = DailyLog.objects.get(id=log_id)
-                    serializer = DailyLogSerializer(log, data=data, partial=True)
-                except DailyLog.DoesNotExist:
-                    raise serializers.ValidationError(f"DailyLog with id {log_id} does not exist.")
+                    log = CheckinLog.objects.get(id=log_id)
+                    serializer = CheckInLogSerializer(log, data=data, partial=True)
+                except CheckinLog.DoesNotExist:
+                    raise serializers.ValidationError(f"CheckinLog with id {log_id} does not exist.")
             else:
-                serializer = DailyLogSerializer(data=data)
+                serializer = CheckInLogSerializer(data=data)
                 
             serializer.is_valid(raise_exception=True)
             serializer.save()

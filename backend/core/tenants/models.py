@@ -61,6 +61,7 @@ class Organization(TimeAwareModel):
     website = models.URLField(null=True, blank=True)
     gstin = models.CharField(max_length=15, null=True, blank=True)  # Tax ID
     currency = models.CharField(max_length=3, default='INR')
+    brand_color = models.CharField(max_length=7, default="#EF4444")
     is_active = models.BooleanField(default=True)
 
     # Flexible settings (Theme, notifications, features)

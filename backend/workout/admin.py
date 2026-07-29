@@ -11,7 +11,6 @@ from .models.planning import (
     WorkoutPlan,
     WorkoutPlanAssignment,
 )
-from .models.tracking import SetLog, WorkoutLog, WorkoutSession
 
 
 # Planning tables
@@ -72,21 +71,3 @@ class WorkoutExerciseAdmin(admin.ModelAdmin):
     list_display = ('workout_day', 'sequence', 'body_part', 'exercise', 'sets', 'reps', 'rest')
     list_filter = ('workout_day',)
     search_fields = ('workout_day__name', 'exercise__name')
-
-
-# Tracking tables
-@admin.register(WorkoutSession)
-class WorkoutSessionAdmin(admin.ModelAdmin):
-    list_display = ('client', 'session_date', 'plan_assignment')
-    list_filter = ('session_date', 'tenant')
-
-
-@admin.register(WorkoutLog)
-class WorkoutLogAdmin(admin.ModelAdmin):
-    list_display = ('session', 'exercise')
-
-
-@admin.register(SetLog)
-class SetLogAdmin(admin.ModelAdmin):
-    list_display = ('workout_log', 'sequence', 'set_number', 'reps', 'weight', 'is_pr')
-    list_filter = ('is_pr',)

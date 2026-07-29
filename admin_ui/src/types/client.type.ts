@@ -4,6 +4,7 @@ export interface ClientData {
         first_name: string;
         last_name: string;
         email: string;
+        public_id: string | null;
     };
     phone: string;
     status: string;

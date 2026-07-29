@@ -7,20 +7,14 @@ import type {
     MusclePayload,
     MuscleGroup,
     MuscleGroupPayload,
-    SetLog,
-    SetLogPayload,
     WorkoutDay,
     WorkoutDayPayload,
     WorkoutExercise,
     WorkoutExercisePayload,
-    WorkoutLog,
-    WorkoutLogPayload,
     WorkoutPlan,
     WorkoutPlanAssignment,
     WorkoutPlanAssignmentPayload,
     WorkoutPlanPayload,
-    WorkoutSession,
-    WorkoutSessionPayload,
 } from "@/types/workout.type";
 
 type PaginatedResponse<T> = {
@@ -201,61 +195,4 @@ export async function updateWorkoutExercise(id: string | number, payload: Workou
 
 export async function deleteWorkoutExercise(id: string | number): Promise<void> {
     await api.delete(API_ENDPOINTS.workout.workoutExerciseDetail(id));
-}
-
-export async function getWorkoutSessions(): Promise<WorkoutSession[]> {
-    const response = await api.get<ListResponse<WorkoutSession>>(API_ENDPOINTS.workout.sessions);
-    return normalizeList(response.data);
-}
-
-export async function createWorkoutSession(payload: WorkoutSessionPayload): Promise<WorkoutSession> {
-    const response = await api.post<WorkoutSession>(API_ENDPOINTS.workout.sessions, payload);
-    return response.data;
-}
-
-export async function updateWorkoutSession(id: string, payload: WorkoutSessionPayload): Promise<WorkoutSession> {
-    const response = await api.put<WorkoutSession>(API_ENDPOINTS.workout.sessionDetail(id), payload);
-    return response.data;
-}
-
-export async function deleteWorkoutSession(id: string): Promise<void> {
-    await api.delete(API_ENDPOINTS.workout.sessionDetail(id));
-}
-
-export async function getWorkoutLogs(): Promise<WorkoutLog[]> {
-    const response = await api.get<ListResponse<WorkoutLog>>(API_ENDPOINTS.workout.logs);
-    return normalizeList(response.data);
-}
-
-export async function createWorkoutLog(payload: WorkoutLogPayload): Promise<WorkoutLog> {
-    const response = await api.post<WorkoutLog>(API_ENDPOINTS.workout.logs, payload);
-    return response.data;
-}
-
-export async function updateWorkoutLog(id: string, payload: WorkoutLogPayload): Promise<WorkoutLog> {
-    const response = await api.put<WorkoutLog>(API_ENDPOINTS.workout.logDetail(id), payload);
-    return response.data;
-}
-
-export async function deleteWorkoutLog(id: string): Promise<void> {
-    await api.delete(API_ENDPOINTS.workout.logDetail(id));
-}
-
-export async function getSetLogs(): Promise<SetLog[]> {
-    const response = await api.get<ListResponse<SetLog>>(API_ENDPOINTS.workout.sets);
-    return normalizeList(response.data);
-}
-
-export async function createSetLog(payload: SetLogPayload): Promise<SetLog> {
-    const response = await api.post<SetLog>(API_ENDPOINTS.workout.sets, payload);
-    return response.data;
-}
-
-export async function updateSetLog(id: string, payload: SetLogPayload): Promise<SetLog> {
-    const response = await api.put<SetLog>(API_ENDPOINTS.workout.setDetail(id), payload);
-    return response.data;
-}
-
-export async function deleteSetLog(id: string): Promise<void> {
-    await api.delete(API_ENDPOINTS.workout.setDetail(id));
 }

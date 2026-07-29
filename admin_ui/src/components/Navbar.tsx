@@ -67,24 +67,9 @@ export default function Navbar() {
     }, []);
 
     return (
-        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 pl-16 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8 text-zinc-900 dark:text-white transition-colors">
-            <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-                <form className="relative flex flex-1" action="#" method="GET">
-                    <label htmlFor="search-field" className="sr-only">
-                        Search
-                    </label>
-                    <SearchIcon
-                        className="pointer-events-none absolute inset-y-0 left-0 h-full w-5 text-zinc-400 dark:text-zinc-500 ml-4"
-                        aria-hidden="true"
-                    />
-                    <input
-                        id="search-field"
-                        className="block h-full w-full border-0 py-0 pl-12 pr-0 bg-transparent text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:ring-0 sm:text-sm"
-                        placeholder="Search Admin Console..."
-                        type="search"
-                        name="search"
-                    />
-                </form>
+        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-end gap-x-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 pl-16 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8 text-zinc-900 dark:text-white transition-colors">
+            <div className="flex flex-1 justify-end gap-x-4 self-stretch lg:gap-x-6">
+                
                 <div className="flex items-center gap-x-4 lg:gap-x-6">
                     {/* Theme Toggle */}
                     <button

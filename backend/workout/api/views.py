@@ -13,7 +13,6 @@ from workout.models.planning import (
     WorkoutPlan,
     WorkoutPlanAssignment,
 )
-from workout.models.tracking import SetLog, WorkoutLog, WorkoutSession
 from workout.selectors import get_tenant_queryset
 from workout.services.pdf_service import create_workout_plan_pdf, send_workout_plan_email
 
@@ -21,13 +20,10 @@ from .serializers import (
     ExerciseSerializer,
     MuscleSerializer,
     MuscleGroupSerializer,
-    SetLogSerializer,
     WorkoutDaySerializer,
     WorkoutExerciseSerializer,
-    WorkoutLogSerializer,
     WorkoutPlanAssignmentSerializer,
     WorkoutPlanSerializer,
-    WorkoutSessionSerializer,
 )
 
 
@@ -113,18 +109,3 @@ class WorkoutExerciseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return WorkoutExercise.objects.filter(workout_day__tenant=self.request.tenant)
-
-
-class WorkoutSessionViewSet(TenantScopedViewSet):
-    model = WorkoutSession
-    serializer_class = WorkoutSessionSerializer
-
-
-class WorkoutLogViewSet(TenantScopedViewSet):
-    model = WorkoutLog
-    serializer_class = WorkoutLogSerializer
-
-
-class SetLogViewSet(TenantScopedViewSet):
-    model = SetLog
-    serializer_class = SetLogSerializer

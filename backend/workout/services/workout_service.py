@@ -7,12 +7,9 @@ from workout.models import (
     Exercise,
     ExerciseMedia,
     ExerciseMuscle,
-    SetLog,
     WorkoutDay,
     WorkoutExercise,
-    WorkoutLog,
     WorkoutPlanAssignment,
-    WorkoutSession,
 )
 
 
@@ -168,70 +165,4 @@ def replace_client_workout_assignment(
         end_date=end_date,
         status=status or WorkoutPlanAssignment.StatusChoices.ACTIVE,
         notes=notes if notes is not None else assignment.notes,
-    )
-
-
-@transaction.atomic
-def create_workout_session(
-    *,
-    tenant,
-    client,
-    session_date,
-    plan_assignment=None,
-    workout_day=None,
-):
-    return WorkoutSession.objects.create(
-        tenant=tenant,
-        client=client,
-        session_date=session_date,
-        plan_assignment=plan_assignment,
-        workout_day=workout_day,
-    )
-
-
-@transaction.atomic
-def record_set_log(
-    *,
-    tenant,
-    workout_log,
-    set_number,
-    reps,
-    weight,
-    rest_sec,
-    sequence=1,
-    is_pr=False,
-):
-    return SetLog.objects.create(
-        tenant=tenant,
-        workout_log=workout_log,
-        sequence=sequence,
-        set_number=set_number,
-        reps=reps,
-        weight=weight,
-        rest_sec=rest_sec,
-        is_pr=is_pr,
-    )
-
-
-@transaction.atomic
-def create_workout_log(
-    *,
-    tenant,
-    session,
-    exercise,
-    plan_exercise=None,
-    planned_sets=None,
-    planned_reps=None,
-    planned_weight=None,
-    notes='',
-):
-    return WorkoutLog.objects.create(
-        tenant=tenant,
-        session=session,
-        exercise=exercise,
-        plan_exercise=plan_exercise,
-        planned_sets=planned_sets,
-        planned_reps=planned_reps,
-        planned_weight=planned_weight,
-        notes=notes,
     )

@@ -1,27 +1,143 @@
+"use client";
+
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
+import {
+    ClipboardListIcon,
+    DumbbellIcon,
+    Loader2Icon,
+    UsersIcon,
+    UserCheckIcon,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+import { getClients } from "@/services/client.service";
+import { getDietPlans } from "@/services/diet-plan.service";
+import { getWorkoutPlans } from "@/services/workout.service";
+import { cn } from "@/lib/utils";
+
+interface StatCard {
+    name: string;
+    value: number | null;
+    helper: string;
+    icon: LucideIcon;
+    tone: string;
+    isLoading: boolean;
+    isError: boolean;
+}
+
+function formatCount(value: number | null): string {
+    return value === null ? "-" : value.toLocaleString();
+}
+
+function DashboardStatCard({ stat }: { stat: StatCard }) {
+    return (
+        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white px-4 py-5 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-700/50 dark:bg-zinc-800/50 dark:hover:bg-zinc-800 sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                    <dt className="truncate text-sm font-medium text-zinc-500 transition-colors dark:text-zinc-400">
+                        {stat.name}
+                    </dt>
+                    <dd className="mt-2 flex items-center text-3xl font-semibold text-zinc-900 transition-colors dark:text-white">
+                        {stat.isLoading ? (
+                            <Loader2Icon className="h-7 w-7 animate-spin text-zinc-400" aria-label={`Loading ${stat.name}`} />
+                        ) : (
+                            formatCount(stat.value)
+                        )}
+                    </dd>
+                </div>
+                <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-lg", stat.tone)}>
+                    <stat.icon className="h-5 w-5" aria-hidden="true" />
+                </div>
+            </div>
+            <p className={cn("mt-4 text-sm", stat.isError ? "text-red-600 dark:text-red-400" : "text-zinc-500 dark:text-zinc-400")}>
+                {stat.isError ? "Unable to load this metric." : stat.helper}
+            </p>
+        </div>
+    );
+}
+
 export default function AdminDashboardPage() {
+    const { data: session } = useSession();
+    const profileName = session?.user?.name || session?.user?.email || "Admin";
+    const {
+        data: clients = [],
+        isLoading: clientsLoading,
+        isError: clientsError,
+    } = useQuery({
+        queryKey: ["dashboard-clients"],
+        queryFn: getClients,
+    });
+    const {
+        data: workoutPlans = [],
+        isLoading: workoutPlansLoading,
+        isError: workoutPlansError,
+    } = useQuery({
+        queryKey: ["dashboard-workout-plans"],
+        queryFn: getWorkoutPlans,
+    });
+    const {
+        data: dietPlans = [],
+        isLoading: dietPlansLoading,
+        isError: dietPlansError,
+    } = useQuery({
+        queryKey: ["dashboard-diet-plans"],
+        queryFn: getDietPlans,
+    });
+
+    const activeClients = useMemo(
+        () => clients.filter((client) => client.status === "active").length,
+        [clients],
+    );
+
+    const stats: StatCard[] = [
+        {
+            name: "Active Clients",
+            value: clientsError ? null : activeClients,
+            helper: "Clients currently marked active.",
+            icon: UserCheckIcon,
+            tone: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400",
+            isLoading: clientsLoading,
+            isError: clientsError,
+        },
+        {
+            name: "Total Clients",
+            value: clientsError ? null : clients.length,
+            helper: "All client profiles in this organization.",
+            icon: UsersIcon,
+            tone: "bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400",
+            isLoading: clientsLoading,
+            isError: clientsError,
+        },
+        {
+            name: "Workout Plans",
+            value: workoutPlansError ? null : workoutPlans.length,
+            helper: "Workout plan templates created.",
+            icon: DumbbellIcon,
+            tone: "bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400",
+            isLoading: workoutPlansLoading,
+            isError: workoutPlansError,
+        },
+        {
+            name: "Diet Plans",
+            value: dietPlansError ? null : dietPlans.length,
+            helper: "Diet plan templates created.",
+            icon: ClipboardListIcon,
+            tone: "bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400",
+            isLoading: dietPlansLoading,
+            isError: dietPlansError,
+        },
+    ];
+
     return (
         <div>
-            <h1 className="text-2xl font-semibold text-zinc-900 dark:text-white transition-colors">Admin Overview</h1>
-            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400 transition-colors">
-                Monitor system status, users, and payments from this console.
-            </p>
-
-            <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                {[
-                    { name: 'Total Users', value: '1,234'},
-                    { name: 'Today\'s Order', value: '45' },
-                ].map((stat) => (
-                    <div key={stat.name} className="overflow-hidden rounded-xl bg-white dark:bg-zinc-800/50 px-4 py-5 shadow-sm border border-zinc-200 dark:border-zinc-700/50 sm:p-6 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800">
-                        <dt className="truncate text-sm font-medium text-zinc-500 dark:text-zinc-400 transition-colors">{stat.name}</dt>
-                        <dd className="mt-1 flex items-baseline justify-between md:block lg:flex">
-                            <div className="flex items-baseline text-2xl font-semibold text-zinc-900 dark:text-white transition-colors">
-                                {stat.value}
-                                
-                            </div>
-                        </dd>
-                    </div>
+            <h1 className="text-2xl font-semibold text-zinc-900 transition-colors dark:text-white">Welcome {profileName}</h1>
+            <dl className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {stats.map((stat) => (
+                    <DashboardStatCard key={stat.name} stat={stat} />
                 ))}
-            </div>
+            </dl>
         </div>
     );
 }

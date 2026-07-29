@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { DropletIcon, SaveIcon, HistoryIcon, PlusIcon, TrashIcon, FileTextIcon, DownloadIcon, BarChart3Icon } from "lucide-react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { DropletIcon, SaveIcon, HistoryIcon, PlusIcon, TrashIcon, DownloadIcon } from "lucide-react";
 import api from "@/lib/api";
 import {
     Chart as ChartJS,
@@ -27,20 +27,79 @@ ChartJS.register(
     Filler
 );
 
+interface BloodMarker {
+    id?: string;
+    marker_name: string;
+    marker_type?: string;
+    value: string;
+    unit?: string | null;
+    normal_min?: string | null;
+    normal_max?: string | null;
+    reference_range?: string;
+    is_abnormal?: boolean;
+}
+
+interface BloodReport {
+    id: string;
+    client?: string;
+    report_date: string;
+    lab_name?: string | null;
+    notes?: string | null;
+    report_file?: string | null;
+    markers?: BloodMarker[];
+    created_at?: string;
+}
+
+type BloodReportListResponse = BloodReport[] | {
+    results?: BloodReport[];
+    data?: BloodReport[];
+};
+
+interface BloodReportFormState {
+    report_date: string;
+    lab_name: string;
+    notes: string;
+    markers: BloodMarker[];
+}
+
+function normalizeBloodReports(data: BloodReportListResponse): BloodReport[] {
+    if (Array.isArray(data)) {
+        return data;
+    }
+    if (Array.isArray(data.results)) {
+        return data.results;
+    }
+    if (Array.isArray(data.data)) {
+        return data.data;
+    }
+    return [];
+}
+
+function toBloodMarkerPayload(marker: BloodMarker): BloodMarker {
+    return {
+        marker_name: marker.marker_name,
+        value: marker.value,
+        unit: marker.unit || "",
+        normal_min: marker.normal_min || null,
+        normal_max: marker.normal_max || null,
+        is_abnormal: marker.is_abnormal,
+    };
+}
+
 export default function BloodReportsPage() {
     const [loading, setLoading] = useState(false);
-    const [reports, setReports] = useState<any[]>([]);
+    const [reports, setReports] = useState<BloodReport[]>([]);
     const [reportFile, setReportFile] = useState<File | null>(null);
     const [selectedMarker, setSelectedMarker] = useState<string>("hba1c");
-    const [form, setForm] = useState({
-        date: new Date().toISOString().split("T")[0],
+    const [form, setForm] = useState<BloodReportFormState>({
+        report_date: new Date().toISOString().split("T")[0],
         lab_name: "",
         notes: "",
-        readings: [
+        markers: [
             { marker_name: "HbA1c", marker_type: "hba1c", value: "", unit: "%", reference_range: "< 5.7" },
             { marker_name: "Glucose (Fasting)", marker_type: "glucose_fasting", value: "", unit: "mg/dL", reference_range: "70-99" },
             { marker_name: "Total Cholesterol", marker_type: "cholesterol_total", value: "", unit: "mg/dL", reference_range: "< 200" },
-        ]
+        ],
     });
 
     useEffect(() => {
@@ -49,39 +108,39 @@ export default function BloodReportsPage() {
 
     const fetchReports = async () => {
         try {
-            const res = await api.get("reports/blood-reports/");
+            const res = await api.get<BloodReportListResponse>("reports/blood-reports/");
             // Sort by date descending for the list
-            const sorted = [...res.data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            const sorted = normalizeBloodReports(res.data).sort((a, b) => new Date(b.report_date).getTime() - new Date(a.report_date).getTime());
             setReports(sorted);
         } catch (err) {
             console.error("Failed to fetch reports:", err);
             // Fallback dummy data for preview
             const dummy = [
                 {
-                    id: 1,
-                    date: "2024-02-15",
+                    id: "1",
+                    report_date: "2024-02-15",
                     lab_name: "City Diagnostics",
-                    readings: [
+                    markers: [
                         { marker_name: "HbA1c", marker_type: "hba1c", value: "5.4", unit: "%" },
                         { marker_name: "Glucose", marker_type: "glucose_fasting", value: "92", unit: "mg/dL" },
                         { marker_name: "Total Cholesterol", marker_type: "cholesterol_total", value: "180", unit: "mg/dL" }
                     ]
                 },
                 {
-                    id: 2,
-                    date: "2023-11-10",
+                    id: "2",
+                    report_date: "2023-11-10",
                     lab_name: "City Diagnostics",
-                    readings: [
+                    markers: [
                         { marker_name: "HbA1c", marker_type: "hba1c", value: "5.8", unit: "%" },
                         { marker_name: "Glucose", marker_type: "glucose_fasting", value: "105", unit: "mg/dL" },
                         { marker_name: "Total Cholesterol", marker_type: "cholesterol_total", value: "210", unit: "mg/dL" }
                     ]
                 },
                 {
-                    id: 3,
-                    date: "2023-08-05",
+                    id: "3",
+                    report_date: "2023-08-05",
                     lab_name: "Health Clinic",
-                    readings: [
+                    markers: [
                         { marker_name: "HbA1c", marker_type: "hba1c", value: "6.1", unit: "%" },
                         { marker_name: "Glucose", marker_type: "glucose_fasting", value: "115", unit: "mg/dL" },
                         { marker_name: "Total Cholesterol", marker_type: "cholesterol_total", value: "225", unit: "mg/dL" }
@@ -95,17 +154,17 @@ export default function BloodReportsPage() {
     // Prepare chart data
     const chartData = useMemo(() => {
         // Sort chronologically for chart
-        const sortedReports = [...reports].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const sortedReports = [...reports].sort((a, b) => new Date(a.report_date).getTime() - new Date(b.report_date).getTime());
         
-        const labels = sortedReports.map(r => r.date);
+        const labels = sortedReports.map(r => r.report_date);
         const dataPoints = sortedReports.map(r => {
-            const reading = r.readings?.find((rd: any) => 
+            const reading = r.markers?.find((rd) =>
                 rd.marker_type === selectedMarker || rd.marker_name?.toLowerCase().includes(selectedMarker.toLowerCase())
             );
             return reading ? parseFloat(reading.value) : null;
         });
 
-        const currentMarkerName = sortedReports[0]?.readings?.find((rd: any) => 
+        const currentMarkerName = sortedReports[0]?.markers?.find((rd) =>
             rd.marker_type === selectedMarker || rd.marker_name?.toLowerCase().includes(selectedMarker.toLowerCase())
         )?.marker_name || selectedMarker;
 
@@ -125,9 +184,9 @@ export default function BloodReportsPage() {
     }, [reports, selectedMarker]);
 
     const availableMarkers = useMemo(() => {
-        const markerMap = new Map();
+        const markerMap = new Map<string, string>();
         reports.forEach(report => {
-            report.readings?.forEach((reading: any) => {
+            report.markers?.forEach((reading) => {
                 const key = reading.marker_type || reading.marker_name;
                 if (key && !markerMap.has(key)) {
                     markerMap.set(key, reading.marker_name);
@@ -137,53 +196,55 @@ export default function BloodReportsPage() {
         return Array.from(markerMap.entries()).map(([type, name]) => ({ type, name }));
     }, [reports]);
 
-    const handleFormChange = (e: any) => {
+    const handleFormChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setForm({ ...form, [e.target.name]: e.target.value });
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             setReportFile(e.target.files[0]);
         }
     };
 
-    const handleReadingChange = (index: number, field: string, value: string) => {
-        const newReadings = [...form.readings];
+    const handleReadingChange = (index: number, field: keyof BloodMarker, value: string) => {
+        const newReadings = [...form.markers];
         newReadings[index] = { ...newReadings[index], [field]: value };
-        setForm({ ...form, readings: newReadings });
+        setForm({ ...form, markers: newReadings });
     };
 
     const addMarker = () => {
         setForm({
             ...form,
-            readings: [...form.readings, { marker_name: "", marker_type: "", value: "", unit: "", reference_range: "" }]
+            markers: [...form.markers, { marker_name: "", marker_type: "", value: "", unit: "" }]
         });
     };
 
     const removeMarker = (index: number) => {
-        const newReadings = form.readings.filter((_, i) => i !== index);
-        setForm({ ...form, readings: newReadings });
+        const newReadings = form.markers.filter((_, i) => i !== index);
+        setForm({ ...form, markers: newReadings });
     };
 
-    const handleSubmit = async (e: any) => {
+    const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setLoading(true);
 
         const formData = new FormData();
-        formData.append("date", form.date);
+        formData.append("report_date", form.report_date);
         formData.append("lab_name", form.lab_name);
         formData.append("notes", form.notes);
         
         // Filter out empty readings before sending
-        const filteredReadings = form.readings.filter(r => r.marker_name.trim() !== "" && r.value !== "");
-        formData.append("readings", JSON.stringify(filteredReadings));
+        const filteredReadings = form.markers
+            .filter(r => r.marker_name.trim() !== "" && r.value !== "")
+            .map(toBloodMarkerPayload);
+        formData.append("markers", JSON.stringify(filteredReadings));
         
         if (reportFile) {
             formData.append("report_file", reportFile);
         }
 
         try {
-            const res = await api.post("reports/blood-reports/", formData, {
+            const res = await api.post<BloodReport>("reports/blood-reports/", formData, {
                 headers: {
                     "Content-Type": "multipart/form-data"
                 }
@@ -195,7 +256,7 @@ export default function BloodReportsPage() {
                 ...form,
                 lab_name: "",
                 notes: "",
-                readings: form.readings.map(r => ({ ...r, value: "" }))
+                markers: form.markers.map(r => ({ ...r, value: "" }))
             });
             setReportFile(null);
             // Reset file input manually if needed
@@ -237,7 +298,7 @@ export default function BloodReportsPage() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="col-span-2 md:col-span-1">
                                     <label className="block text-xs uppercase font-bold text-zinc-500 mb-1">Report Date</label>
-                                    <input required type="date" name="date" value={form.date} onChange={handleFormChange} className="w-full bg-zinc-50 border border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800 rounded-md px-3 py-2 text-sm outline-none focus:border-red-500 transition-colors" />
+                                    <input required type="date" name="report_date" value={form.report_date} onChange={handleFormChange} className="w-full bg-zinc-50 border border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800 rounded-md px-3 py-2 text-sm outline-none focus:border-red-500 transition-colors" />
                                 </div>
                                 <div className="col-span-2 md:col-span-1">
                                     <label className="block text-xs uppercase font-bold text-zinc-500 mb-1">Lab Name</label>
@@ -265,7 +326,7 @@ export default function BloodReportsPage() {
                                     </button>
                                 </div>
 
-                                {form.readings.map((reading, idx) => (
+                                {form.markers.map((reading, idx) => (
                                     <div key={idx} className="space-y-2 p-3 bg-zinc-50 dark:bg-zinc-950/50 rounded-lg border border-zinc-100 dark:border-zinc-800 relative">
                                         <button type="button" onClick={() => removeMarker(idx)} className="absolute top-2 right-2 text-zinc-400 hover:text-red-500">
                                             <TrashIcon className="w-4 h-4" />
@@ -292,7 +353,7 @@ export default function BloodReportsPage() {
                                                 <label className="block text-[10px] uppercase font-bold text-zinc-500">Unit</label>
                                                 <input
                                                     placeholder="mg/dL"
-                                                    value={reading.unit}
+                                                    value={reading.unit || ""}
                                                     onChange={(e) => handleReadingChange(idx, 'unit', e.target.value)}
                                                     className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-sm outline-none focus:border-red-500"
                                                 />
@@ -317,7 +378,6 @@ export default function BloodReportsPage() {
                         <div className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-6">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                                 <div className="flex items-center gap-2">
-                                    <BarChart3Icon className="w-5 h-5 text-red-500" />
                                     <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Marker Comparison</h2>
                                 </div>
                                 <select 
@@ -377,9 +437,9 @@ export default function BloodReportsPage() {
                                         <div className="flex justify-between items-start mb-3">
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2">
-                                                    <h3 className="font-bold text-zinc-900 dark:text-white">{report.date}</h3>
+                                                    <h3 className="font-bold text-zinc-900 dark:text-white">{report.report_date}</h3>
                                                     <div className="flex flex-wrap gap-1">
-                                                        {report.readings?.map((r: any, idx: number) => (
+                                                        {report.markers?.map((r, idx) => (
                                                             <span 
                                                                 key={idx} 
                                                                 className={`text-[8px] px-1.5 py-0.5 rounded-full border ${
@@ -408,7 +468,7 @@ export default function BloodReportsPage() {
                                             )}
                                         </div>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            {report.readings?.map((reading: any, rIdx: number) => (
+                                            {report.markers?.map((reading, rIdx) => (
                                                 <button 
                                                     key={rIdx} 
                                                     onClick={() => setSelectedMarker(reading.marker_type || reading.marker_name)}

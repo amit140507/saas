@@ -1,10 +1,17 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import generics, status, viewsets
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import Organization, Role, Permission, OrganizationMember
 from core.tenants.serializers import TenantSerializer, TenantCreateSerializer # as per existing view
 from core.tenants.services import create_tenant
-from .serializers import RoleSerializer, PermissionSerializer, OrganizationMemberSerializer
+from .serializers import (
+    OrganizationSettingsSerializer,
+    RoleSerializer,
+    PermissionSerializer,
+    OrganizationMemberSerializer,
+)
 from .permissions import IsTenantOwner, HasPermission
 
 class OrganizationListView(generics.ListCreateAPIView):
@@ -37,6 +44,27 @@ class OrganizationListView(generics.ListCreateAPIView):
             TenantSerializer(tenant, context=self.get_serializer_context()).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class OrganizationSettingsView(generics.RetrieveUpdateAPIView):
+    """Retrieve/update organization settings. Only org owners can access it."""
+    serializer_class = OrganizationSettingsSerializer
+    permission_classes = [IsTenantOwner]
+    http_method_names = ["get", "patch", "head", "options"]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_object(self):
+        if not self.request.tenant or self.request.tenant.pk != self.kwargs["tenant_id"]:
+            from rest_framework.exceptions import NotFound
+            raise NotFound("Organization not found.")
+        tenant = get_object_or_404(
+            Organization,
+            pk=self.kwargs["tenant_id"],
+            is_active=True,
+        )
+        self.check_object_permissions(self.request, tenant)
+        return tenant
+
 
 class RoleViewSet(viewsets.ModelViewSet):
     """CRUD for Roles. Only org owners can manage roles."""

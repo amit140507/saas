@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import OrganizationListView, RoleViewSet, PermissionViewSet, OrganizationMemberViewSet
+from .views import OrganizationListView, OrganizationSettingsView, RoleViewSet, PermissionViewSet, OrganizationMemberViewSet
 
 router = DefaultRouter()
 router.register(r'roles', RoleViewSet, basename='roles')
@@ -9,5 +9,6 @@ router.register(r'members', OrganizationMemberViewSet, basename='members')
 
 urlpatterns = [
     path('', OrganizationListView.as_view(), name='organization-list'),
+    path('<uuid:tenant_id>/settings/', OrganizationSettingsView.as_view(), name='organization-settings'),
     path('<uuid:tenant_id>/', include(router.urls)),
 ]

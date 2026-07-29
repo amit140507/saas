@@ -1,7 +1,11 @@
 export const API_ENDPOINTS = {
     auth: {
+        currentUser: "auth/user/",
         passwordReset: "auth/password/reset/",
         passwordResetConfirm: "auth/password/reset/confirm/",
+    },
+    organizations: {
+        settings: (tenantId: string) => `organizations/${tenantId}/settings/`,
     },
     clients: {
         list: "clients/clients/",
@@ -10,6 +14,14 @@ export const API_ENDPOINTS = {
         deactivate: (id: string) => `clients/clients/${id}/deactivate/`,
     },
     meal: {
+        foodItems: "meal/food-items/",
+        foodItemDetail: (id: string) => `meal/food-items/${id}/`,
+        plans: "meal/plans/",
+        planDetail: (id: string) => `meal/plans/${id}/`,
+        assignments: "meal/assignments/",
+        assignmentDetail: (id: string) => `meal/assignments/${id}/`,
+        plannedMeals: "meal/planned-meals/",
+        plannedMealDetail: (id: string) => `meal/planned-meals/${id}/`,
         generateDietPlanPdf: "meal/generate-pdf/",
         downloadDietPlanPdf: "meal/download-pdf/",
     },
@@ -40,6 +52,18 @@ export const API_ENDPOINTS = {
     communications: {
         emailLogs: "communications/email-logs/",
     },
+    reports: {
+        bloodReports: "reports/blood-reports/",
+        bloodReportDetail: (id: string) => `reports/blood-reports/${id}/`,
+    },
+    progress: {
+        checkins: "progress/daily-checkins/",
+        checkinDetail: (id: string) => `progress/daily-checkins/${id}/`,
+        checkinLogs: "progress/daily-checkins-logs/",
+        checkinLogDetail: (id: string | number) => `progress/daily-checkins-logs/${id}/`,
+        weeklyMeasurements: "progress/weekly-measurements/",
+        weeklyMeasurementDetail: (id: string) => `progress/weekly-measurements/${id}/`,
+    },
     subscriptions: {
         memberships: "subscriptions/memberships/",
         membershipDetail: (id: string) => `subscriptions/memberships/${id}/`,
@@ -63,11 +87,5 @@ export const API_ENDPOINTS = {
         muscleDetail: (id: string | number) => `workout/muscles/${id}/`,
         workoutExercises: "workout/workout-exercises/",
         workoutExerciseDetail: (id: string | number) => `workout/workout-exercises/${id}/`,
-        sessions: "workout/sessions/",
-        sessionDetail: (id: string) => `workout/sessions/${id}/`,
-        logs: "workout/logs/",
-        logDetail: (id: string) => `workout/logs/${id}/`,
-        sets: "workout/sets/",
-        setDetail: (id: string) => `workout/sets/${id}/`,
     },
 } as const;
