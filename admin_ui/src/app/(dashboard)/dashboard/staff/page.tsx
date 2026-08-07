@@ -6,6 +6,11 @@ import { can, PERMISSIONS, useCurrentUserPermissions } from "@/lib/permissions";
 import { ShieldCheckIcon, SearchIcon, PlusIcon, EditIcon, Trash2Icon, Loader2Icon } from "lucide-react";
 import { redirect } from "next/navigation";
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { EmptyState, PageHeader, PageShell } from "@/components/ui/page";
 
 interface StaffMember {
     id: string;
@@ -169,6 +174,15 @@ const isMultipartPayload = (payload: StaffMutationPayload): payload is FormData 
     return payload instanceof FormData;
 };
 
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+    return (
+        <div className="flex items-start justify-between gap-4 text-sm">
+            <span className="text-muted-foreground">{label}</span>
+            <span className="max-w-[65%] text-right font-medium text-foreground">{value}</span>
+        </div>
+    );
+}
+
 export default function StaffMembersPage() {
     const queryClient = useQueryClient();
     const { sessionStatus, tenantId, userPermissions, permissionsLoading, hasRequiredPermission } =
@@ -293,14 +307,14 @@ export default function StaffMembersPage() {
     if (sessionStatus === "loading" || permissionsLoading || (hasRequiredPermission && isLoading)) {
         return (
             <div className="flex items-center justify-center h-64">
-                <Loader2Icon className="animate-spin text-indigo-600 w-8 h-8" />
+                <Loader2Icon className="h-8 w-8 animate-spin text-primary" />
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg border border-red-100 dark:border-red-900/50">
+            <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-destructive">
                 Error loading staff members. Please try again.
             </div>
         );
@@ -311,41 +325,39 @@ export default function StaffMembersPage() {
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-zinc-900 dark:text-white sm:text-3xl">Staff Members</h1>
-                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                        Manage your team and track their performance.
-                    </p>
-                </div>
-                <button 
+        <PageShell>
+            <PageHeader
+                title="Staff Members"
+                description="Manage your team and track their performance."
+                icon={ShieldCheckIcon}
+                actions={(
+                <Button
                     onClick={handleOpenAdd}
-                    className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition"
                 >
-                    <PlusIcon className="w-4 h-4 mr-2" />
+                    <PlusIcon className="h-4 w-4" />
                     Add Team Member
-                </button>
-            </div>
+                </Button>
+                )}
+            />
 
             <div className="flex flex-col md:flex-row gap-4 justify-between items-center text-sm">
                 <div className="relative w-full md:w-96">
                     <SearchIcon className="w-4 h-4 absolute left-3 top-2.5 text-zinc-400" />
-                    <input
+                    <Input
                         type="text"
                         placeholder="Search staff by name or email..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg pl-10 pr-4 py-2 outline-none focus:border-indigo-500 text-zinc-900 dark:text-white transition-colors"
+                        className="pl-10"
                     />
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden transition-colors">
+            <div className="hidden overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-colors md:block">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-sm">
                         <thead>
-                            <tr className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-semibold transition-colors">
+                            <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors">
                                 <th className="px-6 py-4">ID</th>
                                 <th className="px-6 py-4">Name</th>
                                 <th className="px-6 py-4">Email</th>
@@ -354,7 +366,7 @@ export default function StaffMembersPage() {
                                 <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors">
+                        <tbody className="divide-y divide-border text-card-foreground transition-colors">
                             {filteredStaff?.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="px-6 py-12 text-center">
@@ -386,16 +398,16 @@ export default function StaffMembersPage() {
                                         </td>
                                         <td className="px-6 py-4">
                                             {member.role_name && (
-                                                <span className="inline-flex items-center rounded-md bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-400 ring-1 ring-inset ring-indigo-600/10 dark:ring-indigo-400/20 mr-1 capitalize transition-colors">
+                                                <Badge className="mr-1 capitalize">
                                                     {member.role_name}
-                                                </span>
+                                                </Badge>
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 <button 
                                                     onClick={() => handleOpenEdit(member)}
-                                                    className="p-2 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition"
+                                                    className="p-2 text-muted-foreground transition hover:text-primary"
                                                     title="Edit"
                                                 >
                                                     <EditIcon className="w-4 h-4" />
@@ -415,6 +427,45 @@ export default function StaffMembersPage() {
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            <div className="grid gap-4 md:hidden">
+                {filteredStaff?.length === 0 ? (
+                    <Card>
+                        <EmptyState
+                            icon={ShieldCheckIcon}
+                            title={searchQuery ? "No matching staff found" : "No staff members"}
+                            description={searchQuery ? "Try adjusting your search query." : "Get started by adding your first team member."}
+                        />
+                    </Card>
+                ) : (
+                    filteredStaff?.map((member) => (
+                        <Card key={member.id}>
+                            <CardContent className="space-y-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <h2 className="truncate text-base font-semibold text-foreground">{member.full_name}</h2>
+                                        <p className="mt-1 truncate text-sm text-muted-foreground">{member.email}</p>
+                                    </div>
+                                    {member.role_name && <Badge className="capitalize">{member.role_name}</Badge>}
+                                </div>
+                                <div className="space-y-2 border-t border-border pt-4">
+                                    <DetailRow label="ID" value={member.public_id || "-"} />
+                                    <DetailRow label="Phone" value={member.phone || "-"} />
+                                    <DetailRow label="Specialization" value={member.specialization || "-"} />
+                                </div>
+                                <div className="flex justify-end gap-2 border-t border-border pt-3">
+                                    <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(member)} title="Edit">
+                                        <EditIcon className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => setMemberToDelete(member)} title="Delete" className="hover:text-destructive">
+                                        <Trash2Icon className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))
+                )}
             </div>
 
             {/* Create / Edit Modal */}
@@ -554,6 +605,6 @@ export default function StaffMembersPage() {
                     </div>
                 </div>
             )}
-        </div>
+        </PageShell>
     );
 }

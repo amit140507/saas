@@ -16,5 +16,6 @@ urlpatterns = [
     path('orders/', include('billing.orders.urls')),
     path('payments/', include('billing.payments.urls')),
     path('communications/', include('engagement.communications.urls')),
+    path('engagement/', include('engagement.followups.urls')),
     path('reports/', include('health.reports.urls')),
 ]

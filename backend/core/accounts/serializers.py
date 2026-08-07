@@ -9,6 +9,7 @@ class MembershipSerializer(serializers.Serializer):
     tenant_id = serializers.UUIDField(source='tenant.id')
     tenant_name = serializers.CharField(source='tenant.name')
     tenant_logo = serializers.ImageField(source='tenant.logo', allow_null=True)
+    tenant_brand_color = serializers.CharField(source='tenant.brand_color')
     role = serializers.CharField(source='role.name', default=None)
     is_owner = serializers.BooleanField()
 

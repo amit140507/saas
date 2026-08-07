@@ -50,7 +50,16 @@ export const API_ENDPOINTS = {
         paymentLinkCheckout: (token: string) => `payments/payment-links/${token}/checkout/`,
     },
     communications: {
+        messageTemplates: "communications/message-templates/",
+        messageTemplateDetail: (id: string) => `communications/message-templates/${id}/`,
+        testMessageTemplate: (id: string) => `communications/message-templates/${id}/test-send/`,
         emailLogs: "communications/email-logs/",
+        whatsappLogs: "communications/whatsapp-logs/",
+    },
+    engagement: {
+        followups: "engagement/followups/",
+        followupDetail: (id: string) => `engagement/followups/${id}/`,
+        suggestedTargets: "engagement/followups/suggested-targets/",
     },
     reports: {
         bloodReports: "reports/blood-reports/",

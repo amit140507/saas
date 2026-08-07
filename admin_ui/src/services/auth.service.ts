@@ -5,6 +5,7 @@ export interface CurrentUserMembership {
     tenant_id: string;
     tenant_name: string;
     tenant_logo: string | null;
+    tenant_brand_color?: string;
     role: string | null;
     is_owner: boolean;
 }

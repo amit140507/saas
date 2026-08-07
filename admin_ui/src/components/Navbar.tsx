@@ -1,24 +1,32 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { BellIcon, SearchIcon, ShieldIcon, UserIcon, LogOutIcon, SettingsIcon, SunIcon, MoonIcon } from "lucide-react";
+import { BellIcon, ShieldIcon, UserIcon, LogOutIcon, SunIcon, MoonIcon } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { CurrentAdminUser } from "@/services/auth.service";
+
+function getInitialDarkMode() {
+    if (typeof window === "undefined") {
+        return false;
+    }
+
+    const savedTheme = localStorage.getItem("theme");
+    return savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+}
 
 export default function Navbar() {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [isDarkMode, setIsDarkMode] = useState(false);
+    const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const router = useRouter();
-    const [user, setUser] = useState<any>(null);
+    const [user, setUser] = useState<CurrentAdminUser & { username?: string } | null>(null);
 
     useEffect(() => {
         const fetchUser = async () => {
             try {
-                const response = await api.get("auth/user/");
+                const response = await api.get<CurrentAdminUser & { username?: string }>("auth/user/");
                 setUser(response.data);
             } catch (err) {
                 console.error("Failed to fetch user in Navbar", err);
@@ -27,17 +35,13 @@ export default function Navbar() {
         fetchUser();
     }, []);
 
-    // Initial theme setup
     useEffect(() => {
-        const savedTheme = localStorage.getItem("theme");
-        if (savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-            setIsDarkMode(true);
+        if (isDarkMode) {
             document.documentElement.classList.add("dark");
         } else {
-            setIsDarkMode(false);
             document.documentElement.classList.remove("dark");
         }
-    }, []);
+    }, [isDarkMode]);
 
     const toggleTheme = () => {
         const newMode = !isDarkMode;
@@ -67,7 +71,7 @@ export default function Navbar() {
     }, []);
 
     return (
-        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-end gap-x-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 pl-16 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8 text-zinc-900 dark:text-white transition-colors">
+        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-end gap-x-4 border-b border-border bg-card px-4 pl-16 text-card-foreground shadow-sm transition-colors sm:gap-x-6 sm:px-6 lg:px-8">
             <div className="flex flex-1 justify-end gap-x-4 self-stretch lg:gap-x-6">
                 
                 <div className="flex items-center gap-x-4 lg:gap-x-6">
@@ -75,7 +79,7 @@ export default function Navbar() {
                     <button
                         type="button"
                         onClick={toggleTheme}
-                        className="-m-2.5 p-2.5 text-zinc-400 hover:text-red-500 transition-colors"
+                        className="-m-2.5 p-2.5 text-muted-foreground transition-colors hover:text-primary"
                     >
                         <span className="sr-only">Toggle theme</span>
                         {isDarkMode ? (
@@ -85,13 +89,13 @@ export default function Navbar() {
                         )}
                     </button>
 
-                    <button type="button" className="-m-2.5 p-2.5 text-zinc-400 hover:text-zinc-300">
+                    <button type="button" className="-m-2.5 p-2.5 text-muted-foreground hover:text-foreground">
                         <span className="sr-only">View notifications</span>
                         <BellIcon className="h-6 w-6" aria-hidden="true" />
                     </button>
 
                     {/* Separator */}
-                    <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-zinc-200 dark:bg-zinc-800" aria-hidden="true" />
+                    <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-border" aria-hidden="true" />
 
                     {/* Admin Profile */}
                     <div className="relative" ref={dropdownRef}>
@@ -103,10 +107,10 @@ export default function Navbar() {
                             <div className="flex flex-col items-end hidden lg:flex">
                                 {user ? (
                                     <>
-                                        <span className="text-sm font-semibold leading-6 text-zinc-900 dark:text-white" aria-hidden="true">
+                                        <span className="text-sm font-semibold leading-6 text-foreground" aria-hidden="true">
                                             {user.username}
                                         </span>
-                                        <span className="text-xs text-red-600 dark:text-red-400 capitalize">{user.memberships?.[0]?.role}</span>
+                                        <span className="text-xs capitalize text-primary">{user.memberships?.[0]?.role}</span>
                                     </>
                                 ) : (
                                     <>
@@ -115,29 +119,29 @@ export default function Navbar() {
                                     </>
                                 )}
                             </div>
-                            <div className="h-8 w-8 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center border border-red-200 dark:border-red-500/30 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors">
-                                <ShieldIcon className="h-5 w-5 text-red-600 dark:text-red-500" />
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/25 bg-primary-soft transition-colors hover:bg-primary-soft/80">
+                                <ShieldIcon className="h-5 w-5 text-primary" />
                             </div>
                         </button>
 
                         {isDropdownOpen && (
-                            <div className="absolute right-0 z-10 mt-2.5 w-48 origin-top-right rounded-md bg-white dark:bg-zinc-900 py-2 shadow-lg ring-1 ring-zinc-900/5 focus:outline-none border border-zinc-200 dark:border-zinc-800 animate-in fade-in zoom-in duration-75">
+                            <div className="absolute right-0 z-10 mt-2.5 w-48 origin-top-right rounded-md border border-border bg-popover py-2 text-popover-foreground shadow-lg ring-1 ring-foreground/5 animate-in fade-in zoom-in duration-75 focus:outline-none">
                                 <Link
                                     href="/dashboard/profile"
-                                    className="flex items-center gap-x-3 px-4 py-2 text-sm leading-6 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                                    className="flex items-center gap-x-3 px-4 py-2 text-sm leading-6 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                                     onClick={() => setIsDropdownOpen(false)}
                                 >
-                                    <UserIcon className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+                                    <UserIcon className="h-4 w-4 text-muted-foreground" />
                                     My Profile
                                 </Link>
                                 
-                                <div className="border-t border-zinc-200 dark:border-zinc-800 my-1"></div>
+                                <div className="my-1 border-t border-border"></div>
                                 <button
                                     type="button"
-                                    className="flex w-full items-center gap-x-3 px-4 py-2 text-sm leading-6 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-colors text-left"
+                                    className="flex w-full items-center gap-x-3 px-4 py-2 text-left text-sm leading-6 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                                     onClick={handleLogout}
                                 >
-                                    <LogOutIcon className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+                                    <LogOutIcon className="h-4 w-4 text-muted-foreground" />
                                     Sign out
                                 </button>
                             </div>

@@ -1,7 +1,9 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework import serializers
 
+from core.clients.models import ClientProfile
 from .models import (
     MessageTemplate, Notification, Promo,
     EmailTemplate, EmailLog, WhatsAppTemplate, WhatsAppLog
@@ -39,6 +41,40 @@ class MessageTemplateViewSet(TenantScopedViewSet):
             created_by=self.request.user,
             tenant=require_request_tenant(self.request),
         )
+
+    @action(detail=True, methods=['post'], url_path='test-send')
+    def test_send(self, request, pk=None):
+        template = self.get_object()
+        tenant = require_request_tenant(request)
+        serializer = MessageTemplateTestSendSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        client = (
+            ClientProfile.objects
+            .filter(tenant=tenant, id=serializer.validated_data['recipient_id'])
+            .select_related('org_client__user')
+            .first()
+        )
+        if client is None:
+            return Response(
+                {'success': False, 'message': 'Recipient client was not found for this tenant.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        success, message = CommunicationService.send_message_template(
+            template=template,
+            client=client,
+            context=serializer.validated_data.get('context_data') or {},
+        )
+        return Response(
+            {'success': success, 'message': message},
+            status=status.HTTP_200_OK if success else status.HTTP_400_BAD_REQUEST,
+        )
+
+
+class MessageTemplateTestSendSerializer(serializers.Serializer):
+    recipient_id = serializers.UUIDField()
+    context_data = serializers.JSONField(required=False)
 
 
 class NotificationViewSet(TenantScopedViewSet):

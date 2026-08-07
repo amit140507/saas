@@ -78,6 +78,7 @@ INSTALLED_APPS = [
     'billing.payments',
     'billing.invoices',
     'engagement.communications',
+    'engagement.followups',
     'axes',
 ]
 

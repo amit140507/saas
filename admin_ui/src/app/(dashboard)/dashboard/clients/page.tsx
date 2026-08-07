@@ -5,6 +5,30 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient, deleteClient, getClients, updateClient } from "@/services/client.service";
 import type { ClientData, ClientPayload } from "@/types/client.type";
 import { UsersIcon, UserPlusIcon, SearchIcon, Loader2Icon, EditIcon, Trash2Icon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { PageHeader, PageShell } from "@/components/ui/page";
+
+function getClientStatusVariant(status: string) {
+  if (status === "active") {
+    return "success" as const;
+  }
+  if (status === "lead") {
+    return "warning" as const;
+  }
+  return "destructive" as const;
+}
+
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="max-w-[65%] text-right font-medium text-foreground">{value}</span>
+    </div>
+  );
+}
 
 export default function ClientsPage() {
   const queryClient = useQueryClient();
@@ -102,35 +126,31 @@ export default function ClientsPage() {
   };
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-            <UsersIcon className="w-7 h-7 text-indigo-500" />
-            Clients & Members
-          </h1>
-          <p className="text-zinc-500 dark:text-zinc-400 mt-1">Manage active gym members and online clients.</p>
-        </div>
-        <button 
+    <PageShell>
+      <PageHeader
+        title="Clients & Members"
+        description="Manage active gym members and online clients."
+        icon={UsersIcon}
+        actions={(
+        <Button
           onClick={handleOpenAdd}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors shadow-sm"
         >
           <UserPlusIcon className="w-5 h-5" />
           Add Client
-        </button>
-      </div>
+        </Button>
+        )}
+      />
 
       {/* Stats/Filters Bar */}
       <div className="flex flex-col md:flex-row gap-4 justify-between items-center text-sm">
         <div className="relative w-full md:w-96">
           <SearchIcon className="w-4 h-4 absolute left-3 top-2.5 text-zinc-400" />
-          <input 
+          <Input 
             type="text" 
             placeholder="Search clients by name or email..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg pl-10 pr-4 py-2 outline-none focus:border-indigo-500 text-zinc-900 dark:text-white transition-colors"
+            className="pl-10"
           />
         </div>
         <div className="flex items-center gap-6 text-zinc-500">
@@ -140,11 +160,11 @@ export default function ClientsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden transition-colors">
+      <div className="hidden overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-colors md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
             <thead>
-              <tr className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-semibold transition-colors">
+              <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors">
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Client Profile</th>
                 <th className="px-6 py-4">Contact</th>
@@ -152,12 +172,12 @@ export default function ClientsPage() {
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors">
+            <tbody className="divide-y divide-border text-card-foreground transition-colors">
               {isLoading ? (
                 <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-zinc-400">
                         <div className="flex justify-center">
-                            <Loader2Icon className="animate-spin text-indigo-600 w-8 h-8" />
+                            <Loader2Icon className="h-8 w-8 animate-spin text-primary" />
                         </div>
                     </td>
                 </tr>
@@ -171,13 +191,9 @@ export default function ClientsPage() {
                 filteredClients.map(client => (
                   <tr key={client.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors">
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${
-                        client.status === 'active' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-400' :
-                        client.status === 'lead' ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400' : 
-                        'bg-rose-100 text-red-800 dark:bg-red-500/20 dark:text-red-400'
-                      }`}>
+                      <Badge variant={getClientStatusVariant(client.status)} className="uppercase">
                         {client.status}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="px-6 py-4">
                       <div className="font-semibold text-zinc-900 dark:text-white text-base">
@@ -196,7 +212,7 @@ export default function ClientsPage() {
                       <div className="flex items-center justify-end gap-2">
                         <button 
                             onClick={() => handleOpenEdit(client)}
-                            className="p-2 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition"
+                            className="p-2 text-muted-foreground transition hover:text-primary"
                             title="Edit"
                         >
                             <EditIcon className="w-5 h-5" />
@@ -216,6 +232,44 @@ export default function ClientsPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="grid gap-4 md:hidden">
+        {isLoading ? (
+          <Card><CardContent className="flex justify-center py-10"><Loader2Icon className="h-7 w-7 animate-spin text-primary" /></CardContent></Card>
+        ) : error ? (
+          <Card><CardContent className="py-10 text-center text-sm text-destructive">Error loading clients. Please try again.</CardContent></Card>
+        ) : filteredClients.length === 0 ? (
+          <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">{searchQuery ? "No matching clients found." : "No clients found. Add one above."}</CardContent></Card>
+        ) : (
+          filteredClients.map((client) => (
+            <Card key={client.id}>
+              <CardContent className="space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-base font-semibold text-foreground">
+                      {client.user.first_name} {client.user.last_name}
+                    </h2>
+                    <p className="mt-1 truncate text-sm text-muted-foreground">{client.user.email}</p>
+                  </div>
+                  <Badge variant={getClientStatusVariant(client.status)} className="uppercase">{client.status}</Badge>
+                </div>
+                <div className="space-y-2 border-t border-border pt-4">
+                  <DetailRow label="Phone" value={client.phone || "No phone"} />
+                  <DetailRow label="Goal" value={client.goal || "-"} />
+                </div>
+                <div className="flex justify-end gap-2 border-t border-border pt-3">
+                  <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(client)} title="Edit">
+                    <EditIcon className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setClientToDelete(client)} title="Delete" className="hover:text-destructive">
+                    <Trash2Icon className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       {/* Add / Edit Modal */}
@@ -310,6 +364,6 @@ export default function ClientsPage() {
             </div>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

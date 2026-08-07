@@ -9,6 +9,7 @@ import { API_URL } from "@/lib/config";
 interface UserMembership {
   tenant_id: string;
   tenant_name: string;
+  tenant_brand_color?: string;
   role: string | null;
   is_owner: boolean;
 }

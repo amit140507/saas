@@ -18,7 +18,7 @@ import {
     ShoppingCartIcon,
     PackageIcon,
     BadgeCheckIcon,
-    MailIcon,
+    MessageCircleIcon,
     MenuIcon,
     XIcon,
     DumbbellIcon,
@@ -61,7 +61,16 @@ const navigation: NavigationItem[] = [
     },
     { name: "Orders", href: "/dashboard/orders", icon: ShoppingCartIcon, permission: PERMISSIONS.VIEW_ORDERS },
     { name: "Payments", href: "/dashboard/payments", icon: CreditCardIcon, permission: PERMISSIONS.MANAGE_ORDERS },
-    { name: "Email Logs", href: "/dashboard/email-logs", icon: MailIcon, permission: PERMISSIONS.MANAGE_SETTINGS },
+    {
+        name: "Engagement",
+        href: "/dashboard/engagement",
+        icon: MessageCircleIcon,
+        permission: PERMISSIONS.SEND_COMMUNICATIONS,
+        children: [
+            { name: "Communications", href: "/dashboard/engagement/communications" },
+            { name: "Follow-ups", href: "/dashboard/engagement/follow-ups" },
+        ],
+    },
     { name: "Blood Reports", href: "/dashboard/blood-reports", icon: DropletIcon, permission: PERMISSIONS.VIEW_REPORTS },
     // { name: "Security", href: "/dashboard/security", icon: ShieldCheckIcon },
     { name: "Macro Calculator", href: "/dashboard/macro-calculator", icon: CalculatorIcon, permission: PERMISSIONS.VIEW_PLANS },
@@ -93,6 +102,7 @@ export default function Sidebar() {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
         Workouts: pathname.startsWith("/dashboard/workouts"),
+        Engagement: pathname.startsWith("/dashboard/engagement") || pathname.startsWith("/dashboard/email-logs"),
         "Diet/Meal Plan": pathname.startsWith("/dashboard/diet-plans"),
         "Client Progress Tracker": pathname.startsWith("/dashboard/client-tracking"),
     });
@@ -117,7 +127,7 @@ export default function Sidebar() {
 
     const sidebarContent = (
         <>
-            <div className="flex h-16 shrink-0 items-center justify-between px-6 border-b border-zinc-200 dark:border-zinc-800 transition-colors">
+            <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-6 transition-colors">
                 <Link href="/dashboard" onClick={() => setIsMobileOpen(false)} className="min-w-0">
                     {organizationLogo ? (
                         <Image
@@ -129,7 +139,7 @@ export default function Sidebar() {
                             className="max-h-10 w-auto max-w-40 object-contain"
                         />
                     ) : (
-                        <span className="block truncate text-xl font-bold bg-gradient-to-r from-red-600 to-orange-500 dark:from-red-400 dark:to-orange-400 bg-clip-text text-transparent">
+                        <span className="block truncate text-xl font-bold text-primary">
                             {organizationName}
                         </span>
                     )}
@@ -137,7 +147,7 @@ export default function Sidebar() {
                 <button
                     type="button"
                     onClick={() => setIsMobileOpen(false)}
-                    className="-mr-2 rounded-md p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white lg:hidden"
+                    className="-mr-2 rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground lg:hidden"
                 >
                     <span className="sr-only">Close sidebar</span>
                     <XIcon className="h-5 w-5" aria-hidden="true" />
@@ -155,10 +165,10 @@ export default function Sidebar() {
                                                 type="button"
                                                 onClick={() => setOpenGroups((groups) => ({ ...groups, [item.name]: !groups[item.name] }))}
                                                 className={cn(
-                                                    "group flex w-full items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors",
+                                                    "group flex w-full items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 transition-colors",
                                                     pathname === item.href || pathname.startsWith(`${item.href}/`)
-                                                        ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white"
-                                                        : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-white"
+                                                        ? "bg-primary-soft text-primary"
+                                                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                                                 )}
                                             >
                                                 <item.icon className="h-6 w-6 shrink-0" aria-hidden="true" />
@@ -181,8 +191,8 @@ export default function Sidebar() {
                                                                 className={cn(
                                                                     "block rounded-md px-3 py-2 text-sm font-medium transition-colors",
                                                                     pathname === child.href
-                                                                        ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white"
-                                                                        : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-white"
+                                                                        ? "bg-primary-soft text-primary"
+                                                                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                                                                 )}
                                                             >
                                                                 {child.name}
@@ -199,8 +209,8 @@ export default function Sidebar() {
                                             className={cn(
                                                 "group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors",
                                                 pathname === item.href
-                                                    ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
-                                                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                                                    ? "bg-primary-soft text-primary"
+                                                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                                             )}
                                         >
                                             <item.icon className="h-6 w-6 shrink-0" aria-hidden="true" />
@@ -215,7 +225,7 @@ export default function Sidebar() {
                         <button
                             onClick={handleLogout}
                             type="button"
-                            className="group flex w-full gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                            className="group flex w-full gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                         >
                             <LogOutIcon className="h-6 w-6 shrink-0" aria-hidden="true" />
                             Logout Admin
@@ -231,13 +241,13 @@ export default function Sidebar() {
             <button
                 type="button"
                 onClick={() => setIsMobileOpen(true)}
-                className="fixed left-4 top-4 z-50 rounded-md border border-zinc-200 bg-white p-2 text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 hover:text-zinc-950 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white lg:hidden"
+                className="fixed left-4 top-4 z-50 rounded-md border border-border bg-card p-2 text-card-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground lg:hidden"
             >
                 <span className="sr-only">Open sidebar</span>
                 <MenuIcon className="h-5 w-5" aria-hidden="true" />
             </button>
 
-            <div className="hidden bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white w-64 flex-col fixed inset-y-0 border-r border-zinc-200 dark:border-zinc-800 transition-colors lg:flex">
+            <div className="fixed inset-y-0 hidden w-64 flex-col border-r border-border bg-card text-card-foreground transition-colors lg:flex">
                 {sidebarContent}
             </div>
 
@@ -252,7 +262,7 @@ export default function Sidebar() {
 
             <div
                 className={cn(
-                    "fixed inset-y-0 left-0 z-50 flex w-72 max-w-[calc(100vw-3rem)] flex-col border-r border-zinc-200 bg-white text-zinc-900 shadow-xl transition-transform duration-200 ease-out dark:border-zinc-800 dark:bg-zinc-950 dark:text-white lg:hidden",
+                    "fixed inset-y-0 left-0 z-50 flex w-72 max-w-[calc(100vw-3rem)] flex-col border-r border-border bg-card text-card-foreground shadow-xl transition-transform duration-200 ease-out lg:hidden",
                     isMobileOpen ? "translate-x-0" : "-translate-x-full"
                 )}
             >
