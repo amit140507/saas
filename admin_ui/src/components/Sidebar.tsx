@@ -17,6 +17,7 @@ import {
     ActivityIcon,
     ShoppingCartIcon,
     PackageIcon,
+    TicketPercentIcon,
     BadgeCheckIcon,
     MessageCircleIcon,
     MenuIcon,
@@ -48,6 +49,7 @@ const navigation: NavigationItem[] = [
     { name: "Staff Members", href: "/dashboard/staff", icon: ShieldCheckIcon, permission: PERMISSIONS.STAFF_VIEW },
     { name: "Clients (Members)", href: "/dashboard/clients", icon: UsersIcon, permission: PERMISSIONS.VIEW_CLIENTS },
     { name: "Packages", href: "/dashboard/packages", icon: PackageIcon, permission: PERMISSIONS.VIEW_PLANS },
+    { name: "Coupons", href: "/dashboard/coupons", icon: TicketPercentIcon, permission: PERMISSIONS.VIEW_ORDERS },
     { name: "Subscriptions", href: "/dashboard/subscriptions", icon: BadgeCheckIcon, permission: PERMISSIONS.VIEW_PLANS },
     {
         name: "Workouts",

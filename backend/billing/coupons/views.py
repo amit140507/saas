@@ -52,7 +52,12 @@ class CouponViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='usages')
     def usages(self, request, id=None, org_pk=None):
         coupon = self.get_object()
-        usages = CouponUsage.objects.filter(coupon=coupon)
+        usages = (
+            CouponUsage.objects
+            .filter(coupon=coupon)
+            .select_related('user', 'coupon', 'order')
+            .order_by('-used_at')
+        )
         serializer = CouponUsageSerializer(usages, many=True)
         return Response(serializer.data)
 

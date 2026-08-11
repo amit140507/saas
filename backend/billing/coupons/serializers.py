@@ -29,6 +29,11 @@ class CouponValidateSerializer(serializers.Serializer):
 class CouponUsageSerializer(serializers.ModelSerializer):
     user_email = serializers.EmailField(source='user.email', read_only=True)
     coupon_code = serializers.CharField(source='coupon.code', read_only=True)
+    order_number = serializers.CharField(source='order.order_number', read_only=True)
+    order_status = serializers.CharField(source='order.status', read_only=True)
+    order_total_amount = serializers.DecimalField(source='order.total_amount', max_digits=10, decimal_places=2, read_only=True)
+    order_discount_amount = serializers.DecimalField(source='order.discount_amount', max_digits=10, decimal_places=2, read_only=True)
+    order_created_at = serializers.DateTimeField(source='order.created_at', read_only=True)
     
     class Meta:
         model = CouponUsage
