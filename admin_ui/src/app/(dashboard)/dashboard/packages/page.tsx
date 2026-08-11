@@ -20,7 +20,7 @@ import {
     updatePackage,
 } from "@/services/package.service";
 import { getFeatures } from "@/services/feature.service";
-import type { Package, PackageFeaturePayload, PackagePayload, PackagePlanPayload } from "@/types/package.type";
+import type { BillingCycle, Package, PackageFeaturePayload, PackagePayload, PackagePlanPayload } from "@/types/package.type";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,6 +37,13 @@ type PackageForm = {
     plans: Array<Omit<PackagePlanPayload, "duration_in_days"> & { duration_in_days: string }>;
 };
 
+const billingCycleOptions: Array<{ value: BillingCycle; label: string }> = [
+    { value: "monthly", label: "Monthly" },
+    { value: "quarterly", label: "Quarterly" },
+    { value: "yearly", label: "Yearly" },
+    { value: "fixed", label: "Fixed term" },
+];
+
 const createEmptyFeature = (): PackageFeaturePayload => ({
     name: "",
     code: "",
@@ -46,6 +53,7 @@ const createEmptyFeature = (): PackageFeaturePayload => ({
 const createEmptyPlan = (): PackageForm["plans"][number] => ({
     name: "",
     price: "",
+    billing_cycle: "monthly",
     duration_in_days: "30",
     is_active: true,
 });
@@ -76,7 +84,9 @@ function toForm(packageItem: Package): PackageForm {
             ? packageItem.plans.map((plan) => ({
                 name: plan.name,
                 price: plan.price,
+                billing_cycle: plan.billing_cycle || "monthly",
                 duration_in_days: plan.duration_in_days === null ? "" : String(plan.duration_in_days),
+                plan_delivery_days: plan.plan_delivery_days,
                 is_active: plan.is_active,
             }))
             : [createEmptyPlan()],
@@ -102,6 +112,10 @@ function formatCurrency(value: string) {
         currency: "INR",
         maximumFractionDigits: 0,
     }).format(amount);
+}
+
+function formatBillingCycle(value: BillingCycle) {
+    return billingCycleOptions.find((option) => option.value === value)?.label ?? "Fixed term";
 }
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -297,7 +311,9 @@ export default function PackagesPage() {
         const plans = form.plans.map((plan) => ({
             name: plan.name.trim(),
             price: plan.price.trim(),
+            billing_cycle: plan.billing_cycle,
             duration_in_days: plan.duration_in_days.trim() ? Number(plan.duration_in_days) : null,
+            plan_delivery_days: plan.plan_delivery_days,
             is_active: plan.is_active,
         }));
 
@@ -343,6 +359,11 @@ export default function PackagesPage() {
 
         if (payload.plans.some((plan) => !plan.price || Number.isNaN(Number(plan.price)) || Number(plan.price) < 0)) {
             setFormError("Every plan needs a price of zero or higher.");
+            return;
+        }
+
+        if (payload.plans.some((plan) => !billingCycleOptions.some((option) => option.value === plan.billing_cycle))) {
+            setFormError("Every plan needs a valid billing cycle.");
             return;
         }
 
@@ -471,6 +492,8 @@ export default function PackagesPage() {
                                                             <div>
                                                                 <div className="font-medium text-zinc-900 dark:text-white">{plan.name}</div>
                                                                 <div className="text-xs text-zinc-500">
+                                                                    {formatBillingCycle(plan.billing_cycle)}
+                                                                    {" / "}
                                                                     {plan.duration_in_days ? `${plan.duration_in_days} days` : "No fixed duration"}
                                                                 </div>
                                                             </div>
@@ -556,7 +579,9 @@ export default function PackagesPage() {
                                     <DetailRow label="Max freezes" value={packageItem.max_freezes} />
                                     <DetailRow
                                         label="Starting price"
-                                        value={packageItem.plans[0] ? formatCurrency(packageItem.plans[0].price) : "No plans"}
+                                        value={packageItem.plans[0]
+                                            ? `${formatCurrency(packageItem.plans[0].price)} / ${formatBillingCycle(packageItem.plans[0].billing_cycle)}`
+                                            : "No plans"}
                                     />
                                 </div>
                                 {packageItem.features.length > 0 && (
@@ -792,6 +817,20 @@ export default function PackagesPage() {
                                                         onChange={(event) => updatePlan(index, "duration_in_days", event.target.value)}
                                                         className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-red-500"
                                                     />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">Billing cycle</label>
+                                                    <select
+                                                        value={plan.billing_cycle}
+                                                        onChange={(event) => updatePlan(index, "billing_cycle", event.target.value as BillingCycle)}
+                                                        className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-red-500"
+                                                    >
+                                                        {billingCycleOptions.map((option) => (
+                                                            <option key={option.value} value={option.value}>
+                                                                {option.label}
+                                                            </option>
+                                                        ))}
+                                                    </select>
                                                 </div>
                                                 <button
                                                     type="button"

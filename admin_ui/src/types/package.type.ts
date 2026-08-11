@@ -1,9 +1,13 @@
+export type BillingCycle = "monthly" | "quarterly" | "yearly" | "fixed";
+
 export interface PackagePlan {
     id: string;
     package: string;
     name: string;
     price: string;
+    billing_cycle: BillingCycle;
     duration_in_days: number | null;
+    plan_delivery_days: number | null;
     is_active: boolean;
 }
 
@@ -55,6 +59,8 @@ export interface PackageFeaturePayload {
 export interface PackagePlanPayload {
     name: string;
     price: string;
+    billing_cycle: BillingCycle;
     duration_in_days: number | null;
+    plan_delivery_days?: number | null;
     is_active: boolean;
 }

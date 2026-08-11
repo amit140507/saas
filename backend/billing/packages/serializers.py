@@ -34,7 +34,16 @@ class PackageFeatureSerializer(serializers.ModelSerializer):
 class PackagePlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = PackagePlan
-        fields = ('id', 'package', 'name', 'price', 'duration_in_days', 'plan_delivery_days', 'is_active')
+        fields = (
+            'id',
+            'package',
+            'name',
+            'price',
+            'billing_cycle',
+            'duration_in_days',
+            'plan_delivery_days',
+            'is_active',
+        )
         read_only_fields = ('package',)
 
 
@@ -47,6 +56,10 @@ class PackageFeatureInputSerializer(serializers.Serializer):
 class PackagePlanInputSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=100)
     price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
+    billing_cycle = serializers.ChoiceField(
+        choices=PackagePlan.BillingCycleChoices.choices,
+        required=False,
+    )
     duration_in_days = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     plan_delivery_days = serializers.IntegerField(required=False, allow_null=True, min_value=0)
     is_active = serializers.BooleanField(required=False, default=True)
@@ -54,6 +67,16 @@ class PackagePlanInputSerializer(serializers.Serializer):
 
 def normalize_feature_code(value):
     return re.sub(r'[^a-z0-9]+', '_', value.strip().lower()).strip('_')
+
+
+def infer_billing_cycle(duration_in_days):
+    if duration_in_days == 30:
+        return PackagePlan.BillingCycleChoices.MONTHLY
+    if duration_in_days == 90:
+        return PackagePlan.BillingCycleChoices.QUARTERLY
+    if duration_in_days == 365:
+        return PackagePlan.BillingCycleChoices.YEARLY
+    return PackagePlan.BillingCycleChoices.FIXED
 
 
 class PackageSerializer(serializers.ModelSerializer):
@@ -126,6 +149,9 @@ class PackageSerializer(serializers.ModelSerializer):
 
             for plan, name in zip(plans, plan_names):
                 plan['name'] = name
+                plan['billing_cycle'] = plan.get('billing_cycle') or infer_billing_cycle(
+                    plan.get('duration_in_days')
+                )
 
         return attrs
 
@@ -167,6 +193,7 @@ class PackageSerializer(serializers.ModelSerializer):
                     {
                         'name': plan.name,
                         'price': plan.price,
+                        'billing_cycle': plan.billing_cycle,
                         'duration_in_days': plan.duration_in_days,
                         'plan_delivery_days': plan.plan_delivery_days,
                         'is_active': plan.is_active,

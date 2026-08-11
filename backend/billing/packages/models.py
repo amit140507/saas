@@ -52,9 +52,20 @@ class PackagePlan(TenantAwareModel):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
+    class BillingCycleChoices(models.TextChoices):
+        MONTHLY = 'monthly', 'Monthly'
+        QUARTERLY = 'quarterly', 'Quarterly'
+        YEARLY = 'yearly', 'Yearly'
+        FIXED = 'fixed', 'Fixed term'
+
     package = models.ForeignKey(Package, on_delete=models.CASCADE, related_name='plans')
     name = models.CharField(max_length=100, help_text="e.g. '3 Months Plan'")
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+    billing_cycle = models.CharField(
+        max_length=20,
+        choices=BillingCycleChoices.choices,
+        default=BillingCycleChoices.MONTHLY,
+    )
     duration_in_days = models.IntegerField(
         null=True, blank=True, help_text="Duration of access for one-time or fixed-term passes"
     )

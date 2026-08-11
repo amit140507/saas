@@ -75,6 +75,7 @@ def sync_package_relations(*, package, tenant, features, plans):
                 package=package,
                 name=plan_data["name"],
                 price=plan_data["price"],
+                billing_cycle=plan_data.get("billing_cycle", PackagePlan.BillingCycleChoices.MONTHLY),
                 duration_in_days=plan_data.get("duration_in_days"),
                 plan_delivery_days=plan_data.get("plan_delivery_days"),
                 is_active=plan_data.get("is_active", True),
@@ -82,10 +83,18 @@ def sync_package_relations(*, package, tenant, features, plans):
             continue
 
         plan.price = plan_data["price"]
+        plan.billing_cycle = plan_data.get("billing_cycle", PackagePlan.BillingCycleChoices.MONTHLY)
         plan.duration_in_days = plan_data.get("duration_in_days")
         plan.plan_delivery_days = plan_data.get("plan_delivery_days")
         plan.is_active = plan_data.get("is_active", True)
-        plan.save(update_fields=["price", "duration_in_days", "plan_delivery_days", "is_active", "updated_at"])
+        plan.save(update_fields=[
+            "price",
+            "billing_cycle",
+            "duration_in_days",
+            "plan_delivery_days",
+            "is_active",
+            "updated_at",
+        ])
 
     stale_plans = PackagePlan.objects.filter(
         tenant=tenant,
