@@ -45,6 +45,16 @@ export async function updateClient(id: string, payload: ClientPayload): Promise<
     return response.data;
 }
 
+export async function activateClient(id: string): Promise<ClientData> {
+    const response = await api.post<ClientData>(API_ENDPOINTS.clients.activate(id));
+    return response.data;
+}
+
+export async function deactivateClient(id: string): Promise<ClientData> {
+    const response = await api.post<ClientData>(API_ENDPOINTS.clients.deactivate(id));
+    return response.data;
+}
+
 export async function deleteClient(id: string): Promise<void> {
     await api.delete(API_ENDPOINTS.clients.detail(id));
 }

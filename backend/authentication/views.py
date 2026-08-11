@@ -26,9 +26,10 @@ class CheckAvailabilityView(APIView):
     def get(self, request):
         username = request.query_params.get("username")
         email = request.query_params.get("email")
+        exclude_current_user = request.query_params.get("exclude_current_user", "true").lower()
         exclude_user = (
             request.user
-            if request.user.is_authenticated
+            if request.user.is_authenticated and exclude_current_user not in {"false", "0", "no"}
             else None
         )
         data = check_user_availability(

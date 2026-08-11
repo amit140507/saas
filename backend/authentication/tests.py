@@ -487,6 +487,38 @@ class AuthFlowTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.data["email_available"])
 
+    def test_check_availability_excludes_authenticated_user_by_default(self):
+        user = User.objects.create_user(
+            username="availabilityowner",
+            email="owner@example.com",
+            password="StrongPass123!",
+        )
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(
+            "/api/v1/auth/check-availability/",
+            {"email": "Owner@Example.com"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["email_available"])
+
+    def test_check_availability_can_include_authenticated_user(self):
+        user = User.objects.create_user(
+            username="availabilityowner",
+            email="owner@example.com",
+            password="StrongPass123!",
+        )
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(
+            "/api/v1/auth/check-availability/",
+            {"email": "Owner@Example.com", "exclude_current_user": "false"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["email_available"])
+
     def test_check_availability_allows_unauthenticated_signup_checks(self):
         User.objects.create_user(
             username="existinguser2",

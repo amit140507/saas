@@ -6,6 +6,7 @@ from .services import create_staff_member, update_staff_member
 class StaffProfileSerializer(serializers.ModelSerializer):
     """Extended profile fields for a staff member."""
     role_name = serializers.CharField(source='role.name', read_only=True, default=None)
+    status = serializers.CharField(source='org_staff.status', read_only=True)
     user_id = serializers.UUIDField(source='user.id', read_only=True)
     full_name = serializers.SerializerMethodField()
     email = serializers.EmailField(source='user.email', read_only=True)
@@ -25,12 +26,12 @@ class StaffProfileSerializer(serializers.ModelSerializer):
         model = StaffProfile
         fields = [
             'id', 'user_id', 'username', 'full_name', 'email', 'public_id',
-            'role_name', 'bio', 'specialization', 'years_of_experience',
+            'role_name', 'status', 'bio', 'specialization', 'years_of_experience',
             'dob', 'sex', 'profile_picture', 'phone',
             'date_of_joining', 'client_count',
             'first_name', 'last_name', 'input_email', 'role_names',
         ]
-        read_only_fields = ['id', 'user_id', 'username', 'full_name', 'email', 'public_id', 'role_name', 'client_count']
+        read_only_fields = ['id', 'user_id', 'username', 'full_name', 'email', 'public_id', 'role_name', 'status', 'client_count']
 
     def get_full_name(self, obj):
         return obj.user.get_full_name() or obj.user.username
@@ -61,6 +62,8 @@ class StaffProfileSerializer(serializers.ModelSerializer):
         }
         if self.initial_data.get('username'):
             user_data['username'] = self.initial_data['username']
+        if 'input_email' in validated_data:
+            user_data['email'] = validated_data.pop('input_email')
         return update_staff_member(
             instance,
             user_data,

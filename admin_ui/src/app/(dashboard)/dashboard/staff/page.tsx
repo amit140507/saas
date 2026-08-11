@@ -1,13 +1,15 @@
 "use client";
 
+import type { AxiosError } from "axios";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { can, PERMISSIONS, useCurrentUserPermissions } from "@/lib/permissions";
-import { ShieldCheckIcon, SearchIcon, PlusIcon, EditIcon, Trash2Icon, Loader2Icon } from "lucide-react";
+import { ShieldCheckIcon, SearchIcon, PlusIcon, EditIcon, Trash2Icon, Loader2Icon, EyeIcon, CheckCircleIcon, XCircleIcon } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { EmptyState, PageHeader, PageShell } from "@/components/ui/page";
@@ -20,6 +22,7 @@ interface StaffMember {
     full_name: string;
     email: string;
     role_name: string | null;
+    status?: "active" | "inactive";
     phone: string;
     date_of_joining?: string;
     dob?: string | null;
@@ -78,6 +81,25 @@ interface StaffPayload {
 }
 
 type StaffMutationPayload = StaffPayload | FormData;
+type EmailAvailability = boolean | "loading" | null;
+type ApiErrorResponse = {
+    detail?: string;
+    error?: string;
+    email?: string | string[];
+    input_email?: string | string[];
+    username?: string | string[];
+    non_field_errors?: string[];
+    user?: {
+        email?: string | string[];
+        username?: string | string[];
+    };
+};
+type AvailabilityResponse = {
+    email_available?: boolean;
+};
+
+const EMAIL_EXISTS_MESSAGE = "Email already exists. Use a different email id.";
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const getStaffList = (responseData: StaffListResponse): StaffMember[] => {
     if (Array.isArray(responseData)) {
@@ -174,6 +196,44 @@ const isMultipartPayload = (payload: StaffMutationPayload): payload is FormData 
     return payload instanceof FormData;
 };
 
+const normalizeEmail = (email: string): string => email.trim().toLowerCase();
+
+const isValidEmail = (email: string): boolean => EMAIL_PATTERN.test(email);
+
+const getFirstError = (value?: string | string[]): string | undefined => {
+    if (Array.isArray(value)) {
+        return value[0];
+    }
+
+    return value;
+};
+
+const getStaffDetailsHref = (member: StaffMember) => {
+    return `/dashboard/staff/${encodeURIComponent(member.email)}`;
+};
+
+function getStaffStatusVariant(status?: StaffMember["status"]) {
+    return status === "inactive" ? "neutral" as const : "success" as const;
+}
+
+function getMutationErrorMessage(error: unknown): string {
+    const apiError = error as AxiosError<ApiErrorResponse>;
+    const data = apiError.response?.data;
+
+    return (
+        getFirstError(data?.email) ||
+        getFirstError(data?.input_email) ||
+        getFirstError(data?.user?.email) ||
+        getFirstError(data?.username) ||
+        getFirstError(data?.user?.username) ||
+        data?.error ||
+        data?.detail ||
+        data?.non_field_errors?.[0] ||
+        apiError.message ||
+        "Could not save staff member. Please check the details and try again."
+    );
+}
+
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
     return (
         <div className="flex items-start justify-between gap-4 text-sm">
@@ -194,6 +254,9 @@ export default function StaffMembersPage() {
     const [modalMode, setModalMode] = useState<"add" | "edit">("add");
     const [selectedMember, setSelectedMember] = useState<StaffMember | null>(null);
     const [form, setForm] = useState<StaffFormState>(() => createEmptyStaffForm());
+    const [formError, setFormError] = useState("");
+    const [emailAvailability, setEmailAvailability] = useState<EmailAvailability>(null);
+    const [emailAvailabilityCheckError, setEmailAvailabilityCheckError] = useState("");
     
     // Delete states
     const [memberToDelete, setMemberToDelete] = useState<StaffMember | null>(null);
@@ -218,6 +281,74 @@ export default function StaffMembersPage() {
 
     const selectedRoleName = form.role_names[0] || "";
     const roleSelectValue = roles?.some((role) => role.name === selectedRoleName) ? selectedRoleName : "";
+    const normalizedEmail = normalizeEmail(form.email);
+    const selectedMemberEmail = normalizeEmail(selectedMember?.email || "");
+    const emailChangedInEditMode = modalMode !== "edit" || normalizedEmail !== selectedMemberEmail;
+    const emailMatchesExistingStaff = Boolean(normalizedEmail) && Boolean(staff?.some((member) => (
+        normalizeEmail(member.email) === normalizedEmail &&
+        member.id !== selectedMember?.id
+    )));
+    const shouldCheckEmailAvailability = (
+        isModalOpen &&
+        Boolean(normalizedEmail) &&
+        isValidEmail(normalizedEmail) &&
+        emailChangedInEditMode &&
+        !emailMatchesExistingStaff
+    );
+
+    useEffect(() => {
+        if (!shouldCheckEmailAvailability) {
+            return;
+        }
+
+        let isCurrentCheck = true;
+
+        const timer = window.setTimeout(async () => {
+            try {
+                const response = await api.get<AvailabilityResponse>("auth/check-availability/", {
+                    params: {
+                        email: normalizedEmail,
+                        exclude_current_user: false,
+                    },
+                });
+
+                if (isCurrentCheck) {
+                    setEmailAvailability(response.data.email_available ?? null);
+                    setEmailAvailabilityCheckError("");
+                }
+            } catch {
+                if (isCurrentCheck) {
+                    setEmailAvailability(null);
+                    setEmailAvailabilityCheckError("Could not check email availability. You can still try saving.");
+                }
+            }
+        }, 600);
+
+        return () => {
+            isCurrentCheck = false;
+            window.clearTimeout(timer);
+        };
+    }, [normalizedEmail, shouldCheckEmailAvailability]);
+
+    const handleEmailChange = (value: string) => {
+        const nextEmail = normalizeEmail(value);
+        const nextEmailChangedInEditMode = modalMode !== "edit" || nextEmail !== selectedMemberEmail;
+        const nextEmailMatchesExistingStaff = Boolean(nextEmail) && Boolean(staff?.some((member) => (
+            normalizeEmail(member.email) === nextEmail &&
+            member.id !== selectedMember?.id
+        )));
+        const shouldMarkLoading = (
+            Boolean(nextEmail) &&
+            isValidEmail(nextEmail) &&
+            nextEmailChangedInEditMode &&
+            !nextEmailMatchesExistingStaff
+        );
+
+        setForm({...form, email: value});
+        setFormError("");
+        setEmailAvailability(nextEmailMatchesExistingStaff ? false : shouldMarkLoading ? "loading" : null);
+        setEmailAvailabilityCheckError("");
+    };
 
     // Mutations
     const createMutation = useMutation({
@@ -229,8 +360,10 @@ export default function StaffMembersPage() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["staff-profiles"] });
+            setFormError("");
             setIsModalOpen(false);
-        }
+        },
+        onError: (error: unknown) => setFormError(getMutationErrorMessage(error)),
     });
 
     const updateMutation = useMutation({
@@ -242,8 +375,10 @@ export default function StaffMembersPage() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["staff-profiles"] });
+            setFormError("");
             setIsModalOpen(false);
-        }
+        },
+        onError: (error: unknown) => setFormError(getMutationErrorMessage(error)),
     });
 
     const deleteMutation = useMutation({
@@ -256,6 +391,24 @@ export default function StaffMembersPage() {
         }
     });
 
+    const statusMutation = useMutation({
+        mutationFn: async ({ id, nextStatus }: { id: string; nextStatus: "active" | "inactive" }) => {
+            const action = nextStatus === "active" ? "activate" : "deactivate";
+            const response = await api.post<StaffMember>(`${STAFF_ENDPOINT}${id}/${action}/`);
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["staff-profiles"] });
+        },
+    });
+
+    const displayFormError = formError;
+    const effectiveEmailAvailability = emailMatchesExistingStaff ? false : emailAvailability;
+    const emailAvailabilityError = effectiveEmailAvailability === false ? EMAIL_EXISTS_MESSAGE : "";
+    const emailFieldError = emailAvailabilityError || (displayFormError.toLowerCase().includes("email") ? displayFormError : "");
+    const isSavingStaff = createMutation.isPending || updateMutation.isPending;
+    const isStaffSubmitDisabled = isSavingStaff || !roles?.length || effectiveEmailAvailability === "loading" || effectiveEmailAvailability === false;
+
     const filteredStaff = staff?.filter(member => {
         const full_name = member.full_name.toLowerCase();
         const email = member.email.toLowerCase();
@@ -267,6 +420,9 @@ export default function StaffMembersPage() {
         setModalMode("add");
         setForm(createEmptyStaffForm(getSelectedRoleName(roles)));
         setSelectedMember(null);
+        setFormError("");
+        setEmailAvailability(null);
+        setEmailAvailabilityCheckError("");
         setIsModalOpen(true);
     };
 
@@ -288,11 +444,19 @@ export default function StaffMembersPage() {
             profile_picture: null,
         });
         setSelectedMember(member);
+        setFormError("");
+        setEmailAvailability(null);
+        setEmailAvailabilityCheckError("");
         setIsModalOpen(true);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        setFormError("");
+        if (effectiveEmailAvailability === "loading" || effectiveEmailAvailability === false) {
+            setFormError("Please use an available email before saving.");
+            return;
+        }
         const payload = buildStaffPayload({
             ...form,
             role_names: [roleSelectValue || roles?.[0]?.name || selectedRoleName],
@@ -363,13 +527,14 @@ export default function StaffMembersPage() {
                                 <th className="px-6 py-4">Email</th>
                                 <th className="px-6 py-4">Phone</th>
                                 <th className="px-6 py-4">Roles</th>
+                                <th className="px-6 py-4">Status</th>
                                 <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border text-card-foreground transition-colors">
                             {filteredStaff?.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center">
+                                    <td colSpan={7} className="px-6 py-12 text-center">
                                         <div className="flex flex-col items-center">
                                             <ShieldCheckIcon size={48} className="text-zinc-300 dark:text-zinc-600 mb-4" />
                                             <h3 className="text-sm font-semibold text-zinc-900 dark:text-white">
@@ -403,14 +568,42 @@ export default function StaffMembersPage() {
                                                 </Badge>
                                             )}
                                         </td>
+                                        <td className="px-6 py-4">
+                                            <Badge variant={getStaffStatusVariant(member.status)} className="capitalize">
+                                                {member.status || "active"}
+                                            </Badge>
+                                        </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
+                                                <Link
+                                                    href={getStaffDetailsHref(member)}
+                                                    className={buttonVariants({ variant: "outline", size: "sm" })}
+                                                    title="View"
+                                                >
+                                                    <EyeIcon className="w-4 h-4" />
+                                                    View
+                                                </Link>
                                                 <button 
                                                     onClick={() => handleOpenEdit(member)}
                                                     className="p-2 text-muted-foreground transition hover:text-primary"
                                                     title="Edit"
                                                 >
                                                     <EditIcon className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    disabled={statusMutation.isPending}
+                                                    onClick={() => statusMutation.mutate({
+                                                        id: member.id,
+                                                        nextStatus: member.status === "inactive" ? "active" : "inactive",
+                                                    })}
+                                                    className="p-2 text-muted-foreground transition hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                                    title={member.status === "inactive" ? "Make active" : "Make inactive"}
+                                                >
+                                                    {member.status === "inactive" ? (
+                                                        <CheckCircleIcon className="w-4 h-4" />
+                                                    ) : (
+                                                        <XCircleIcon className="w-4 h-4" />
+                                                    )}
                                                 </button>
                                                 <button 
                                                     onClick={() => setMemberToDelete(member)}
@@ -447,7 +640,12 @@ export default function StaffMembersPage() {
                                         <h2 className="truncate text-base font-semibold text-foreground">{member.full_name}</h2>
                                         <p className="mt-1 truncate text-sm text-muted-foreground">{member.email}</p>
                                     </div>
-                                    {member.role_name && <Badge className="capitalize">{member.role_name}</Badge>}
+                                    <div className="flex shrink-0 flex-col items-end gap-2">
+                                        {member.role_name && <Badge className="capitalize">{member.role_name}</Badge>}
+                                        <Badge variant={getStaffStatusVariant(member.status)} className="capitalize">
+                                            {member.status || "active"}
+                                        </Badge>
+                                    </div>
                                 </div>
                                 <div className="space-y-2 border-t border-border pt-4">
                                     <DetailRow label="ID" value={member.public_id || "-"} />
@@ -455,8 +653,32 @@ export default function StaffMembersPage() {
                                     <DetailRow label="Specialization" value={member.specialization || "-"} />
                                 </div>
                                 <div className="flex justify-end gap-2 border-t border-border pt-3">
+                                    <Link
+                                        href={getStaffDetailsHref(member)}
+                                        className={buttonVariants({ variant: "outline", size: "sm" })}
+                                        title="View"
+                                    >
+                                        <EyeIcon className="h-4 w-4" />
+                                        View
+                                    </Link>
                                     <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(member)} title="Edit">
                                         <EditIcon className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        disabled={statusMutation.isPending}
+                                        onClick={() => statusMutation.mutate({
+                                            id: member.id,
+                                            nextStatus: member.status === "inactive" ? "active" : "inactive",
+                                        })}
+                                        title={member.status === "inactive" ? "Make active" : "Make inactive"}
+                                    >
+                                        {member.status === "inactive" ? (
+                                            <CheckCircleIcon className="h-4 w-4" />
+                                        ) : (
+                                            <XCircleIcon className="h-4 w-4" />
+                                        )}
                                     </Button>
                                     <Button variant="ghost" size="icon" onClick={() => setMemberToDelete(member)} title="Delete" className="hover:text-destructive">
                                         <Trash2Icon className="h-4 w-4" />
@@ -481,6 +703,11 @@ export default function StaffMembersPage() {
                             </button>
                         </div>
                         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-80px)]">
+                            {displayFormError && (
+                                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+                                    {displayFormError}
+                                </div>
+                            )}
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div>
                                     <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">First Name</label>
@@ -494,7 +721,42 @@ export default function StaffMembersPage() {
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div>
                                     <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Email</label>
-                                    <input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition" />
+                                    <div className="relative">
+                                        <input
+                                            required
+                                            type="email"
+                                            value={form.email}
+                                            onChange={e => handleEmailChange(e.target.value)}
+                                            aria-invalid={Boolean(emailFieldError)}
+                                            className={`w-full bg-zinc-50 dark:bg-zinc-950 border rounded-md py-2 pl-3 pr-10 text-sm outline-none dark:text-white transition ${
+                                                effectiveEmailAvailability === true
+                                                    ? "border-green-500 focus:border-green-600"
+                                                    : emailFieldError
+                                                        ? "border-red-500 focus:border-red-600"
+                                                        : "border-zinc-200 focus:border-indigo-500 dark:border-zinc-800"
+                                            }`}
+                                        />
+                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                                            {effectiveEmailAvailability === "loading" && <Loader2Icon className="h-4 w-4 animate-spin text-zinc-400" />}
+                                            {effectiveEmailAvailability === true && <CheckCircleIcon className="h-4 w-4 text-green-500" />}
+                                            {effectiveEmailAvailability === false && <XCircleIcon className="h-4 w-4 text-red-500" />}
+                                        </div>
+                                    </div>
+                                    {emailFieldError && (
+                                        <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
+                                            {emailFieldError}
+                                        </p>
+                                    )}
+                                    {effectiveEmailAvailability === true && (
+                                        <p className="mt-1 text-xs font-medium text-green-600 dark:text-green-400">
+                                            Email is available.
+                                        </p>
+                                    )}
+                                    {emailAvailabilityCheckError && !emailFieldError && (
+                                        <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                                            {emailAvailabilityCheckError}
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Phone</label>
@@ -560,11 +822,12 @@ export default function StaffMembersPage() {
                             </div>
 
                             <div className="pt-4 flex justify-end gap-3 border-t border-zinc-200 dark:border-zinc-800 mt-6 md:mt-8 tracking-wide">
+                                
                                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors">
                                     Cancel
                                 </button>
-                                <button disabled={createMutation.isPending || updateMutation.isPending || !roles?.length} type="submit" className="px-5 py-2 font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60 rounded-lg shadow-sm transition-colors flex items-center gap-2">
-                                    {(createMutation.isPending || updateMutation.isPending) && <Loader2Icon className="w-4 h-4 animate-spin" />}
+                                <button disabled={isStaffSubmitDisabled} type="submit" className="px-5 py-2 font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60 rounded-lg shadow-sm transition-colors flex items-center gap-2">
+                                    {isSavingStaff && <Loader2Icon className="w-4 h-4 animate-spin" />}
                                     {modalMode === 'add' ? 'Add Member' : 'Save Changes'}
                                 </button>
                             </div>

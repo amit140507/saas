@@ -30,6 +30,13 @@ export async function getOrders(): Promise<Order[]> {
     return normalizeOrderList(response.data);
 }
 
+export async function getOrdersByClient(clientId: string): Promise<Order[]> {
+    const response = await api.get<OrderListResponse>(API_ENDPOINTS.orders.list, {
+        params: { client: clientId },
+    });
+    return normalizeOrderList(response.data);
+}
+
 export async function createOrder(payload: OrderPayload): Promise<Order> {
     const response = await api.post<Order>(API_ENDPOINTS.orders.list, payload);
     return response.data;

@@ -1,8 +1,12 @@
 from django.core import mail
+from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from rest_framework.exceptions import ValidationError
 
-from core.staff.services import create_staff_member
-from core.tenants.models import Role, Tenant
+from core.staff.services import create_staff_member, set_staff_status, update_staff_member
+from core.tenants.models import OrganizationMember, Role, Tenant
+
+User = get_user_model()
 
 
 @override_settings(
@@ -42,3 +46,51 @@ class StaffServiceTests(TestCase):
         self.assertIn("Activate your staff account", mail.outbox[0].subject)
         self.assertIn("https://app.example.com/reset-password/", mail.outbox[0].body)
         self.assertIn("Iron Gym", mail.outbox[0].body)
+
+    def test_update_staff_member_rejects_duplicate_email(self):
+        staff = create_staff_member(
+            self.tenant,
+            {
+                "email": "coach@example.com",
+                "username": "coach@example.com",
+                "first_name": "Casey",
+                "last_name": "Coach",
+            },
+            {},
+            "trainer",
+        )
+        User.objects.create_user(
+            username="amitsingh@yopmail.com",
+            email="amitsingh@yopmail.com",
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Email already exists. Use a different email id.",
+        ):
+            update_staff_member(
+                staff,
+                {"email": "amitsingh@yopmail.com", "username": "amitsingh@yopmail.com"},
+                {},
+            )
+
+    def test_set_staff_status_updates_tenant_membership(self):
+        staff = create_staff_member(
+            self.tenant,
+            {
+                "email": "coach@example.com",
+                "username": "coach@example.com",
+                "first_name": "Casey",
+                "last_name": "Coach",
+            },
+            {},
+            "trainer",
+        )
+
+        set_staff_status(staff, OrganizationMember.StatusChoices.INACTIVE)
+        staff.org_staff.refresh_from_db()
+        self.assertEqual(staff.org_staff.status, OrganizationMember.StatusChoices.INACTIVE)
+
+        set_staff_status(staff, OrganizationMember.StatusChoices.ACTIVE)
+        staff.org_staff.refresh_from_db()
+        self.assertEqual(staff.org_staff.status, OrganizationMember.StatusChoices.ACTIVE)

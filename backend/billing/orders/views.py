@@ -40,6 +40,10 @@ class OrderViewSet(viewsets.ModelViewSet):
         if status_filter:
             qs = qs.filter(status=status_filter)
 
+        client_filter = self.request.query_params.get('client')
+        if client_filter:
+            qs = qs.filter(client_id=client_filter)
+
         return qs.prefetch_related('items').order_by('-created_at')
 
     def perform_create(self, serializer):

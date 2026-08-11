@@ -4,12 +4,16 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient, deleteClient, getClients, updateClient } from "@/services/client.service";
 import type { ClientData, ClientPayload } from "@/types/client.type";
-import { UsersIcon, UserPlusIcon, SearchIcon, Loader2Icon, EditIcon, Trash2Icon } from "lucide-react";
+import { UsersIcon, UserPlusIcon, SearchIcon, Loader2Icon, EditIcon, Trash2Icon, EyeIcon } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PageHeader, PageShell } from "@/components/ui/page";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 function getClientStatusVariant(status: string) {
   if (status === "active") {
@@ -32,7 +36,8 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 
 export default function ClientsPage() {
   const queryClient = useQueryClient();
-  const [searchQuery, setSearchQuery] = useState("");
+  const searchParams = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("search") || "");
   
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -210,6 +215,13 @@ export default function ClientsPage() {
                     <td className="px-6 py-4 font-medium">{client.goal || '—'}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <Link
+                            href={`/dashboard/clients/${client.id}`}
+                            className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "text-muted-foreground hover:text-primary")}
+                            title="View details"
+                        >
+                            <EyeIcon className="w-5 h-5" />
+                        </Link>
                         <button 
                             onClick={() => handleOpenEdit(client)}
                             className="p-2 text-muted-foreground transition hover:text-primary"
@@ -259,6 +271,13 @@ export default function ClientsPage() {
                   <DetailRow label="Goal" value={client.goal || "-"} />
                 </div>
                 <div className="flex justify-end gap-2 border-t border-border pt-3">
+                  <Link
+                    href={`/dashboard/clients/${client.id}`}
+                    className={buttonVariants({ variant: "ghost", size: "icon" })}
+                    title="View details"
+                  >
+                    <EyeIcon className="h-4 w-4" />
+                  </Link>
                   <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(client)} title="Edit">
                     <EditIcon className="h-4 w-4" />
                   </Button>
