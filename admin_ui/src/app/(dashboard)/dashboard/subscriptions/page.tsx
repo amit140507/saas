@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     BadgeCheckIcon,
     CalendarIcon,
     EditIcon,
+    EyeIcon,
     LayersIcon,
     Loader2Icon,
     SearchIcon,
@@ -308,6 +310,9 @@ export default function SubscriptionsPage() {
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="inline-flex gap-2">
+                                                    <Link href={`/dashboard/subscriptions/${membership.id}`} className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white font-medium inline-flex items-center gap-1">
+                                                        <EyeIcon className="w-4 h-4" /> View
+                                                    </Link>
                                                     <button onClick={() => openEditMembership(membership)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 font-medium inline-flex items-center gap-1">
                                                         <EditIcon className="w-4 h-4" /> Edit
                                                     </button>

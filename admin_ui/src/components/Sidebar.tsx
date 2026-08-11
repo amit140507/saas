@@ -50,7 +50,9 @@ const navigation: NavigationItem[] = [
     { name: "Clients (Members)", href: "/dashboard/clients", icon: UsersIcon, permission: PERMISSIONS.VIEW_CLIENTS },
     { name: "Packages", href: "/dashboard/packages", icon: PackageIcon, permission: PERMISSIONS.VIEW_PLANS },
     { name: "Coupons", href: "/dashboard/coupons", icon: TicketPercentIcon, permission: PERMISSIONS.VIEW_ORDERS },
+    { name: "Orders", href: "/dashboard/orders", icon: ShoppingCartIcon, permission: PERMISSIONS.VIEW_ORDERS },
     { name: "Subscriptions", href: "/dashboard/subscriptions", icon: BadgeCheckIcon, permission: PERMISSIONS.VIEW_PLANS },
+    { name: "Payments", href: "/dashboard/payments", icon: CreditCardIcon, permission: PERMISSIONS.MANAGE_ORDERS },
     {
         name: "Workouts",
         href: "/dashboard/workouts",
@@ -61,20 +63,6 @@ const navigation: NavigationItem[] = [
             { name: "Planning", href: "/dashboard/workouts/planning" },
         ],
     },
-    { name: "Orders", href: "/dashboard/orders", icon: ShoppingCartIcon, permission: PERMISSIONS.VIEW_ORDERS },
-    { name: "Payments", href: "/dashboard/payments", icon: CreditCardIcon, permission: PERMISSIONS.MANAGE_ORDERS },
-    {
-        name: "Engagement",
-        href: "/dashboard/engagement",
-        icon: MessageCircleIcon,
-        permission: PERMISSIONS.SEND_COMMUNICATIONS,
-        children: [
-            { name: "Communications", href: "/dashboard/engagement/communications" },
-            { name: "Follow-ups", href: "/dashboard/engagement/follow-ups" },
-        ],
-    },
-    { name: "Blood Reports", href: "/dashboard/blood-reports", icon: DropletIcon, permission: PERMISSIONS.VIEW_REPORTS },
-    // { name: "Security", href: "/dashboard/security", icon: ShieldCheckIcon },
     { name: "Macro Calculator", href: "/dashboard/macro-calculator", icon: CalculatorIcon, permission: PERMISSIONS.VIEW_PLANS },
     {
         name: "Diet/Meal Plan",
@@ -86,6 +74,9 @@ const navigation: NavigationItem[] = [
             { name: "Tracking", href: "/dashboard/diet-plans/tracking" },
         ],
     },
+    { name: "Blood Reports", href: "/dashboard/blood-reports", icon: DropletIcon, permission: PERMISSIONS.VIEW_REPORTS },
+    // { name: "Security", href: "/dashboard/security", icon: ShieldCheckIcon },
+    
     {
         name: "Client Progress Tracker",
         href: "/dashboard/client-tracking",
@@ -94,6 +85,16 @@ const navigation: NavigationItem[] = [
         children: [
             { name: "Checkins", href: "/dashboard/client-tracking/checkins" },
             { name: "Measurements", href: "/dashboard/client-tracking/measurements" },
+        ],
+    },
+     {
+        name: "Engagement",
+        href: "/dashboard/engagement",
+        icon: MessageCircleIcon,
+        permission: PERMISSIONS.SEND_COMMUNICATIONS,
+        children: [
+            { name: "Communications", href: "/dashboard/engagement/communications" },
+            { name: "Follow-ups", href: "/dashboard/engagement/follow-ups" },
         ],
     },
     { name: "Settings", href: "/dashboard/settings", icon: SettingsIcon, permission: PERMISSIONS.MANAGE_SETTINGS },

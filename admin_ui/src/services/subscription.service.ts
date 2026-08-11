@@ -33,6 +33,11 @@ export async function getMemberships(): Promise<Membership[]> {
     return normalizeList(response.data);
 }
 
+export async function getMembership(id: string): Promise<Membership> {
+    const response = await api.get<Membership>(API_ENDPOINTS.subscriptions.membershipDetail(id));
+    return response.data;
+}
+
 export async function getMembershipsByClient(clientId: string): Promise<Membership[]> {
     const response = await api.get<Membership[] | PaginatedResponse<Membership>>(API_ENDPOINTS.subscriptions.memberships, {
         params: { client: clientId },

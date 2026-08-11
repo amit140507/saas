@@ -27,8 +27,13 @@ class MembershipViewSet(viewsets.ModelViewSet):
         return (
             Membership.objects
             .filter(tenant=tenant)
-            .select_related('client__org_client__user', 'plan__package', 'order')
-            .prefetch_related('freezes', 'addons', 'changes')
+            .select_related('client__org_client__user', 'plan__package', 'order', 'snapshot')
+            .prefetch_related(
+                'freezes',
+                'addons__addon__addon_features__feature',
+                'changes__from_plan__package',
+                'changes__to_plan__package',
+            )
             .order_by('-start_date')
         )
 
