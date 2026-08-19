@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
     ArrowLeftIcon,
+    DownloadIcon,
+    DropletIcon,
     EyeIcon,
     Loader2Icon,
     MailIcon,
@@ -25,13 +27,16 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageHeader, PageShell } from "@/components/ui/page";
 import { cn } from "@/lib/utils";
+import { getBloodReportsByClient } from "@/services/blood-report.service";
 import { activateClient, deactivateClient, getClient, updateClient } from "@/services/client.service";
 import { getOrdersByClient } from "@/services/order.service";
 import { getStaffMembers } from "@/services/staff.service";
 import { getMembershipsByClient } from "@/services/subscription.service";
+import type { BloodReport } from "@/types/blood-report.type";
 import type { ClientData, ClientPayload } from "@/types/client.type";
 import type { Order } from "@/types/order.type";
 import type { StaffMember } from "@/types/staff.type";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 
 type ClientFormState = {
     first_name: string;
@@ -130,6 +135,22 @@ function getStatusVariant(status?: string | null) {
     return "neutral" as const;
 }
 
+function getMarkerCount(report: BloodReport) {
+    return report.markers?.length || 0;
+}
+
+function getAbnormalMarkerCount(report: BloodReport) {
+    return report.markers?.filter((marker) => marker.is_abnormal).length || 0;
+}
+
+function getNormalRange(marker: NonNullable<BloodReport["markers"]>[number]) {
+    if (!marker.normal_min && !marker.normal_max) {
+        return "-";
+    }
+
+    return `${marker.normal_min || "-"} - ${marker.normal_max || "-"}`;
+}
+
 function createClientForm(client: ClientData): ClientFormState {
     return {
         first_name: client.user.first_name || "",
@@ -216,6 +237,7 @@ export default function ClientDetailsPage() {
     const [form, setForm] = useState<ClientFormState | null>(null);
     const [selectedTrainerId, setSelectedTrainerId] = useState<string | null>(null);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const [selectedBloodReport, setSelectedBloodReport] = useState<BloodReport | null>(null);
 
     const clientQuery = useQuery({
         queryKey: ["client-detail", clientId],
@@ -237,6 +259,12 @@ export default function ClientDetailsPage() {
     const membershipsQuery = useQuery({
         queryKey: ["client-memberships", clientId],
         queryFn: () => getMembershipsByClient(clientId),
+        enabled: Boolean(clientId),
+    });
+
+    const bloodReportsQuery = useQuery({
+        queryKey: ["client-blood-reports", clientId],
+        queryFn: () => getBloodReportsByClient(clientId),
         enabled: Boolean(clientId),
     });
 
@@ -350,6 +378,7 @@ export default function ClientDetailsPage() {
 
     const orders = ordersQuery.data || [];
     const memberships = membershipsQuery.data || [];
+    const bloodReports = bloodReportsQuery.data || [];
     const trainerSelectValue = selectedTrainerId ?? client.assigned_trainer ?? "";
     const isSavingTrainer = updateMutation.isPending && !isEditing;
 
@@ -652,18 +681,12 @@ export default function ClientDetailsPage() {
                         ) : (
                             <>
                                 <div className="hidden overflow-x-auto md:block">
-                                    <table className="w-full text-left text-sm">
-                                        <thead>
-                                            <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground">
-                                                <th className="px-4 py-3">Order Number</th>
-                                                <th className="px-4 py-3">Order Date</th>
-                                                <th className="px-4 py-3">Status</th>
-                                                <th className="px-4 py-3">Payment</th>
-                                                <th className="px-4 py-3 text-right">Total</th>
-                                                <th className="px-4 py-3 text-right">Details</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-border">
+                                    <ResponsiveTableFromRows
+                                        columns={["Order Number", "Order Date", "Status", "Payment", "Total", "Details"]}
+                                        emptyText="No orders found for this client."
+                                        headerClassName="border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground"
+                                        bodyClassName="divide-border"
+                                    >
                                             {orders.map((order) => (
                                                 <tr key={order.id} className="transition-colors hover:bg-muted/30">
                                                     <td className="px-4 py-3 font-semibold text-foreground">{order.order_number}</td>
@@ -679,8 +702,7 @@ export default function ClientDetailsPage() {
                                                     </td>
                                                 </tr>
                                             ))}
-                                        </tbody>
-                                    </table>
+                                    </ResponsiveTableFromRows>
                                 </div>
                                 <div className="grid gap-3 p-4 md:hidden">
                                     {orders.map((order) => (
@@ -721,30 +743,153 @@ export default function ClientDetailsPage() {
                         ) : memberships.length === 0 ? (
                             <div className="p-6 text-center text-sm text-muted-foreground">No subscriptions found for this client.</div>
                         ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm">
-                                    <thead>
-                                        <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground">
-                                            <th className="px-4 py-3">Plan</th>
-                                            <th className="px-4 py-3">Status</th>
-                                            <th className="px-4 py-3">Start Date</th>
-                                            <th className="px-4 py-3">End Date</th>
-                                            <th className="px-4 py-3">Order</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-border">
-                                        {memberships.map((membership) => (
-                                            <tr key={membership.id} className="transition-colors hover:bg-muted/30">
-                                                <td className="px-4 py-3 font-medium text-foreground">{membership.plan_details?.name || membership.plan}</td>
-                                                <td className="px-4 py-3"><Badge variant={getStatusVariant(membership.status)} className="capitalize">{membership.status}</Badge></td>
-                                                <td className="px-4 py-3 text-muted-foreground">{formatDate(membership.start_date)}</td>
-                                                <td className="px-4 py-3 text-muted-foreground">{formatDate(membership.extended_end_date || membership.base_end_date)}</td>
-                                                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{membership.order || "-"}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                            <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+                                {memberships.map((membership) => (
+                                    <div key={membership.id} className="rounded-lg border border-border bg-background p-4 transition-colors hover:bg-muted/30">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <p className="min-w-0 break-words font-semibold text-foreground">
+                                                {membership.plan_details?.name || membership.plan}
+                                            </p>
+                                            <Badge variant={getStatusVariant(membership.status)} className="shrink-0 capitalize">
+                                                {membership.status}
+                                            </Badge>
+                                        </div>
+                                        <div className="mt-4 grid gap-3 text-sm">
+                                            <InfoItem label="Start Date" value={formatDate(membership.start_date)} />
+                                            <InfoItem label="End Date" value={formatDate(membership.extended_end_date || membership.base_end_date)} />
+                                            <InfoItem
+                                                label="Order"
+                                                value={<span className="font-semibold text-foreground">{membership.order || "-"}</span>}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardContent className="space-y-5">
+                    <SectionTitle
+                        icon={DropletIcon}
+                        title="Blood Reports"
+                        description="Lab reports and marker readings recorded for this client."
+                    />
+
+                    <div className="rounded-lg border border-border">
+                        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h3 className="font-semibold text-foreground">Reports</h3>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    {bloodReports.length} blood report{bloodReports.length === 1 ? "" : "s"} found
+                                </p>
+                            </div>
+                        </CardHeader>
+                        {bloodReportsQuery.isLoading ? (
+                            <div className="flex justify-center p-8">
+                                <Loader2Icon className="h-6 w-6 animate-spin text-primary" />
+                            </div>
+                        ) : bloodReportsQuery.error ? (
+                            <div className="p-6 text-center text-sm text-destructive">Error loading blood reports.</div>
+                        ) : bloodReports.length === 0 ? (
+                            <div className="p-6 text-center text-sm text-muted-foreground">No blood reports found for this client.</div>
+                        ) : (
+                            <>
+                                <div className="hidden overflow-x-auto md:block">
+                                    <ResponsiveTableFromRows
+                                        columns={["Report Date", "Lab", "Markers", "Abnormal", "Actions"]}
+                                        emptyText="No blood reports found for this client."
+                                        headerClassName="border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground"
+                                        bodyClassName="divide-border"
+                                    >
+                                            {bloodReports.map((report) => {
+                                                const abnormalCount = getAbnormalMarkerCount(report);
+                                                return (
+                                                    <tr key={report.id} className="transition-colors hover:bg-muted/30">
+                                                        <td className="px-4 py-3 font-medium text-foreground">{formatDate(report.report_date)}</td>
+                                                        <td className="px-4 py-3 text-muted-foreground">{report.lab_name || "Unknown lab"}</td>
+                                                        <td className="px-4 py-3 text-muted-foreground">{getMarkerCount(report)}</td>
+                                                        <td className="px-4 py-3">
+                                                            <Badge variant={abnormalCount > 0 ? "warning" : "neutral"}>
+                                                                {abnormalCount}
+                                                            </Badge>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <Button variant="outline" size="sm" onClick={() => setSelectedBloodReport(report)}>
+                                                                    <EyeIcon className="h-4 w-4" />
+                                                                    View Details
+                                                                </Button>
+                                                                {report.report_file ? (
+                                                                    <a
+                                                                        href={report.report_file}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className={buttonVariants({ variant: "outline", size: "sm" })}
+                                                                    >
+                                                                        <DownloadIcon className="h-4 w-4" />
+                                                                        PDF
+                                                                    </a>
+                                                                ) : (
+                                                                    <Button variant="outline" size="sm" disabled>
+                                                                        <DownloadIcon className="h-4 w-4" />
+                                                                        No File
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                    </ResponsiveTableFromRows>
+                                </div>
+                                <div className="grid gap-3 p-4 md:hidden">
+                                    {bloodReports.map((report) => {
+                                        const abnormalCount = getAbnormalMarkerCount(report);
+                                        return (
+                                            <div key={report.id} className="rounded-lg border border-border p-4">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <p className="font-semibold text-foreground">{formatDate(report.report_date)}</p>
+                                                        <p className="mt-1 text-sm text-muted-foreground">{report.lab_name || "Unknown lab"}</p>
+                                                    </div>
+                                                    <Badge variant={abnormalCount > 0 ? "warning" : "neutral"}>
+                                                        {abnormalCount} abnormal
+                                                    </Badge>
+                                                </div>
+                                                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                                                    <InfoItem label="Markers" value={getMarkerCount(report)} />
+                                                    <InfoItem label="Report File" value={report.report_file ? "Available" : "No file"} />
+                                                </div>
+                                                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                                                    <Button variant="outline" className="w-full" onClick={() => setSelectedBloodReport(report)}>
+                                                        <EyeIcon className="h-4 w-4" />
+                                                        View Details
+                                                    </Button>
+                                                    {report.report_file ? (
+                                                        <a
+                                                            href={report.report_file}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className={cn(buttonVariants({ variant: "outline" }), "w-full")}
+                                                        >
+                                                            <DownloadIcon className="h-4 w-4" />
+                                                            Download PDF
+                                                        </a>
+                                                    ) : (
+                                                        <Button variant="outline" className="w-full" disabled>
+                                                            <DownloadIcon className="h-4 w-4" />
+                                                            No File
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </>
                         )}
                     </div>
                 </CardContent>
@@ -778,17 +923,12 @@ export default function ClientDetailsPage() {
                                 <div className="border-b border-border p-4">
                                     <h3 className="font-semibold text-foreground">Line Items</h3>
                                 </div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left text-sm">
-                                        <thead>
-                                            <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground">
-                                                <th className="px-4 py-3">Product</th>
-                                                <th className="px-4 py-3">Quantity</th>
-                                                <th className="px-4 py-3 text-right">Unit Price</th>
-                                                <th className="px-4 py-3 text-right">Total</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-border">
+                                <ResponsiveTableFromRows
+                    columns={["Product", "Quantity", "Unit Price", "Total"]}
+                    emptyText="No records found."
+                        headerClassName="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground"
+                        bodyClassName="divide-y divide-border"
+                >
                                             {selectedOrder.items.map((item) => (
                                                 <tr key={item.id}>
                                                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{item.product || "-"}</td>
@@ -797,13 +937,88 @@ export default function ClientDetailsPage() {
                                                     <td className="px-4 py-3 text-right font-semibold text-foreground">{toCurrency(item.total_price)}</td>
                                                 </tr>
                                             ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                        
+                </ResponsiveTableFromRows>
                             </div>
                             <div className={cn("rounded-lg border border-border bg-background p-4", !selectedOrder.notes && "text-muted-foreground")}>
                                 <p className="text-xs font-semibold uppercase text-muted-foreground">Notes</p>
                                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{selectedOrder.notes || "No notes added."}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {selectedBloodReport && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-lg border border-border bg-background shadow-2xl">
+                        <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+                            <div>
+                                <h2 className="text-xl font-semibold text-foreground">Blood Report Details</h2>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    {formatDate(selectedBloodReport.report_date)} - {selectedBloodReport.lab_name || "Unknown lab"}
+                                </p>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => setSelectedBloodReport(null)} title="Close">
+                                <XIcon className="h-5 w-5" />
+                            </Button>
+                        </div>
+                        <div className="max-h-[calc(90vh-5rem)] space-y-5 overflow-y-auto p-5">
+                            <div className="grid gap-4 md:grid-cols-3">
+                                <InfoItem label="Report Date" value={formatDate(selectedBloodReport.report_date)} />
+                                <InfoItem label="Lab" value={selectedBloodReport.lab_name || "Unknown lab"} />
+                                <InfoItem label="Abnormal Markers" value={getAbnormalMarkerCount(selectedBloodReport)} />
+                                <InfoItem label="Marker Count" value={getMarkerCount(selectedBloodReport)} />
+                                <InfoItem label="Reviewed At" value={formatDateTime(selectedBloodReport.reviewed_at)} />
+                                <InfoItem
+                                    label="Report File"
+                                    value={selectedBloodReport.report_file ? (
+                                        <a
+                                            href={selectedBloodReport.report_file}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-2 text-primary hover:underline"
+                                        >
+                                            <DownloadIcon className="h-4 w-4" />
+                                            Download PDF
+                                        </a>
+                                    ) : "No file"}
+                                />
+                            </div>
+                            <div className={cn("rounded-lg border border-border bg-background p-4", !selectedBloodReport.notes && "text-muted-foreground")}>
+                                <p className="text-xs font-semibold uppercase text-muted-foreground">Notes</p>
+                                <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{selectedBloodReport.notes || "No notes added."}</p>
+                            </div>
+                            <div className="rounded-lg border border-border">
+                                <div className="border-b border-border p-4">
+                                    <h3 className="font-semibold text-foreground">Markers</h3>
+                                </div>
+                                {selectedBloodReport.markers?.length ? (
+                                    <ResponsiveTableFromRows
+                    columns={["Marker", "Value", "Normal Range", "Status"]}
+                    emptyText="No records found."
+                        headerClassName="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground"
+                        bodyClassName="divide-y divide-border"
+                >
+                                                {selectedBloodReport.markers.map((marker) => (
+                                                    <tr key={marker.id || marker.marker_name}>
+                                                        <td className="px-4 py-3 font-medium text-foreground">{marker.marker_name}</td>
+                                                        <td className="px-4 py-3 text-muted-foreground">
+                                                            {marker.value} {marker.unit || ""}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-muted-foreground">{getNormalRange(marker)}</td>
+                                                        <td className="px-4 py-3">
+                                                            <Badge variant={marker.is_abnormal ? "warning" : "neutral"}>
+                                                                {marker.is_abnormal ? "Abnormal" : "Normal"}
+                                                            </Badge>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            
+                </ResponsiveTableFromRows>
+                                ) : (
+                                    <div className="p-6 text-center text-sm text-muted-foreground">No marker values recorded.</div>
+                                )}
                             </div>
                         </div>
                     </div>

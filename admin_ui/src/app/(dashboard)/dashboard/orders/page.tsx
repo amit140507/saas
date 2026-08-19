@@ -36,6 +36,7 @@ import type { Coupon } from "@/types/coupon.type";
 import type { ManualPaymentMethod, Order, OrderItemPayload, OrderPayload, OrderPaymentMethod, OrderStatus } from "@/types/order.type";
 import type { AdminPaymentLinkPayload, AdminPaymentLinkRequest, AdminPaymentLinkResponse } from "@/types/payment.type";
 import type { Package } from "@/types/package.type";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 
 type ModalMode = "create" | "edit";
 type PaymentFlow = "manual" | "payment_link" | "checkout";
@@ -704,18 +705,12 @@ export default function AdminOrdersPage() {
                 <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
                     <h2 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wide">Payment Requests</h2>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500">
-                            <tr>
-                                <th className="px-6 py-4">Client</th>
-                                <th className="px-6 py-4">Amount</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4">Created</th>
-                                <th className="px-6 py-4 text-right">Link</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                <ResponsiveTableFromRows
+                    columns={["Client", "Amount", "Status", "Created", "Link"]}
+                    emptyText="No records found."
+                        headerClassName="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500"
+                        bodyClassName="divide-y divide-zinc-200 dark:divide-zinc-800"
+                >
                             {isLoadingPaymentLinks ? (
                                 <tr><td colSpan={5} className="px-6 py-10 text-center text-zinc-400">Loading payment requests...</td></tr>
                             ) : paymentLinks.length === 0 ? (
@@ -753,27 +748,17 @@ export default function AdminOrdersPage() {
                                     </tr>
                                 ))
                             )}
-                        </tbody>
-                    </table>
-                </div>
+                        
+                </ResponsiveTableFromRows>
             </div>
 
             <div className="bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-sm">
-                        <thead>
-                            <tr className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-semibold">
-                                <th className="px-6 py-4">Order</th>
-                                <th className="px-6 py-4">Client</th>
-                                <th className="px-6 py-4">Items</th>
-                                <th className="px-6 py-4">Amount</th>
-                                <th className="px-6 py-4">Payment</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4">Date</th>
-                                <th className="px-6 py-4 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-zinc-700 dark:text-zinc-300">
+                <ResponsiveTableFromRows
+                    columns={["Order", "Client", "Items", "Amount", "Payment", "Status", "Date", "Actions"]}
+                    emptyText="No records found."
+                        headerClassName="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-semibold"
+                        bodyClassName="divide-y divide-zinc-200 dark:divide-zinc-800 text-zinc-700 dark:text-zinc-300"
+                >
                             {isLoadingOrders ? (
                                 <tr><td colSpan={8} className="px-6 py-12 text-center text-zinc-400">Loading orders...</td></tr>
                             ) : filteredOrders.length === 0 ? (
@@ -839,9 +824,8 @@ export default function AdminOrdersPage() {
                                     );
                                 })
                             )}
-                        </tbody>
-                    </table>
-                </div>
+                        
+                </ResponsiveTableFromRows>
             </div>
 
             {isModalOpen && (

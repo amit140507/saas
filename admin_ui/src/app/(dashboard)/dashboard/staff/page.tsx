@@ -13,6 +13,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { EmptyState, PageHeader, PageShell } from "@/components/ui/page";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 
 interface StaffMember {
     id: string;
@@ -518,20 +519,12 @@ export default function StaffMembersPage() {
             </div>
 
             <div className="hidden overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-colors md:block">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-sm">
-                        <thead>
-                            <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors">
-                                <th className="px-6 py-4">ID</th>
-                                <th className="px-6 py-4">Name</th>
-                                <th className="px-6 py-4">Email</th>
-                                <th className="px-6 py-4">Phone</th>
-                                <th className="px-6 py-4">Roles</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border text-card-foreground transition-colors">
+                <ResponsiveTableFromRows
+                    columns={["ID", "Name", "Email", "Phone", "Roles", "Status", "Actions"]}
+                    emptyText="No records found."
+                        headerClassName="border-b border-border bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors"
+                        bodyClassName="divide-y divide-border text-card-foreground transition-colors"
+                >
                             {filteredStaff?.length === 0 ? (
                                 <tr>
                                     <td colSpan={7} className="px-6 py-12 text-center">
@@ -617,9 +610,8 @@ export default function StaffMembersPage() {
                                     </tr>
                                 ))
                             )}
-                        </tbody>
-                    </table>
-                </div>
+                        
+                </ResponsiveTableFromRows>
             </div>
 
             <div className="grid gap-4 md:hidden">

@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PageHeader, PageShell } from "@/components/ui/page";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 
 type ModalMode = "create" | "edit";
 type PackageForm = {
@@ -427,18 +428,12 @@ export default function PackagesPage() {
             </div>
 
             <div className="hidden overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-colors md:block">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-sm">
-                        <thead>
-                            <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground transition-colors">
-                                <th className="px-6 py-4">Package</th>
-                                <th className="px-6 py-4">Plans</th>
-                                <th className="px-6 py-4">Max freezes</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border text-card-foreground transition-colors">
+                <ResponsiveTableFromRows
+                    columns={["Package", "Plans", "Max freezes", "Status", "Actions"]}
+                    emptyText="No records found."
+                        headerClassName="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground transition-colors"
+                        bodyClassName="divide-y divide-border text-card-foreground transition-colors"
+                >
                             {isLoading ? (
                                 <tr>
                                     <td colSpan={5} className="px-6 py-12 text-center text-zinc-400">
@@ -535,9 +530,8 @@ export default function PackagesPage() {
                                     </tr>
                                 ))
                             )}
-                        </tbody>
-                    </table>
-                </div>
+                        
+                </ResponsiveTableFromRows>
             </div>
 
             <div className="grid gap-4 md:hidden">

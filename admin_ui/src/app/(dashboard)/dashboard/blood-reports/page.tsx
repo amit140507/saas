@@ -19,6 +19,7 @@ import { getClients } from "@/services/client.service";
 import { createBloodReport, getBloodReports } from "@/services/blood-report.service";
 import type { BloodMarker, BloodReport, BloodReportFormState } from "@/types/blood-report.type";
 import type { ClientData } from "@/types/client.type";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 
 const DEFAULT_MARKERS: BloodMarker[] = [
     { marker_name: "HbA1c", value: "", unit: "%", normal_max: "5.700" },
@@ -372,19 +373,12 @@ export default function AdminBloodReportsPage() {
                     <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{sortedReports.length} reports</span>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-left text-sm">
-                        <thead>
-                            <tr className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50">
-                                <th className="px-6 py-4">Public ID</th>
-                                <th className="px-6 py-4">Name</th>
-                                <th className="px-6 py-4">Email</th>
-                                <th className="px-6 py-4">Report Date</th>
-                                <th className="px-6 py-4">Lab</th>
-                                <th className="px-6 py-4 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-200 text-zinc-700 dark:divide-zinc-800 dark:text-zinc-300">
+                <ResponsiveTableFromRows
+                    columns={["Public ID", "Name", "Email", "Report Date", "Lab", "Actions"]}
+                    emptyText="No records found."
+                        headerClassName="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50"
+                        bodyClassName="divide-y divide-zinc-200 text-zinc-700 dark:divide-zinc-800 dark:text-zinc-300"
+                >
                             {reportsLoading ? (
                                 <tr>
                                     <td colSpan={6} className="px-6 py-12 text-center text-zinc-400">
@@ -451,9 +445,8 @@ export default function AdminBloodReportsPage() {
                                     );
                                 })
                             )}
-                        </tbody>
-                    </table>
-                </div>
+                        
+                </ResponsiveTableFromRows>
             </div>
 
             {selectedReport && (

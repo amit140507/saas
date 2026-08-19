@@ -27,6 +27,10 @@ class BloodReportViewSet(viewsets.ModelViewSet):
             .select_related('client', 'client__org_client', 'client__org_client__user')
             .prefetch_related('markers')
         )
+        client_id = self.request.query_params.get('client')
+        if client_id:
+            queryset = queryset.filter(client_id=client_id)
+
         if self.request.user.is_superuser:
             return queryset
 

@@ -25,6 +25,7 @@ import {
     getMemberships,
     updateMembership,
 } from "@/services/subscription.service";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 import type { ClientData } from "@/types/client.type";
 import type { Order } from "@/types/order.type";
 import type { Package } from "@/types/package.type";
@@ -264,19 +265,12 @@ export default function SubscriptionsPage() {
             </div>
 
             <div className="bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500">
-                            <tr>
-                                <th className="px-6 py-4">Client</th>
-                                <th className="px-6 py-4">Plan</th>
-                                <th className="px-6 py-4">Dates</th>
-                                <th className="px-6 py-4">Order</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                <ResponsiveTableFromRows
+                    columns={["Client", "Plan", "Dates", "Order", "Status", "Actions"]}
+                    emptyText="No records found."
+                        headerClassName="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500"
+                        bodyClassName="divide-y divide-zinc-200 dark:divide-zinc-800"
+                >
                             {membershipsLoading ? (
                                 <tr><td colSpan={6} className="px-6 py-12 text-center text-zinc-400">Loading memberships...</td></tr>
                             ) : filteredMemberships.length === 0 ? (
@@ -325,9 +319,8 @@ export default function SubscriptionsPage() {
                                     );
                                 })
                             )}
-                        </tbody>
-                    </table>
-                </div>
+                        
+                </ResponsiveTableFromRows>
             </div>
 
             {membershipModalOpen && (

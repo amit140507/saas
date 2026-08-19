@@ -129,7 +129,6 @@ def snapshot_workout_plan_for_assignment(assignment):
                 reps=template_exercise.reps,
                 rest=template_exercise.rest,
                 notes=template_exercise.notes,
-                exercise_type=template_exercise.exercise_type,
             )
             for template_exercise in template_day.exercises.all()
         ])

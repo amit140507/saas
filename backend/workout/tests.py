@@ -36,6 +36,8 @@ class ExerciseSerializerTests(TestCase):
         serializer = ExerciseSerializer(data={
             'name': 'Bench Press',
             'primary_muscle': self.chest.id,
+            'training_location': Exercise.TrainingLocation.GYM,
+            'workout_type': Exercise.WorkoutType.PUSH,
             'equipment_required': True,
             'instructions': 'Keep shoulder blades pinned.',
             'is_active': True,
@@ -46,6 +48,8 @@ class ExerciseSerializerTests(TestCase):
         exercise = serializer.save()
 
         self.assertEqual(exercise.primary_muscle, self.chest)
+        self.assertEqual(exercise.training_location, Exercise.TrainingLocation.GYM)
+        self.assertEqual(exercise.workout_type, Exercise.WorkoutType.PUSH)
         self.assertEqual(exercise.muscles.count(), 1)
         self.assertTrue(exercise.muscles.get(muscle=self.chest).is_primary)
         self.assertEqual(exercise.media.get().youtube_url, 'https://www.youtube.com/watch?v=abc123')
@@ -128,6 +132,8 @@ class ExerciseSerializerTests(TestCase):
         exercise = Exercise.objects.create(
             name='Cable Fly',
             primary_muscle=self.chest,
+            training_location=Exercise.TrainingLocation.HOME,
+            workout_type=Exercise.WorkoutType.PULL,
             equipment_required=True,
             instructions='Control the eccentric.',
             is_active=True,
@@ -139,8 +145,36 @@ class ExerciseSerializerTests(TestCase):
 
         self.assertEqual(data['muscle_group_name'], 'Pectorals')
         self.assertEqual(data['primary_muscle_name'], 'Pectoralis Major')
+        self.assertEqual(data['training_location'], Exercise.TrainingLocation.HOME)
+        self.assertEqual(data['workout_type'], Exercise.WorkoutType.PULL)
         self.assertEqual(data['muscles'][0]['muscle_name'], 'Pectoralis Major')
         self.assertEqual(data['media'][0]['youtube_url'], 'https://www.youtube.com/watch?v=fly123')
+
+    def test_invalid_training_location_is_rejected(self):
+        serializer = ExerciseSerializer(data={
+            'name': 'Invalid Location Exercise',
+            'primary_muscle': self.chest.id,
+            'training_location': 'park',
+            'equipment_required': False,
+            'instructions': '',
+            'is_active': True,
+        })
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('training_location', serializer.errors)
+
+    def test_invalid_workout_type_is_rejected(self):
+        serializer = ExerciseSerializer(data={
+            'name': 'Invalid Split Exercise',
+            'primary_muscle': self.chest.id,
+            'workout_type': 'cardio',
+            'equipment_required': False,
+            'instructions': '',
+            'is_active': True,
+        })
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('workout_type', serializer.errors)
 
 
 class WorkoutPlanVersioningTests(TestCase):

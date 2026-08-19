@@ -22,6 +22,7 @@ import { getClient } from "@/services/client.service";
 import { getMeasurementsByClient } from "@/services/measurement.service";
 import type { ClientData } from "@/types/client.type";
 import type { MeasurementMetricKey, WeeklyMeasurementData } from "@/types/measurement.type";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
@@ -289,20 +290,12 @@ export default function ClientMeasurementDetailPage() {
               <RulerIcon className="w-5 h-5 text-orange-500" />
               <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Historical Measurements</h2>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-semibold">
-                    <th className="px-4 py-3">Measured At</th>
-                    {tableColumns.map((column) => (
-                      <th key={column.key} className="px-4 py-3 whitespace-nowrap">
-                        {column.label}
-                      </th>
-                    ))}
-                    <th className="px-4 py-3">Notes</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-zinc-700 dark:text-zinc-300">
+            <ResponsiveTableFromRows
+                    columns={["Measured At", "Column 2", "Notes"]}
+                    emptyText="No records found."
+                        headerClassName="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-semibold"
+                        bodyClassName="divide-y divide-zinc-200 dark:divide-zinc-800 text-zinc-700 dark:text-zinc-300"
+                >
                   {measurements.map((measurement) => (
                     <tr key={measurement.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
                       <td className="px-4 py-3 font-medium text-zinc-900 dark:text-white whitespace-nowrap">
@@ -318,9 +311,8 @@ export default function ClientMeasurementDetailPage() {
                       </td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                
+                </ResponsiveTableFromRows>
           </div>
         </>
       )}

@@ -302,26 +302,22 @@ export default function ClientCheckinDetailPage() {
                 <Loader2Icon className="animate-spin text-indigo-600 w-8 h-8" />
               </div>
             )}
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-semibold">
-                  <th className="px-4 py-3 w-48 sticky left-0 z-10 bg-zinc-100 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800">
+            <div className="min-w-max">
+              <div className="flex bg-zinc-100 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:bg-zinc-900">
+                  <div className="sticky left-0 z-10 w-48 shrink-0 border-b border-r border-zinc-200 bg-zinc-100 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
                     Metrics
-                  </th>
+                  </div>
                   {weekColumns.map((column) => (
-                    <th key={column.dateKey} className="px-4 py-3 text-center border-r border-zinc-200 dark:border-zinc-800 min-w-[120px]">
+                    <div key={column.dateKey} className="min-w-[120px] border-b border-r border-zinc-200 px-4 py-3 text-center dark:border-zinc-800">
                       <div>{column.date.toLocaleDateString("en-US", { weekday: "long" })}</div>
                       <div className="text-xs font-normal text-zinc-400 mt-1">{dayFormatter.format(column.date)}</div>
-                    </th>
+                    </div>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
+              </div>
                 {metricSections.map((section) => (
                   <FragmentSection key={section.title} section={section} weekLogs={weekLogs} />
                 ))}
-              </tbody>
-            </table>
+            </div>
           </div>
         </div>
       )}
@@ -331,34 +327,32 @@ export default function ClientCheckinDetailPage() {
 
 function FragmentSection({ section, weekLogs }: { section: MetricSection; weekLogs: Array<CheckInLogData | undefined> }) {
   return (
-    <>
-      <tr className="bg-zinc-50 dark:bg-zinc-800/20">
-        <td colSpan={weekLogs.length + 1} className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-zinc-400">
+    <div>
+      <div className="border-b border-zinc-100 bg-zinc-50 px-4 py-2 text-xs font-bold uppercase tracking-widest text-zinc-400 dark:border-zinc-800 dark:bg-zinc-800/20">
           {section.title}
-        </td>
-      </tr>
+      </div>
       {section.rows.map((row) => (
-        <tr
+        <div
           key={`${section.title}-${row.field}`}
-          className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+          className="flex border-b border-zinc-100 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50"
         >
-          <td className="px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300 whitespace-nowrap bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 sticky left-0 z-10">
+          <div className="sticky left-0 z-10 w-48 shrink-0 whitespace-nowrap border-r border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
             {row.label}
-          </td>
+          </div>
           {weekLogs.map((log, index) => (
-            <td
+            <div
               key={`${String(row.field)}-${index}`}
-              className="p-2 border-r border-zinc-200 dark:border-zinc-800 text-center min-w-[100px] text-sm text-zinc-500 dark:text-zinc-400"
+              className="min-w-[120px] border-r border-zinc-200 p-2 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400"
             >
               {row.type === "textarea" ? (
                 <div className="max-h-16 overflow-y-auto text-left text-xs p-1">{formatValue(log, row)}</div>
               ) : (
                 <span>{formatValue(log, row)}</span>
               )}
-            </td>
+            </div>
           ))}
-        </tr>
+        </div>
       ))}
-    </>
+    </div>
   );
 }

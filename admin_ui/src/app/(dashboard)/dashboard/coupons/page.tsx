@@ -28,6 +28,7 @@ import { PageHeader, PageShell } from "@/components/ui/page";
 import { can, PERMISSIONS, useCurrentUserPermissions } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { CouponFormModal, couponToForm, emptyCouponForm } from "./_components/CouponFormModal";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 
 type ModalMode = "create" | "edit";
 
@@ -196,21 +197,12 @@ export default function CouponsPage() {
             </div>
 
             <div className="hidden overflow-hidden rounded-lg border border-border bg-card shadow-sm md:block">
-                <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-left text-sm">
-                        <thead>
-                            <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground">
-                                <th className="px-6 py-4">Coupon code</th>
-                                <th className="px-6 py-4">Name</th>
-                                <th className="px-6 py-4">Discount</th>
-                                <th className="px-6 py-4">Start date</th>
-                                <th className="px-6 py-4">End date</th>
-                                <th className="px-6 py-4">Usage</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
+                <ResponsiveTableFromRows
+                    columns={["Coupon code", "Name", "Discount", "Start date", "End date", "Usage", "Status", "Actions"]}
+                    emptyText="No records found."
+                        headerClassName="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground"
+                        bodyClassName="divide-y divide-border"
+                >
                             {isLoading ? (
                                 <tr>
                                     <td colSpan={8} className="px-6 py-12 text-center">
@@ -272,9 +264,8 @@ export default function CouponsPage() {
                                     </tr>
                                 ))
                             )}
-                        </tbody>
-                    </table>
-                </div>
+                        
+                </ResponsiveTableFromRows>
             </div>
 
             <div className="grid gap-3 md:hidden">

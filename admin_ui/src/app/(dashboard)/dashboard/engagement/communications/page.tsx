@@ -26,6 +26,7 @@ import {
     testMessageTemplate,
     updateMessageTemplate,
 } from "@/services/communication.service";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 import type { ClientData } from "@/types/client.type";
 import type {
     MessageCategory,
@@ -339,18 +340,12 @@ export default function CommunicationsPage() {
 
             {activeTab === "templates" && (
                 <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                    <table className="w-full text-left text-sm">
-                        <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50">
-                            <tr>
-                                <th className="px-6 py-4">Template</th>
-                                <th className="px-6 py-4">Channel</th>
-                                <th className="px-6 py-4">Category</th>
-                                <th className="px-6 py-4">Variables</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                    <ResponsiveTableFromRows
+                        columns={["Template", "Channel", "Category", "Variables", "Status", "Actions"]}
+                        emptyText="No templates found."
+                        headerClassName="border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50"
+                        bodyClassName="divide-zinc-200 dark:divide-zinc-800"
+                    >
                             {templatesLoading ? (
                                 <tr><td colSpan={6} className="px-6 py-12 text-center text-zinc-400">Loading templates...</td></tr>
                             ) : filteredTemplates.length === 0 ? (
@@ -380,8 +375,7 @@ export default function CommunicationsPage() {
                                     </td>
                                 </tr>
                             ))}
-                        </tbody>
-                    </table>
+                    </ResponsiveTableFromRows>
                 </div>
             )}
 
@@ -424,17 +418,12 @@ export default function CommunicationsPage() {
                         ))}
                     </div>
                     <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                        <table className="w-full text-left text-sm">
-                            <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50">
-                                <tr>
-                                    <th className="px-6 py-4">Recipient</th>
-                                    <th className="px-6 py-4">Channel</th>
-                                    <th className="px-6 py-4">Message</th>
-                                    <th className="px-6 py-4">Status</th>
-                                    <th className="px-6 py-4">Sent</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                        <ResponsiveTableFromRows
+                            columns={["Recipient", "Channel", "Message", "Status", "Sent"]}
+                            emptyText="No logs found."
+                            headerClassName="border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50"
+                            bodyClassName="divide-zinc-200 dark:divide-zinc-800"
+                        >
                                 {emailLogsLoading || whatsappLogsLoading ? (
                                     <tr><td colSpan={5} className="px-6 py-12 text-center text-zinc-400">Loading logs...</td></tr>
                                 ) : filteredLogs.length === 0 ? (
@@ -452,8 +441,7 @@ export default function CommunicationsPage() {
                                         <td className="px-6 py-4 text-xs text-zinc-500">{formatDate(log.sentAt)}</td>
                                     </tr>
                                 ))}
-                            </tbody>
-                        </table>
+                        </ResponsiveTableFromRows>
                     </div>
                 </div>
             )}

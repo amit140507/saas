@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader, PageShell } from "@/components/ui/page";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 import { can, PERMISSIONS, useCurrentUserPermissions } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { getClients } from "@/services/client.service";
@@ -604,16 +605,12 @@ export default function StaffDetailsPage() {
                                 ) : (
                                     <>
                                         <div className="hidden overflow-x-auto md:block">
-                                            <table className="w-full text-left text-sm">
-                                                <thead>
-                                                    <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground">
-                                                        <th className="px-4 py-3">Public ID</th>
-                                                        <th className="px-4 py-3">Name</th>
-                                                        <th className="px-4 py-3">Email</th>
-                                                        <th className="px-4 py-3 text-right">Profile</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-border">
+                                            <ResponsiveTableFromRows
+                                                columns={["Public ID", "Name", "Email", "Profile"]}
+                                                emptyText="No clients assigned yet."
+                                                headerClassName="border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground"
+                                                bodyClassName="divide-border"
+                                            >
                                                     {assignedClients.map((client) => (
                                                         <tr key={client.id} className="transition-colors hover:bg-muted/30">
                                                             <td className="px-4 py-3 font-mono text-muted-foreground">
@@ -636,8 +633,7 @@ export default function StaffDetailsPage() {
                                                             </td>
                                                         </tr>
                                                     ))}
-                                                </tbody>
-                                            </table>
+                                            </ResponsiveTableFromRows>
                                         </div>
 
                                         <div className="grid gap-3 p-4 md:hidden">

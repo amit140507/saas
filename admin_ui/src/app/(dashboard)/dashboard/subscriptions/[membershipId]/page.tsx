@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/ui/page";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 import { cn } from "@/lib/utils";
 import { getClients } from "@/services/client.service";
 import { getOrders } from "@/services/order.service";
@@ -142,31 +143,16 @@ function DataTable({
     emptyLabel: string;
     children: ReactNode;
 }) {
-    const rows = Array.isArray(children) ? children.filter(Boolean) : children;
-    const isEmpty = Array.isArray(rows) ? rows.length === 0 : !rows;
-
     return (
         <div className="overflow-hidden rounded-lg border border-border bg-card">
-            <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                    <thead>
-                        <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground">
-                            {headers.map((header) => (
-                                <th key={header} className="px-4 py-3">{header}</th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {isEmpty ? (
-                            <tr>
-                                <td colSpan={headers.length} className="px-4 py-10 text-center text-muted-foreground">
-                                    {emptyLabel}
-                                </td>
-                            </tr>
-                        ) : rows}
-                    </tbody>
-                </table>
-            </div>
+            <ResponsiveTableFromRows
+                columns={headers}
+                emptyText={emptyLabel}
+                headerClassName="border-border bg-muted/50 text-muted-foreground"
+                bodyClassName="divide-border"
+            >
+                {children}
+            </ResponsiveTableFromRows>
         </div>
     );
 }

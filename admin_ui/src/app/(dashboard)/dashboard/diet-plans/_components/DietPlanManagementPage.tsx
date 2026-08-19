@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import type { AxiosError } from "axios";
 
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 import { foodDb, supplementsDb } from "@/lib/foodDb";
 import { useCurrentUserPermissions } from "@/lib/permissions";
 import { getClients } from "@/services/client.service";
@@ -1065,23 +1066,14 @@ function Panel({ title, actionLabel, onAction, children }: { title: string; acti
 }
 
 function DataTable({ columns, emptyText, children }: { columns: string[]; emptyText: string; children: React.ReactNode }) {
-    const rows = Array.isArray(children) ? children.filter(Boolean) : children;
-    const hasRows = Array.isArray(rows) ? rows.length > 0 : Boolean(rows);
     return (
-        <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-sm">
-                <thead>
-                    <tr className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50">
-                        {columns.map((column) => <th key={column} className={`px-6 py-4 ${column === "Actions" ? "text-right" : ""}`}>{column}</th>)}
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200 text-zinc-700 dark:divide-zinc-800 dark:text-zinc-300">
-                    {hasRows ? rows : (
-                        <tr><td colSpan={columns.length} className="px-6 py-12 text-center text-zinc-400">{emptyText}</td></tr>
-                    )}
-                </tbody>
-            </table>
-        </div>
+        <ResponsiveTableFromRows
+            columns={columns}
+            emptyText={emptyText}
+            rowClassName="transition hover:bg-zinc-50 dark:hover:bg-zinc-900/40"
+        >
+            {children}
+        </ResponsiveTableFromRows>
     );
 }
 

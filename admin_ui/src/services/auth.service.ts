@@ -11,6 +11,12 @@ export interface CurrentUserMembership {
 }
 
 export interface CurrentAdminUser {
+    username?: string;
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    permission_codes?: string[];
     memberships?: CurrentUserMembership[];
 }
 

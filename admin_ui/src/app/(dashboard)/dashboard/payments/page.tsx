@@ -15,6 +15,7 @@ import {
 
 import { getAdminPaymentLinks } from "@/services/payment.service";
 import type { AdminPaymentLinkRequest } from "@/types/payment.type";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 
 type StatusTone = {
     icon: LucideIcon;
@@ -222,20 +223,12 @@ export default function PaymentsPage() {
                 <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
                     <h2 className="text-sm font-bold uppercase tracking-wide text-zinc-900 dark:text-white">Payment Details</h2>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50">
-                            <tr>
-                                <th className="px-6 py-4">Client</th>
-                                <th className="px-6 py-4">Amount</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4">Created</th>
-                                <th className="px-6 py-4">Paid</th>
-                                <th className="px-6 py-4">Order</th>
-                                <th className="px-6 py-4 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                <ResponsiveTableFromRows
+                    columns={["Client", "Amount", "Status", "Created", "Paid", "Order", "Actions"]}
+                    emptyText="No records found."
+                        headerClassName="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50"
+                        bodyClassName="divide-y divide-zinc-200 dark:divide-zinc-800"
+                >
                             {isLoading ? (
                                 <tr>
                                     <td colSpan={7} className="px-6 py-12 text-center text-zinc-400">Loading payments...</td>
@@ -301,9 +294,8 @@ export default function PaymentsPage() {
                                     );
                                 })
                             )}
-                        </tbody>
-                    </table>
-                </div>
+                        
+                </ResponsiveTableFromRows>
             </div>
         </div>
     );

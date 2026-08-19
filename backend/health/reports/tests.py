@@ -65,6 +65,30 @@ class BloodReportViewSetTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self._report_ids(response), {str(report.id)})
 
+    def test_list_can_filter_reports_by_client(self):
+        other_client = self._create_client_profile("other-client", self.tenant)
+        matching_report = BloodReport.objects.create(
+            tenant=self.tenant,
+            client=self.client_profile,
+            report_date=date(2026, 7, 30),
+            lab_name="City Diagnostics",
+        )
+        BloodReport.objects.create(
+            tenant=self.tenant,
+            client=other_client,
+            report_date=date(2026, 7, 31),
+            lab_name="Town Diagnostics",
+        )
+
+        self.api_client.force_authenticate(user=self.owner)
+        response = self.api_client.get(
+            f"/api/v1/reports/blood-reports/?client={self.client_profile.id}",
+            HTTP_X_TENANT_ID=str(self.tenant.id),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self._report_ids(response), {str(matching_report.id)})
+
     def test_client_create_infers_client_and_accepts_portal_aliases(self):
         self.api_client.force_authenticate(user=self.client_profile.user)
 

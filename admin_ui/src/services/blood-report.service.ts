@@ -27,6 +27,13 @@ export async function getBloodReports(): Promise<BloodReport[]> {
     return normalizeBloodReportList(response.data);
 }
 
+export async function getBloodReportsByClient(clientId: string): Promise<BloodReport[]> {
+    const response = await api.get<BloodReportListResponse>(API_ENDPOINTS.reports.bloodReports, {
+        params: { client: clientId },
+    });
+    return normalizeBloodReportList(response.data);
+}
+
 export async function createBloodReport(payload: FormData): Promise<BloodReport> {
     const response = await api.post<BloodReport>(API_ENDPOINTS.reports.bloodReports, payload, {
         headers: {

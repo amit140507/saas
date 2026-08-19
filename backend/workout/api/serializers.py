@@ -89,6 +89,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
 class WorkoutExerciseSerializer(serializers.ModelSerializer):
     exercise_name = serializers.ReadOnlyField(source='exercise.name')
+    exercise_type = serializers.ReadOnlyField(source='exercise.exercise_type')
     exercise_video_urls = serializers.SerializerMethodField()
 
     class Meta:
@@ -118,13 +119,9 @@ class WorkoutExerciseTemplatePayloadSerializer(serializers.Serializer):
     video_url = serializers.URLField(required=False, allow_blank=True, allow_null=True)
     weight = serializers.FloatField(required=False, allow_null=True)
     sets = serializers.IntegerField(min_value=1)
-    reps = serializers.CharField(max_length=50)
-    rest = serializers.IntegerField(min_value=0)
+    reps = serializers.ChoiceField(choices=Exercise.RepsRange.choices)
+    rest = serializers.ChoiceField(choices=Exercise.RestPeriod.choices)
     notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    exercise_type = serializers.ChoiceField(
-        choices=WorkoutExercise.ExerciseType.choices,
-        default=WorkoutExercise.ExerciseType.FREE_WEIGHT,
-    )
 
 
 class WorkoutDayTemplatePayloadSerializer(serializers.Serializer):
@@ -207,7 +204,6 @@ class WorkoutPlanSerializer(serializers.ModelSerializer):
                     reps=exercise_data['reps'],
                     rest=exercise_data['rest'],
                     notes=exercise_data.get('notes') or '',
-                    exercise_type=exercise_data.get('exercise_type') or WorkoutExercise.ExerciseType.FREE_WEIGHT,
                 )
                 for sequence, exercise_data in enumerate(exercises, start=1)
             ])

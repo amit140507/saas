@@ -1,5 +1,10 @@
 export type WorkoutDifficulty = "beginner" | "intermediate" | "advanced";
 export type WorkoutAssignmentStatus = "active" | "completed" | "paused" | "cancelled";
+export type ExerciseTrainingLocation = "gym" | "home";
+export type WorkoutType = "push" | "pull" | "legs" | "";
+export type ExerciseType = 1 | 2 | 3;
+export type ExerciseRepsRange = "" | "4-6" | "6-8" | "8-10" | "10-12" | "12-15" | "15-20";
+export type ExerciseRestPeriod = 15 | 30 | 45 | 60 | 75 | 90 | 105 | 120;
 
 export interface MuscleGroup {
     id: string | number;
@@ -46,6 +51,11 @@ export interface Exercise {
     primary_muscle_name?: string | null;
     muscle_group?: string | number | null;
     muscle_group_name?: string | null;
+    training_location?: ExerciseTrainingLocation | null;
+    workout_type?: WorkoutType | null;
+    exercise_type: ExerciseType;
+    reps: ExerciseRepsRange;
+    rest: ExerciseRestPeriod | null;
     equipment_required: boolean;
     instructions: string | null;
     is_active: boolean;
@@ -59,6 +69,11 @@ export interface ExercisePayload {
     tenant?: string;
     name: string;
     primary_muscle: string | number;
+    training_location: ExerciseTrainingLocation;
+    workout_type: WorkoutType;
+    exercise_type: ExerciseType;
+    reps: ExerciseRepsRange;
+    rest: ExerciseRestPeriod | null;
     equipment_required: boolean;
     instructions: string;
     is_active: boolean;
@@ -139,7 +154,7 @@ export interface WorkoutExercise {
     reps: string;
     rest: number;
     notes: string | null;
-    exercise_type: 1 | 2 | 3;
+    exercise_type: ExerciseType;
 }
 
 export interface WorkoutExercisePayload {
@@ -153,7 +168,6 @@ export interface WorkoutExercisePayload {
     reps: string;
     rest: number;
     notes: string;
-    exercise_type: 1 | 2 | 3;
 }
 
 export interface WorkoutDay {
@@ -186,7 +200,6 @@ export interface WorkoutExerciseTemplatePayload {
     reps: string;
     rest: number;
     notes: string;
-    exercise_type: 1 | 2 | 3;
 }
 
 export interface WorkoutDayTemplatePayload {

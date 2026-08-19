@@ -3,10 +3,10 @@
 import { useState, useRef, useEffect } from "react";
 import { BellIcon, ShieldIcon, UserIcon, LogOutIcon, SunIcon, MoonIcon } from "lucide-react";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
-import api from "@/lib/api";
+import { signOut, useSession } from "next-auth/react";
+import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { CurrentAdminUser } from "@/services/auth.service";
+import { getCurrentAdminUser } from "@/services/auth.service";
 
 function getInitialDarkMode() {
     if (typeof window === "undefined") {
@@ -18,22 +18,16 @@ function getInitialDarkMode() {
 }
 
 export default function Navbar() {
+    const { status: sessionStatus } = useSession();
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const [user, setUser] = useState<CurrentAdminUser & { username?: string } | null>(null);
-
-    useEffect(() => {
-        const fetchUser = async () => {
-            try {
-                const response = await api.get<CurrentAdminUser & { username?: string }>("auth/user/");
-                setUser(response.data);
-            } catch (err) {
-                console.error("Failed to fetch user in Navbar", err);
-            }
-        };
-        fetchUser();
-    }, []);
+    const { data: user, isLoading: isUserLoading } = useQuery({
+        queryKey: ["navbar-current-user"],
+        enabled: sessionStatus === "authenticated",
+        queryFn: getCurrentAdminUser,
+        staleTime: 60_000,
+    });
 
     useEffect(() => {
         if (isDarkMode) {
@@ -108,15 +102,19 @@ export default function Navbar() {
                                 {user ? (
                                     <>
                                         <span className="text-sm font-semibold leading-6 text-foreground" aria-hidden="true">
-                                            {user.username}
+                                            {user.username || user.email || "Admin"}
                                         </span>
                                         <span className="text-xs capitalize text-primary">{user.memberships?.[0]?.role}</span>
                                     </>
-                                ) : (
+                                ) : isUserLoading || sessionStatus === "loading" ? (
                                     <>
                                         <Skeleton className="h-4 w-24" />
                                         <Skeleton className="mt-1 h-3 w-14" />
                                     </>
+                                ) : (
+                                    <span className="text-sm font-semibold leading-6 text-foreground" aria-hidden="true">
+                                        Admin
+                                    </span>
                                 )}
                             </div>
                             <div className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/25 bg-primary-soft transition-colors hover:bg-primary-soft/80">

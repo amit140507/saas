@@ -151,6 +151,38 @@ class Exercise(TimeAwareModel):
     Global exercise catalog shared across all tenants.
     """
 
+    class ExerciseType(models.IntegerChoices):
+        BODY_WEIGHT = 1, 'Body Weight'
+        PIN_LOADED = 2, 'Pin Loaded Machine'
+        FREE_WEIGHT = 3, 'Free Weight'
+
+    class TrainingLocation(models.TextChoices):
+        GYM = 'gym', 'Gym'
+        HOME = 'home', 'Home'
+
+    class WorkoutType(models.TextChoices):
+        PUSH = 'push', 'Push'
+        PULL = 'pull', 'Pull'
+        LEGS = 'legs', 'Legs'
+
+    class RepsRange(models.TextChoices):
+        FOUR_TO_SIX = '4-6', '4-6'
+        SIX_TO_EIGHT = '6-8', '6-8'
+        EIGHT_TO_TEN = '8-10', '8-10'
+        TEN_TO_TWELVE = '10-12', '10-12'
+        TWELVE_TO_FIFTEEN = '12-15', '12-15'
+        FIFTEEN_TO_TWENTY = '15-20', '15-20'
+
+    class RestPeriod(models.IntegerChoices):
+        FIFTEEN_SECONDS = 15, '15s'
+        THIRTY_SECONDS = 30, '30s'
+        FORTY_FIVE_SECONDS = 45, '45s'
+        SIXTY_SECONDS = 60, '60s'
+        SEVENTY_FIVE_SECONDS = 75, '75s'
+        NINETY_SECONDS = 90, '90s'
+        ONE_HUNDRED_FIVE_SECONDS = 105, '105s'
+        ONE_HUNDRED_TWENTY_SECONDS = 120, '120s'
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     primary_muscle = models.ForeignKey(
@@ -159,6 +191,34 @@ class Exercise(TimeAwareModel):
         null=True,
         blank=True,
         related_name='primary_exercises',
+    )
+    training_location = models.CharField(
+        max_length=10,
+        choices=TrainingLocation.choices,
+        null=True,
+        blank=True,
+    )
+    workout_type = models.CharField(
+        max_length=20,
+        choices=WorkoutType.choices,
+        null=True,
+        blank=True,
+    )
+    exercise_type = models.IntegerField(
+        choices=ExerciseType.choices,
+        default=ExerciseType.FREE_WEIGHT,
+    )
+    reps = models.CharField(
+        max_length=10,
+        choices=RepsRange.choices,
+        blank=True,
+        default='',
+    )
+    rest = models.PositiveSmallIntegerField(
+        choices=RestPeriod.choices,
+        null=True,
+        blank=True,
+        help_text='rest in seconds',
     )
     equipment_required = models.BooleanField(default=False)
     instructions = models.TextField(blank=True, null=True)
@@ -247,19 +307,9 @@ class WorkoutExercise(models.Model):
     video_url = models.URLField(blank=True, null=True)
     weight = models.FloatField(null=True, blank=True)
     sets = models.IntegerField()
-    reps = models.CharField(max_length=50)
-    rest = models.IntegerField(help_text='rest in seconds')
+    reps = models.CharField(max_length=50, choices=Exercise.RepsRange.choices)
+    rest = models.IntegerField(choices=Exercise.RestPeriod.choices, help_text='rest in seconds')
     notes = models.TextField(blank=True, null=True)
-
-    class ExerciseType(models.IntegerChoices):
-        BODY_WEIGHT = 1, 'Body Weight'
-        PIN_LOADED = 2, 'Pin Loaded Machine'
-        FREE_WEIGHT = 3, 'Free Weight'
-
-    exercise_type = models.IntegerField(
-        choices=ExerciseType.choices,
-        default=ExerciseType.FREE_WEIGHT,
-    )
 
     class Meta:
         ordering = ['sequence', 'id']

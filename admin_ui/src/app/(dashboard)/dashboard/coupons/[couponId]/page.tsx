@@ -26,6 +26,7 @@ import { PageHeader, PageShell } from "@/components/ui/page";
 import { can, PERMISSIONS, useCurrentUserPermissions } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { CouponFormModal, couponToForm, emptyCouponForm } from "../_components/CouponFormModal";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 
 function formatDateTime(value: string | null) {
     if (!value) {
@@ -256,18 +257,11 @@ export default function CouponDetailPage() {
                     <Badge variant="neutral">{orderUsages.length} orders</Badge>
                 </div>
                 <div className="overflow-hidden rounded-lg border border-border bg-card">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead>
-                                <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground">
-                                    <th className="px-4 py-3">Order</th>
-                                    <th className="px-4 py-3">Status</th>
-                                    <th className="px-4 py-3">Total</th>
-                                    <th className="px-4 py-3">Discount</th>
-                                    <th className="px-4 py-3">Created</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+                    <ResponsiveTableFromRows
+                    columns={["Order", "Status", "Total", "Discount", "Created"]}
+                    emptyText="No records found."
+                        headerClassName="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground"
+                >
                                 {isLoadingUsages ? (
                                     <tr>
                                         <td colSpan={5} className="px-4 py-10 text-center">
@@ -283,9 +277,8 @@ export default function CouponDetailPage() {
                                 ) : (
                                     lastFiveOrders.map((usage) => <OrderUsageRow key={usage.id} usage={usage} />)
                                 )}
-                            </tbody>
-                        </table>
-                    </div>
+                            
+                </ResponsiveTableFromRows>
                 </div>
             </section>
 

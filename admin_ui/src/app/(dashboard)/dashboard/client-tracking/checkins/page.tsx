@@ -6,6 +6,7 @@ import { ActivityIcon, EditIcon, EyeIcon, Loader2Icon } from "lucide-react";
 
 import { getClients } from "@/services/client.service";
 import type { ClientData } from "@/types/client.type";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 
 function getClientName(client: ClientData) {
   const name = `${client.user.first_name || ""} ${client.user.last_name || ""}`.trim();
@@ -33,16 +34,12 @@ export default function ClientCheckinsPage() {
       </div>
 
       <div className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden transition-colors">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-sm">
-            <thead>
-              <tr className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-semibold transition-colors">
-                <th className="px-6 py-4">Client Public ID</th>
-                <th className="px-6 py-4">Client Name</th>
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors">
+        <ResponsiveTableFromRows
+                    columns={["Client Public ID", "Client Name", "Actions"]}
+                    emptyText="No records found."
+                        headerClassName="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-semibold transition-colors"
+                        bodyClassName="divide-y divide-zinc-200 dark:divide-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors"
+                >
               {isLoading ? (
                 <tr>
                   <td colSpan={3} className="px-6 py-12 text-center text-zinc-400">
@@ -99,9 +96,8 @@ export default function ClientCheckinsPage() {
                   </tr>
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
+            
+                </ResponsiveTableFromRows>
       </div>
     </div>
   );

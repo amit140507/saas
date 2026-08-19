@@ -36,8 +36,8 @@ class WorkoutDayAdmin(admin.ModelAdmin):
 
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
-    list_display = ('name', 'primary_muscle', 'equipment_required', 'is_active')
-    list_filter = ('equipment_required', 'is_active')
+    list_display = ('name', 'primary_muscle', 'training_location', 'workout_type', 'exercise_type', 'reps', 'rest', 'equipment_required', 'is_active')
+    list_filter = ('training_location', 'workout_type', 'exercise_type', 'reps', 'rest', 'equipment_required', 'is_active')
     search_fields = ('name', 'primary_muscle__name')
 
 

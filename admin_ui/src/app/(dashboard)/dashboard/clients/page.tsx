@@ -14,6 +14,13 @@ import { Input } from "@/components/ui/input";
 import { PageHeader, PageShell } from "@/components/ui/page";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
+
+const statusChoices = [
+  { value: "active", label: "Active", formLabel: "Active Member", dotClassName: "bg-emerald-500" },
+  { value: "lead", label: "Leads", formLabel: "Lead / Prospect", dotClassName: "bg-amber-500" },
+  { value: "inactive", label: "Inactive", formLabel: "Inactive", dotClassName: "bg-red-500" },
+] as const;
 
 function getClientStatusVariant(status: string) {
   if (status === "active") {
@@ -159,25 +166,23 @@ export default function ClientsPage() {
           />
         </div>
         <div className="flex items-center gap-6 text-zinc-500">
-          <span className="flex items-center gap-1 font-medium"><span className="w-2 h-2 rounded-full bg-emerald-500 block"></span> Active: {filteredClients.filter(c => c.status === 'active').length}</span>
-          <span className="flex items-center gap-1 font-medium"><span className="w-2 h-2 rounded-full bg-amber-500 block"></span> Leads: {filteredClients.filter(c => c.status === 'lead').length}</span>
+          {statusChoices.map((status) => (
+            <span key={status.value} className="flex items-center gap-1 font-medium">
+              <span className={cn("w-2 h-2 rounded-full block", status.dotClassName)} />
+              {status.label}: {filteredClients.filter((client) => client.status === status.value).length}
+            </span>
+          ))}
         </div>
       </div>
 
       {/* Table */}
       <div className="hidden overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-colors md:block">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors">
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Client Profile</th>
-                <th className="px-6 py-4">Contact</th>
-                <th className="px-6 py-4">Goal</th>
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border text-card-foreground transition-colors">
+        <ResponsiveTableFromRows
+                    columns={["Status", "Client Profile", "Contact", "Goal", "Actions"]}
+                    emptyText="No records found."
+                        headerClassName="border-b border-border bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors"
+                        bodyClassName="divide-y divide-border text-card-foreground transition-colors"
+                >
               {isLoading ? (
                 <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-zinc-400">
@@ -241,9 +246,8 @@ export default function ClientsPage() {
                   </tr>
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
+            
+                </ResponsiveTableFromRows>
       </div>
 
       <div className="grid gap-4 md:hidden">
@@ -326,9 +330,11 @@ export default function ClientsPage() {
               <div>
                 <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Account Status</label>
                 <select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 text-sm focus:border-indigo-500 outline-none dark:text-white transition">
-                  <option value="active">Active Member</option>
-                  <option value="lead">Lead / Prospect</option>
-                  <option value="inactive">Inactive</option>
+                  {statusChoices.map((status) => (
+                    <option key={status.value} value={status.value}>
+                      {status.formLabel}
+                    </option>
+                  ))}
                 </select>
               </div>
 

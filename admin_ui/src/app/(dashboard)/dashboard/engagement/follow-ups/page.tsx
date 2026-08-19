@@ -24,6 +24,7 @@ import {
     getFollowupSuggestedTargets,
     updateFollowup,
 } from "@/services/followup.service";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 import { getStaffMembers } from "@/services/staff.service";
 import type { ClientData } from "@/types/client.type";
 import type { MessageTemplate } from "@/types/communication.type";
@@ -307,18 +308,12 @@ export default function FollowUpsPage() {
                     </div>
 
                     <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                        <table className="w-full text-left text-sm">
-                            <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50">
-                                <tr>
-                                    <th className="px-6 py-4">Client</th>
-                                    <th className="px-6 py-4">Type</th>
-                                    <th className="px-6 py-4">Schedule</th>
-                                    <th className="px-6 py-4">Status</th>
-                                    <th className="px-6 py-4">Priority</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                        <ResponsiveTableFromRows
+                            columns={["Client", "Type", "Schedule", "Status", "Priority", "Actions"]}
+                            emptyText="No follow-ups found."
+                            headerClassName="border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50"
+                            bodyClassName="divide-zinc-200 dark:divide-zinc-800"
+                        >
                                 {followupsLoading ? (
                                     <tr><td colSpan={6} className="px-6 py-12 text-center text-zinc-400">Loading follow-ups...</td></tr>
                                 ) : filteredFollowups.length === 0 ? (
@@ -340,8 +335,7 @@ export default function FollowUpsPage() {
                                         </td>
                                     </tr>
                                 ))}
-                            </tbody>
-                        </table>
+                        </ResponsiveTableFromRows>
                     </div>
                 </div>
 

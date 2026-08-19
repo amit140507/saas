@@ -1,15 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { CheckCircleIcon, CalendarIcon, ActivityIcon, UsersIcon } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CalendarIcon, ActivityIcon, UsersIcon } from "lucide-react";
+import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 // In a real implementation this would fetch all plans using `axios.get('/api/checkins/plans/')`
+
+type TrackerLog = {
+  [key: string]: string | number | boolean | null;
+  id: null;
+  day_of_week: number;
+};
 
 export default function AdminCheckInTracker() {
   const [selectedClient, setSelectedClient] = useState(1);
   const [selectedWeek, setSelectedWeek] = useState(1);
   const totalWeeks = 12;
 
-  const defaultLogs = Array.from({ length: 7 }).map((_, i) => ({
+  const logs = useMemo<TrackerLog[]>(() => Array.from({ length: 7 }).map((_, i) => ({
     id: null,
     day_of_week: i,
     date: "",
@@ -30,15 +37,8 @@ export default function AdminCheckInTracker() {
     gi_distress: "",
     sleep_duration: "",
     sleep_quality: "",
-    notes: ""
-  }));
-
-  const [logs, setLogs] = useState<any[]>(defaultLogs);
-
-  useEffect(() => {
-    // API mock
-    setLogs(defaultLogs);
-  }, [selectedWeek, selectedClient]);
+    notes: "",
+  })), []);
 
   const getAverage = (field: string) => {
     const validLogs = logs.filter(l => l[field] !== "" && l[field] !== null && !isNaN(Number(l[field])));
@@ -46,8 +46,6 @@ export default function AdminCheckInTracker() {
     const sum = validLogs.reduce((acc, curr) => acc + Number(curr[field]), 0);
     return (sum / validLogs.length).toFixed(2);
   };
-
-  const daysLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   const renderRow = (label: string, field: string, type: string = "number") => (
     <tr className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
@@ -102,21 +100,11 @@ export default function AdminCheckInTracker() {
       </div>
 
       <div className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden opacity-95">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-semibold">
-                <th className="px-4 py-3 w-48 sticky left-0 z-10 bg-zinc-100 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800">Metrics</th>
-                {daysLabels.map((day, i) => (
-                  <th key={day} className="px-4 py-3 text-center border-r border-zinc-200 dark:border-zinc-800 min-w-[120px]">
-                    <div>{day}</div>
-                    <div className="text-xs font-normal text-zinc-400 mt-1">{logs[i].date || "No Date"}</div>
-                  </th>
-                ))}
-                <th className="px-4 py-3 text-center text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/10">Wk Avg</th>
-              </tr>
-            </thead>
-            <tbody>
+        <ResponsiveTableFromRows
+                    columns={["Metrics", "Column 2", "Wk Avg"]}
+                    emptyText="No records found."
+                        headerClassName="bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-semibold"
+                >
               <tr className="bg-zinc-50 dark:bg-zinc-800/20"><td colSpan={9} className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-zinc-400">1. General</td></tr>
               {renderRow("Weight", "weight", "number")}
 
@@ -148,9 +136,8 @@ export default function AdminCheckInTracker() {
 
               <tr className="bg-zinc-50 dark:bg-zinc-800/20"><td colSpan={9} className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-zinc-400">7. Additional Notes</td></tr>
               {renderRow("Accomplishments / Hurdles", "notes", "textarea")}
-            </tbody>
-          </table>
-        </div>
+            
+                </ResponsiveTableFromRows>
       </div>
     </div>
   );

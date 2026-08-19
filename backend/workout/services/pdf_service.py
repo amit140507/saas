@@ -90,7 +90,7 @@ def create_workout_plan_pdf(assignment):
             pdf.set_font("helvetica", "", 9)
             details = [
                 f"Body Part: {exercise.body_part or '-'}",
-                f"Type: {exercise.get_exercise_type_display()}",
+                f"Type: {exercise.exercise.get_exercise_type_display()}",
                 f"Weight: {exercise.weight if exercise.weight is not None else '-'}",
                 f"Sets: {exercise.sets}",
                 f"Reps: {exercise.reps}",
