@@ -194,7 +194,7 @@ export function createPlanDay(overrides: Partial<PlanDayForm> = {}): PlanDayForm
         name: "MONDAY: BACK, SHOULDERS & CORE",
         day_number: "1",
         notes: "",
-        exercises: [createPlanExerciseRow()],
+        exercises: [],
         ...overrides,
     };
 }
@@ -357,7 +357,7 @@ function mapWorkoutDayToForm(day: WorkoutDay, exerciseById: Map<string, Exercise
         name: day.name,
         day_number: String(day.day_number),
         notes: day.notes || "",
-        exercises: sortedExercises.length ? sortedExercises.map((row) => mapWorkoutExerciseToForm(row, exerciseById)) : [createPlanExerciseRow()],
+        exercises: sortedExercises.map((row) => mapWorkoutExerciseToForm(row, exerciseById)),
     });
 }
 
@@ -848,25 +848,6 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
         }));
     };
 
-    const selectPlanExercise = (dayId: string, rowId: string, exerciseId: string) => {
-        const selectedExercise = exerciseById.get(exerciseId);
-        if (!selectedExercise) return;
-        updatePlanExerciseRow(dayId, rowId, {
-            ...createPlanExerciseRowFromExercise(selectedExercise),
-            id: rowId,
-        });
-    };
-
-    const selectPlanMuscleGroup = (dayId: string, rowId: string, muscleGroupId: string) => {
-        updatePlanExerciseRow(dayId, rowId, {
-            muscle_group: muscleGroupId,
-            body_part: muscleGroupById.get(muscleGroupId)?.name || "",
-            exercise: "",
-            exercise_search: "",
-            video_url: "",
-        });
-    };
-
     const movePlanExerciseRow = (dayId: string, draggedRowId: string, targetRowId: string) => {
         if (draggedRowId === targetRowId) return;
 
@@ -902,7 +883,7 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
         setPlanForm((current) => ({
             ...current,
             days: current.days.map((day) => {
-                if (day.id !== dayId || day.exercises.length === 1) return day;
+                if (day.id !== dayId) return day;
                 return { ...day, exercises: day.exercises.filter((row) => row.id !== rowId) };
             }),
         }));
@@ -1176,8 +1157,6 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                             onAddRow={addPlanExerciseRow}
                             onRemoveRow={removePlanExerciseRow}
                             onUpdateRow={updatePlanExerciseRow}
-                            onSelectExercise={selectPlanExercise}
-                            onSelectMuscleGroup={selectPlanMuscleGroup}
                             onMoveRow={movePlanExerciseRow}
                             onCreateExerciseRequest={openExerciseModalForPlanDay}
                         />
@@ -1444,8 +1423,6 @@ export function PlanTemplateEditor({
     onAddRow,
     onRemoveRow,
     onUpdateRow,
-    onSelectExercise,
-    onSelectMuscleGroup,
     onMoveRow,
     onMoveDay,
     enableDayCardControls = false,
@@ -1460,8 +1437,6 @@ export function PlanTemplateEditor({
     onAddRow: (dayId: string, row?: PlanExerciseRowForm) => void;
     onRemoveRow: (dayId: string, rowId: string) => void;
     onUpdateRow: (dayId: string, rowId: string, updates: Partial<PlanExerciseRowForm>) => void;
-    onSelectExercise: (dayId: string, rowId: string, exerciseId: string) => void;
-    onSelectMuscleGroup: (dayId: string, rowId: string, muscleGroupId: string) => void;
     onMoveRow: (dayId: string, draggedRowId: string, targetRowId: string) => void;
     onMoveDay?: (draggedDayId: string, targetDayId: string) => void;
     enableDayCardControls?: boolean;
@@ -1627,7 +1602,7 @@ export function PlanTemplateEditor({
                                     </button>
                                 ) : null}
                                 <label className="block">
-                                    <span className="mb-1 block text-xs font-black uppercase text-black">Day Title</span>
+                                    
                                     <input
                                         value={day.name}
                                         onChange={(event) => onUpdateDay(day.id, { name: event.target.value })}
@@ -1689,15 +1664,14 @@ export function PlanTemplateEditor({
                         {!isCollapsed && (
                         <>
                         <div className="grid gap-3 p-3">
-                            {day.exercises.map((row) => {
+                            {day.exercises.length === 0 ? (
+                                <div className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50 px-4 py-6 text-center text-sm font-semibold text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+                                    No exercises added yet.
+                                </div>
+                            ) : day.exercises.map((row) => {
                                 const selectedExercise = exerciseById.get(row.exercise);
-                                const bodyPart = getExerciseBodyPart(selectedExercise) || row.body_part || "Select exercise";
-                                const selectedMuscleGroup = muscleGroups.find((group) => String(group.id) === row.muscle_group);
-                                const filteredExercises = row.muscle_group
-                                    ? exercises
-                                        .filter((exercise) => String(exercise.muscle_group || "") === row.muscle_group)
-                                        .filter((exercise) => exercise.name.toLowerCase().includes(row.exercise_search.trim().toLowerCase()))
-                                    : [];
+                                const exerciseName = row.exercise_search || selectedExercise?.name || "Exercise";
+                                const bodyPart = getExerciseBodyPart(selectedExercise) || row.body_part || "No body part";
                                 const videoUrls = getExerciseVideoUrls(selectedExercise);
                                 const videoListId = `video-options-${day.id}-${row.id}`;
 
@@ -1721,7 +1695,16 @@ export function PlanTemplateEditor({
                                         }}
                                         className={`rounded-lg border border-zinc-200 bg-white p-3 shadow-sm transition dark:border-zinc-800 dark:bg-zinc-900 ${draggedRow?.rowId === row.id ? "opacity-50" : ""}`}
                                     >
-                                        <div className="mb-3 flex items-center justify-end gap-3 border-b border-zinc-100 pb-3 dark:border-zinc-800">
+                                        <div className="mb-3 flex flex-col gap-3 border-b border-zinc-100 pb-3 dark:border-zinc-800 sm:flex-row sm:items-center sm:justify-between">
+                                            <div className="min-w-0">
+                                                <div className="text-[11px] font-black uppercase text-zinc-500">Exercise</div>
+                                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                                    <span className="truncate text-sm font-black uppercase text-zinc-950 dark:text-white">{exerciseName}</span>
+                                                    <span className="inline-flex rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-bold uppercase text-sky-800 dark:bg-sky-900/50 dark:text-sky-200">
+                                                        {bodyPart}
+                                                    </span>
+                                                </div>
+                                            </div>
                                             <div className="flex items-center gap-1">
                                                 <button
                                                     type="button"
@@ -1734,8 +1717,7 @@ export function PlanTemplateEditor({
                                                 <button
                                                     type="button"
                                                     onClick={() => onRemoveRow(day.id, row.id)}
-                                                    disabled={day.exercises.length === 1}
-                                                    className="rounded-md p-2 text-zinc-500 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+                                                    className="rounded-md p-2 text-zinc-500 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-300"
                                                     title="Remove row"
                                                 >
                                                     <Trash2Icon className="h-4 w-4" />
@@ -1743,55 +1725,7 @@ export function PlanTemplateEditor({
                                             </div>
                                         </div>
 
-                                        <div className="grid gap-3 lg:grid-cols-[180px_minmax(260px,1fr)]">
-                                            <label className="block">
-                                                <span className="mb-1 block text-[11px] font-black uppercase text-zinc-500">Body Part</span>
-                                                <select
-                                                    value={row.muscle_group}
-                                                    onChange={(event) => onSelectMuscleGroup(day.id, row.id, event.target.value)}
-                                                    className="w-full rounded border border-sky-300 bg-white px-2 py-2 text-xs font-bold uppercase text-black outline-none focus:border-sky-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
-                                                >
-                                                    <option value="">Select</option>
-                                                    {muscleGroups.map((group) => (
-                                                        <option key={group.id} value={group.id}>{group.name}</option>
-                                                    ))}
-                                                </select>
-                                                <div className="mt-1 text-[10px] font-bold uppercase text-zinc-500">{selectedMuscleGroup?.name || bodyPart}</div>
-                                            </label>
-
-                                            <label className="block">
-                                                <span className="mb-1 block text-[11px] font-black uppercase text-zinc-500">Exercise</span>
-                                                <input
-                                                    value={row.exercise_search}
-                                                    disabled={!row.muscle_group}
-                                                    onChange={(event) => onUpdateRow(day.id, row.id, {
-                                                        exercise_search: event.target.value,
-                                                        exercise: "",
-                                                        video_url: "",
-                                                    })}
-                                                    className="w-full rounded border border-zinc-300 bg-white px-2 py-2 text-xs font-bold uppercase text-black outline-none focus:border-sky-500 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white dark:disabled:bg-zinc-900"
-                                                    placeholder={row.muscle_group ? "Search exercise" : "Select body part first"}
-                                                />
-                                                <div className="mt-2 max-h-32 overflow-y-auto rounded border border-zinc-200 bg-white text-left shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                                                    {!row.muscle_group ? (
-                                                        <div className="px-3 py-2 text-xs font-semibold uppercase text-zinc-500">Select body part first</div>
-                                                    ) : filteredExercises.length === 0 ? (
-                                                        <div className="px-3 py-2 text-xs font-semibold uppercase text-zinc-500">No exercise found</div>
-                                                    ) : filteredExercises.map((exercise) => (
-                                                        <button
-                                                            key={exercise.id}
-                                                            type="button"
-                                                            onClick={() => onSelectExercise(day.id, row.id, exercise.id)}
-                                                            className={`block w-full px-3 py-2 text-left text-xs font-bold uppercase transition hover:bg-sky-50 hover:text-sky-700 dark:hover:bg-sky-950 dark:hover:text-sky-300 ${row.exercise === exercise.id ? "bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200" : "text-black dark:text-white"}`}
-                                                        >
-                                                            {exercise.name}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </label>
-                                        </div>
-
-                                        <div className="mt-3 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                                        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
                                             <label className="block">
                                                 <span className="mb-1 block text-[11px] font-black uppercase text-zinc-500">Sets</span>
                                                 <input

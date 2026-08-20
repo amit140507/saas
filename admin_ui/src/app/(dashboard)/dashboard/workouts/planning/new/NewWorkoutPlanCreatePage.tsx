@@ -266,25 +266,6 @@ export default function NewWorkoutPlanCreatePage() {
         }));
     };
 
-    const selectPlanExercise = (dayId: string, rowId: string, exerciseId: string) => {
-        const selectedExercise = exerciseById.get(exerciseId);
-        if (!selectedExercise) return;
-        updatePlanExerciseRow(dayId, rowId, {
-            ...createPlanExerciseRowFromExercise(selectedExercise),
-            id: rowId,
-        });
-    };
-
-    const selectPlanMuscleGroup = (dayId: string, rowId: string, muscleGroupId: string) => {
-        updatePlanExerciseRow(dayId, rowId, {
-            muscle_group: muscleGroupId,
-            body_part: muscleGroupById.get(muscleGroupId)?.name || "",
-            exercise: "",
-            exercise_search: "",
-            video_url: "",
-        });
-    };
-
     const addPlanExerciseRow = (dayId: string, row = createPlanExerciseRow()) => {
         setPlanForm((current) => ({
             ...current,
@@ -349,7 +330,7 @@ export default function NewWorkoutPlanCreatePage() {
         setPlanForm((current) => ({
             ...current,
             days: current.days.map((day) => {
-                if (day.id !== dayId || day.exercises.length === 1) return day;
+                if (day.id !== dayId) return day;
                 return { ...day, exercises: day.exercises.filter((row) => row.id !== rowId) };
             }),
         }));
@@ -507,8 +488,6 @@ export default function NewWorkoutPlanCreatePage() {
                         onAddRow={addPlanExerciseRow}
                         onRemoveRow={removePlanExerciseRow}
                         onUpdateRow={updatePlanExerciseRow}
-                        onSelectExercise={selectPlanExercise}
-                        onSelectMuscleGroup={selectPlanMuscleGroup}
                         onMoveRow={movePlanExerciseRow}
                         onMoveDay={movePlanDay}
                         enableDayCardControls

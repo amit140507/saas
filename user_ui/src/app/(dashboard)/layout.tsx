@@ -12,7 +12,7 @@ export default function DashboardLayout({
             <div className="pl-64 flex flex-col flex-1">
                 <Navbar />
                 <main className="py-10 min-h-screen">
-                    <div className="px-4 sm:px-6 lg:px-8">
+                    <div className="px-4 sm:px-6 lg:px-8 max-w-4xl">
                         {children}
                     </div>
                 </main>
