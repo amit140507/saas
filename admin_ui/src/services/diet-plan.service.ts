@@ -6,6 +6,7 @@ import type {
     DietPlanAssignmentPayload,
     DietPlanPayload,
     FoodItem,
+    FoodItemPayload,
     PlannedMeal,
 } from "@/types/diet-plan.type";
 
@@ -111,6 +112,20 @@ export async function deleteDietPlanAssignment(id: string): Promise<void> {
 export async function getFoodItems(): Promise<FoodItem[]> {
     const response = await api.get<ListResponse<FoodItem>>(API_ENDPOINTS.meal.foodItems);
     return normalizeList(response.data);
+}
+
+export async function createFoodItem(payload: FoodItemPayload): Promise<FoodItem> {
+    const response = await api.post<FoodItem>(API_ENDPOINTS.meal.foodItems, payload);
+    return response.data;
+}
+
+export async function updateFoodItem(id: string, payload: FoodItemPayload): Promise<FoodItem> {
+    const response = await api.put<FoodItem>(API_ENDPOINTS.meal.foodItemDetail(id), payload);
+    return response.data;
+}
+
+export async function deleteFoodItem(id: string): Promise<void> {
+    await api.delete(API_ENDPOINTS.meal.foodItemDetail(id));
 }
 
 export async function getPlannedMeals(): Promise<PlannedMeal[]> {

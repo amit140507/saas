@@ -163,6 +163,19 @@ function clientName(client?: ClientData): string {
     return fullName || client.user.email || client.id;
 }
 
+function getClientSearchText(client: ClientData): string {
+    return [
+        clientName(client),
+        client.user.email,
+        client.user.public_id || "",
+        client.phone || "",
+    ].join(" ").toLowerCase();
+}
+
+function getClientLabel(client: ClientData): string {
+    return `${clientName(client)} (${client.user.email})${client.user.public_id ? ` - ${client.user.public_id}` : ""}`;
+}
+
 function optionalNumber(value: string): number | null {
     const trimmed = value.trim();
     if (!trimmed) {
@@ -603,23 +616,62 @@ function AssignmentsTab({
 
 function PdfBuilder() {
     const searchParams = useSearchParams();
-    const targetCals = Number(searchParams.get("calories")) || 0;
-    const targetPro = Number(searchParams.get("protein")) || 0;
-    const targetFat = Number(searchParams.get("fat")) || 0;
-    const targetCarb = Number(searchParams.get("carbs")) || 0;
-    const targetGain = Number(searchParams.get("gain")) || 0;
+    const clientsQuery = useQuery({ queryKey: ["clients-management"], queryFn: getClients });
 
     const [details, setDetails] = useState({
         startDate: "",
         endDate: "",
         checkInDate: "",
         totalCardio: "",
-        clientEmail: "",
-        clientPhone: "",
     });
+    const [macroTargets, setMacroTargets] = useState({
+        calories: searchParams.get("calories") || "",
+        protein: searchParams.get("protein") || "",
+        fat: searchParams.get("fat") || "",
+        carbs: searchParams.get("carbs") || "",
+        gain: searchParams.get("gain") || "",
+    });
+    const [selectedClientId, setSelectedClientId] = useState("");
+    const [clientSearch, setClientSearch] = useState("");
+    const [isClientSearchOpen, setIsClientSearchOpen] = useState(false);
     const [meals, setMeals] = useState<PdfMeal[]>([buildInitialPdfMeal()]);
     const [loading, setLoading] = useState(false);
     const [downloading, setDownloading] = useState(false);
+
+    const clients = clientsQuery.data ?? emptyClients;
+    const selectedClient = clients.find((client) => client.id === selectedClientId);
+    const selectedClientLabel = selectedClient ? getClientLabel(selectedClient) : "";
+    const isSearchingClients = isClientSearchOpen && clientSearch.trim().length > 0 && clientSearch !== selectedClientLabel;
+    const targetCals = Number(macroTargets.calories) || 0;
+    const targetPro = Number(macroTargets.protein) || 0;
+    const targetFat = Number(macroTargets.fat) || 0;
+    const targetCarb = Number(macroTargets.carbs) || 0;
+    const targetGain = Number(macroTargets.gain) || 0;
+
+    const filteredClients = useMemo(() => {
+        const query = clientSearch.trim().toLowerCase();
+        if (!query) {
+            return emptyClients;
+        }
+
+        return clients.filter((client) => getClientSearchText(client).includes(query));
+    }, [clientSearch, clients]);
+
+    const handleClientSearchChange = (value: string) => {
+        setClientSearch(value);
+        setSelectedClientId("");
+        setIsClientSearchOpen(true);
+    };
+
+    const handleClientSelect = (client: ClientData) => {
+        setSelectedClientId(client.id);
+        setClientSearch(getClientLabel(client));
+        setIsClientSearchOpen(false);
+    };
+
+    const updateMacroTarget = (field: keyof typeof macroTargets, value: string) => {
+        setMacroTargets((current) => ({ ...current, [field]: value }));
+    };
 
     const consumed = useMemo(() => {
         let pro = 0;
@@ -670,6 +722,8 @@ function PdfBuilder() {
 
     const buildPlanPayload = () => ({
         ...details,
+        clientEmail: selectedClient?.user.email || "",
+        clientPhone: selectedClient?.phone || "",
         calories: targetCals,
         protein: targetPro,
         fat: targetFat,
@@ -688,6 +742,15 @@ function PdfBuilder() {
     };
 
     const generatePlan = async () => {
+        if (!selectedClient) {
+            alert("Please select a client before generating and sending the plan.");
+            return;
+        }
+        if (!selectedClient.user.email) {
+            alert("Selected client does not have an email address.");
+            return;
+        }
+
         setLoading(true);
         try {
             await generateDietPlanPdf(buildPlanPayload());
@@ -715,6 +778,7 @@ function PdfBuilder() {
             <div className="grid grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-950 sm:grid-cols-2 lg:grid-cols-4">
                 {macroSummaries.map((macro) => {
                     const status = getMacroStatus(macro.consumedValue, macro.targetValue, macro.tolerance, macro.unit);
+                    const progressValue = macro.targetValue > 0 ? Math.min(Math.round((macro.consumedValue / macro.targetValue) * 100), 100) : 0;
                     return (
                         <div key={macro.name} className="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
                             <div className={`h-1 ${status.barClass}`} />
@@ -727,11 +791,44 @@ function PdfBuilder() {
                                 <div className={`mt-2 inline-flex min-w-28 items-center justify-center rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${status.badgeClass}`}>
                                     {status.label}: {status.value}
                                 </div>
+                                <div
+                                    role="progressbar"
+                                    aria-label={`${macro.name} target progress`}
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                    aria-valuenow={progressValue}
+                                    className="mt-3"
+                                >
+                                    <div className="mb-1.5 flex items-center justify-between text-[11px] font-bold uppercase text-zinc-500 dark:text-zinc-400">
+                                        <span>Progress</span>
+                                        <span className={status.colorClass}>{progressValue}%</span>
+                                    </div>
+                                    <div className="h-2.5 overflow-hidden rounded-full bg-zinc-200 shadow-inner dark:bg-zinc-800">
+                                        <div
+                                            className={`h-full rounded-full bg-gradient-to-r ${status.progressClass} shadow-sm transition-all duration-300`}
+                                            style={{ width: `${progressValue}%` }}
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     );
                 })}
             </div>
+
+            <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                <div className="mb-4 flex items-center gap-2">
+                    <CalculatorIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
+                    <h2 className="font-bold text-zinc-900 dark:text-white">Macro Targets</h2>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                    <TextField label="Calories" type="number" min="0" value={macroTargets.calories} onChange={(value) => updateMacroTarget("calories", value)} />
+                    <TextField label="Protein" type="number" min="0" value={macroTargets.protein} onChange={(value) => updateMacroTarget("protein", value)} />
+                    <TextField label="Fat" type="number" min="0" value={macroTargets.fat} onChange={(value) => updateMacroTarget("fat", value)} />
+                    <TextField label="Carbs" type="number" min="0" value={macroTargets.carbs} onChange={(value) => updateMacroTarget("carbs", value)} />
+                    <TextField label="Gain/Loss %" type="number" min="0" value={macroTargets.gain} onChange={(value) => updateMacroTarget("gain", value)} />
+                </div>
+            </section>
 
             <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                 <div className="mb-4 flex items-center gap-2">
@@ -743,8 +840,55 @@ function PdfBuilder() {
                     <TextField label="Period End" type="date" value={details.endDate} onChange={(value) => setDetails({ ...details, endDate: value })} />
                     <TextField label="Check-in Date" type="date" value={details.checkInDate} onChange={(value) => setDetails({ ...details, checkInDate: value })} />
                     <TextField label="Total Cardio (min)" type="number" value={details.totalCardio} onChange={(value) => setDetails({ ...details, totalCardio: value })} />
-                    <TextField label="Client Email" type="email" value={details.clientEmail} onChange={(value) => setDetails({ ...details, clientEmail: value })} />
-                    <TextField label="Client Phone" value={details.clientPhone} onChange={(value) => setDetails({ ...details, clientPhone: value })} />
+                    <div className="lg:col-span-2">
+                        <label className="block">
+                            <span className="mb-1 block text-xs font-bold uppercase text-zinc-500">Client</span>
+                            <div className="relative">
+                                <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                                <input
+                                    type="search"
+                                    value={clientSearch}
+                                    onChange={(event) => handleClientSearchChange(event.target.value)}
+                                    onFocus={() => setIsClientSearchOpen(true)}
+                                    onBlur={() => setIsClientSearchOpen(false)}
+                                    className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-9 py-2 text-sm text-zinc-900 outline-none transition focus:border-indigo-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
+                                    placeholder="Search clients by name, email, or public ID"
+                                    autoComplete="off"
+                                />
+                                {isSearchingClients && (
+                                    <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+                                        {clientsQuery.isLoading ? (
+                                            <div className="px-3 py-2 text-sm text-zinc-500">Loading clients...</div>
+                                        ) : filteredClients.length > 0 ? (
+                                            filteredClients.map((client) => (
+                                                <button
+                                                    key={client.id}
+                                                    type="button"
+                                                    onMouseDown={(event) => {
+                                                        event.preventDefault();
+                                                        handleClientSelect(client);
+                                                    }}
+                                                    className="block w-full px-3 py-2 text-left text-sm transition hover:bg-indigo-50 focus:bg-indigo-50 focus:outline-none dark:hover:bg-zinc-900 dark:focus:bg-zinc-900"
+                                                >
+                                                    <span className="block font-semibold text-zinc-900 dark:text-white">{clientName(client)}</span>
+                                                    <span className="block text-xs text-zinc-500">
+                                                        {client.user.email}{client.user.public_id ? ` - ${client.user.public_id}` : ""}{client.phone ? ` - ${client.phone}` : ""}
+                                                    </span>
+                                                </button>
+                                            ))
+                                        ) : (
+                                            <div className="px-3 py-2 text-sm text-zinc-500">No clients found.</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </label>
+                        {selectedClient && (
+                            <p className="mt-2 text-xs font-semibold text-zinc-500">
+                                Selected: {selectedClientLabel}
+                            </p>
+                        )}
+                    </div>
                 </div>
             </section>
 
@@ -924,6 +1068,7 @@ function getMacroStatus(consumedValue: number, targetValue: number, tolerance: n
             colorClass: "text-emerald-600 dark:text-emerald-400",
             badgeClass: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30",
             barClass: "bg-emerald-500",
+            progressClass: "from-emerald-400 to-emerald-600 dark:from-emerald-300 dark:to-emerald-500",
         };
     }
 
@@ -934,6 +1079,7 @@ function getMacroStatus(consumedValue: number, targetValue: number, tolerance: n
             colorClass: "text-yellow-600 dark:text-yellow-400",
             badgeClass: "bg-yellow-50 text-yellow-700 ring-yellow-200 dark:bg-yellow-500/10 dark:text-yellow-300 dark:ring-yellow-500/30",
             barClass: "bg-yellow-500",
+            progressClass: "from-yellow-300 to-amber-500 dark:from-yellow-300 dark:to-amber-400",
         };
     }
 
@@ -943,6 +1089,7 @@ function getMacroStatus(consumedValue: number, targetValue: number, tolerance: n
         colorClass: "text-red-600 dark:text-red-400",
         badgeClass: "bg-red-50 text-red-700 ring-red-200 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-500/30",
         barClass: "bg-red-500",
+        progressClass: "from-red-400 to-rose-600 dark:from-red-300 dark:to-rose-500",
     };
 }
 

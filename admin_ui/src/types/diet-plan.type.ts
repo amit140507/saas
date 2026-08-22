@@ -13,6 +13,18 @@ export interface FoodItem {
     metadata: Record<string, unknown>;
 }
 
+export interface FoodItemPayload {
+    name: string;
+    brand: string | null;
+    calories_per_100g: string;
+    protein_g: string;
+    carbs_g: string;
+    fat_g: string;
+    fiber_g: string;
+    is_verified: boolean;
+    metadata: Record<string, unknown>;
+}
+
 export interface PlannedMealItem {
     id: string;
     tenant?: string;
