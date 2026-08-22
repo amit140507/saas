@@ -696,10 +696,10 @@ function PdfBuilder() {
     }, [meals]);
 
     const macroSummaries = [
-        { name: "Calories", consumedValue: consumed.cal, targetValue: targetCals, tolerance: 50, unit: "kcal" },
-        { name: "Protein", consumedValue: consumed.pro, targetValue: targetPro, tolerance: 5, unit: "g" },
-        { name: "Fat", consumedValue: consumed.fat, targetValue: targetFat, tolerance: 5, unit: "g" },
-        { name: "Carbs", consumedValue: consumed.carb, targetValue: targetCarb, tolerance: 10, unit: "g" },
+        { name: "Calories", field: "calories" as const, consumedValue: consumed.cal, targetValue: targetCals, tolerance: 50, unit: "kcal" },
+        { name: "Protein", field: "protein" as const, consumedValue: consumed.pro, targetValue: targetPro, tolerance: 5, unit: "g" },
+        { name: "Fat", field: "fat" as const, consumedValue: consumed.fat, targetValue: targetFat, tolerance: 5, unit: "g" },
+        { name: "Carbs", field: "carbs" as const, consumedValue: consumed.carb, targetValue: targetCarb, tolerance: 10, unit: "g" },
     ];
 
     const updateMeal = (mealId: string, updater: (meal: PdfMeal) => PdfMeal) => {
@@ -784,8 +784,16 @@ function PdfBuilder() {
                             <div className={`h-1 ${status.barClass}`} />
                             <div className="p-3">
                                 <div className="mb-1 text-xs font-semibold uppercase text-zinc-500">{macro.name}</div>
-                                <div className={`text-xl font-bold ${status.colorClass}`}>
-                                    {Math.round(macro.consumedValue)} / {Math.round(macro.targetValue)}
+                                <div className="flex items-baseline justify-center items-center gap-1 text-xl font-bold text-yellow-600 dark:text-yellow-400">
+                                    <span>{Math.round(macro.consumedValue)} /</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={macroTargets[macro.field]}
+                                        onChange={(event) => updateMacroTarget(macro.field, event.target.value)}
+                                        aria-label={`${macro.name} target`}
+                                        className="no-spinner w-20 border-0 bg-transparent p-0 text-center text-xl font-bold text-yellow-600 outline-none transition focus:bg-yellow-50 focus:ring-2 focus:ring-yellow-400 dark:text-yellow-400 dark:focus:bg-yellow-500/10"
+                                    />
                                     <span className="ml-1 text-xs font-normal text-zinc-400">{macro.unit}</span>
                                 </div>
                                 <div className={`mt-2 inline-flex min-w-28 items-center justify-center rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${status.badgeClass}`}>
@@ -819,21 +827,17 @@ function PdfBuilder() {
             <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                 <div className="mb-4 flex items-center gap-2">
                     <CalculatorIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
-                    <h2 className="font-bold text-zinc-900 dark:text-white">Macro Targets</h2>
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                    <TextField label="Calories" type="number" min="0" value={macroTargets.calories} onChange={(value) => updateMacroTarget("calories", value)} />
-                    <TextField label="Protein" type="number" min="0" value={macroTargets.protein} onChange={(value) => updateMacroTarget("protein", value)} />
-                    <TextField label="Fat" type="number" min="0" value={macroTargets.fat} onChange={(value) => updateMacroTarget("fat", value)} />
-                    <TextField label="Carbs" type="number" min="0" value={macroTargets.carbs} onChange={(value) => updateMacroTarget("carbs", value)} />
-                    <TextField label="Gain/Loss %" type="number" min="0" value={macroTargets.gain} onChange={(value) => updateMacroTarget("gain", value)} />
-                </div>
-            </section>
-
-            <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                <div className="mb-4 flex items-center gap-2">
-                    <CalculatorIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
                     <h2 className="font-bold text-zinc-900 dark:text-white">Diet Plan Builder Details</h2>
+                    <label className="ml-auto flex items-center gap-2 text-xs font-bold uppercase text-zinc-500">
+                        Gain/Loss %
+                        <input
+                            type="number"
+                            min="0"
+                            value={macroTargets.gain}
+                            onChange={(event) => updateMacroTarget("gain", event.target.value)}
+                            className="w-20 border-0 bg-transparent p-0 text-right text-xl font-bold text-yellow-600 outline-none transition focus:bg-yellow-50 focus:ring-2 focus:ring-yellow-400 dark:text-yellow-400 dark:focus:bg-yellow-500/10"
+                        />
+                    </label>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                     <TextField label="Period Start" type="date" value={details.startDate} onChange={(value) => setDetails({ ...details, startDate: value })} />
