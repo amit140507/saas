@@ -259,3 +259,22 @@ class WorkoutPlanAssignmentSerializer(serializers.ModelSerializer):
                 return True
 
         return False
+
+
+class SharedWorkoutPlanAssignmentSerializer(serializers.ModelSerializer):
+    plan_title = serializers.ReadOnlyField(source='plan.title')
+    client_name = serializers.ReadOnlyField(source='client.user.get_full_name')
+    workout_days = WorkoutDaySerializer(many=True, read_only=True)
+
+    class Meta:
+        model = WorkoutPlanAssignment
+        fields = [
+            'id',
+            'plan_title',
+            'client_name',
+            'start_date',
+            'end_date',
+            'status',
+            'notes',
+            'workout_days',
+        ]

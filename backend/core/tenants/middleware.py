@@ -9,6 +9,7 @@ class TenantResolutionMiddleware:
         "/admin/",
         "/__debug__/",
         "/api/v1/auth/",
+        "/api/v1/workout/shared-assignments/",
     )
     GLOBAL_EXACT_PATHS = {
         "/api/v1/organizations/",

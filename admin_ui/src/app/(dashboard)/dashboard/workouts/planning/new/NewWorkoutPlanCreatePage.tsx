@@ -2,9 +2,19 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon, Loader2Icon, SearchIcon, Trash2Icon } from "lucide-react";
+import {
+    ArrowLeftIcon,
+    CopyIcon,
+    EyeIcon,
+    Loader2Icon,
+    MailIcon,
+    MessageCircleIcon,
+    SaveIcon,
+    SearchIcon,
+    SendIcon,
+    Trash2Icon,
+} from "lucide-react";
 
 import { getClients } from "@/services/client.service";
 import {
@@ -14,6 +24,7 @@ import {
     getExercises,
     getMuscleGroups,
     getMuscles,
+    getWorkoutPlans,
 } from "@/services/workout.service";
 import { useCurrentUserPermissions } from "@/lib/permissions";
 import type { ClientData } from "@/types/client.type";
@@ -26,7 +37,10 @@ import type {
     ExerciseType,
     Muscle,
     MuscleGroup,
+    WorkoutDay,
     WorkoutDifficulty,
+    WorkoutPlan,
+    WorkoutPlanAssignment,
     WorkoutType,
 } from "@/types/workout.type";
 import {
@@ -39,6 +53,7 @@ import {
     emptyPlanForm,
     ErrorText,
     getErrorMessage,
+    mapWorkoutDayToForm,
     ModalActions,
     ModalFrame,
     PlanForm,
@@ -48,12 +63,14 @@ import {
     SelectField,
     TextArea,
     TextField,
+    WorkoutPlanViewModal,
 } from "../../_components/WorkoutManagementPage";
 
 const emptyClients: ClientData[] = [];
 const emptyExercises: Exercise[] = [];
 const emptyMuscleGroups: MuscleGroup[] = [];
 const emptyMuscles: Muscle[] = [];
+const emptyPlans: WorkoutPlan[] = [];
 
 interface ExerciseForm {
     name: string;
@@ -115,8 +132,54 @@ function getClientLabel(client: ClientData): string {
     return `${clientName(client)} (${client.user.email})${client.user.public_id ? ` - ${client.user.public_id}` : ""}`;
 }
 
+function getShareBaseUrl(): string {
+    const configuredUrl = process.env.NEXT_PUBLIC_USER_APP_URL?.trim().replace(/\/+$/, "");
+    if (configuredUrl) {
+        return configuredUrl;
+    }
+
+    if (typeof window !== "undefined") {
+        return window.location.origin;
+    }
+
+    return "";
+}
+
+function normalizeWhatsAppPhone(phone?: string | null): string {
+    return (phone || "").replace(/\D/g, "");
+}
+
+function buildPreviewDays(planForm: PlanForm, exerciseById: Map<string, Exercise>): WorkoutDay[] {
+    return planForm.days.map((day, dayIndex) => ({
+        id: `preview-day-${day.id}`,
+        plan: null,
+        plan_assignment: null,
+        name: day.name.trim() || `Day ${dayIndex + 1}`,
+        day_number: Number(day.day_number) || dayIndex + 1,
+        notes: day.notes.trim(),
+        exercises: day.exercises.map((row, rowIndex) => {
+            const exercise = exerciseById.get(row.exercise);
+            return {
+                id: `preview-row-${row.id}`,
+                workout_day: `preview-day-${day.id}`,
+                exercise: row.exercise,
+                exercise_name: row.exercise_search || exercise?.name || row.exercise,
+                exercise_video_urls: exercise?.media?.map((media) => media.youtube_url || "").filter(Boolean) || [],
+                sequence: rowIndex + 1,
+                body_part: row.body_part || exercise?.muscle_group_name || exercise?.primary_muscle_name || null,
+                video_url: row.video_url.trim() || null,
+                weight: null,
+                sets: Number(row.sets) || 1,
+                reps: row.reps.trim(),
+                rest: Number(row.rest) || 0,
+                notes: row.notes.trim(),
+                exercise_type: exercise?.exercise_type || 3,
+            };
+        }),
+    }));
+}
+
 export default function NewWorkoutPlanCreatePage() {
-    const router = useRouter();
     const queryClient = useQueryClient();
     const { tenantId } = useCurrentUserPermissions();
     const [planForm, setPlanForm] = useState<PlanForm>(() => createInitialPlanForm());
@@ -127,15 +190,22 @@ export default function NewWorkoutPlanCreatePage() {
     const [endDate, setEndDate] = useState("");
     const [assignmentNotes, setAssignmentNotes] = useState("");
     const [formError, setFormError] = useState("");
+    const [actionMessage, setActionMessage] = useState("");
     const [exerciseCreateTargetDayId, setExerciseCreateTargetDayId] = useState<string | null>(null);
     const [exerciseForm, setExerciseForm] = useState<ExerciseForm>(emptyExerciseForm);
+    const [previewDays, setPreviewDays] = useState<WorkoutDay[] | null>(null);
+    const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+    const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+    const [savedAssignment, setSavedAssignment] = useState<WorkoutPlanAssignment | null>(null);
 
     const clientsQuery = useQuery({ queryKey: ["clients-management"], queryFn: getClients });
+    const plansQuery = useQuery({ queryKey: ["workout-plans"], queryFn: getWorkoutPlans });
     const muscleGroupsQuery = useQuery({ queryKey: ["workout-muscle-groups"], queryFn: getMuscleGroups });
     const musclesQuery = useQuery({ queryKey: ["workout-muscles"], queryFn: getMuscles });
     const exercisesQuery = useQuery({ queryKey: ["workout-exercises"], queryFn: getExercises });
 
     const clients = clientsQuery.data ?? emptyClients;
+    const plans = plansQuery.data ?? emptyPlans;
     const muscleGroups = muscleGroupsQuery.data ?? emptyMuscleGroups;
     const muscles = musclesQuery.data ?? emptyMuscles;
     const exercises = exercisesQuery.data ?? emptyExercises;
@@ -144,6 +214,9 @@ export default function NewWorkoutPlanCreatePage() {
     const selectedClient = clients.find((client) => client.id === selectedClientId);
     const selectedClientLabel = selectedClient ? getClientLabel(selectedClient) : "";
     const isSearchingClients = isClientSearchOpen && clientSearch.trim().length > 0 && clientSearch !== selectedClientLabel;
+    const shareUrl = savedAssignment?.share_token ? `${getShareBaseUrl()}/workout-plan/${savedAssignment.share_token}` : "";
+    const whatsappPhone = normalizeWhatsAppPhone(selectedClient?.phone);
+    const shareMessage = shareUrl ? `Your workout plan is ready: ${shareUrl}` : "";
 
     const filteredClients = useMemo(() => {
         const query = clientSearch.trim().toLowerCase();
@@ -154,10 +227,18 @@ export default function NewWorkoutPlanCreatePage() {
         return clients.filter((client) => getClientSearchText(client).includes(query));
     }, [clientSearch, clients]);
 
-    const createMutation = useMutation({
+    const buildPlanPayloadOrThrow = () => {
+        const tenantPayload = tenantId ? { tenant: tenantId } : {};
+        const { payload, error } = buildWorkoutPlanPayload(planForm, exerciseById, tenantPayload);
+        if (!payload) {
+            throw new Error(error);
+        }
+        return { tenantPayload, payload };
+    };
+
+    const saveMutation = useMutation({
         mutationFn: async () => {
-            const tenantPayload = tenantId ? { tenant: tenantId } : {};
-            const { payload, error } = buildWorkoutPlanPayload(planForm, exerciseById, tenantPayload);
+            const { tenantPayload, payload } = buildPlanPayloadOrThrow();
 
             if (!selectedClientId) {
                 throw new Error("Client is required.");
@@ -165,12 +246,9 @@ export default function NewWorkoutPlanCreatePage() {
             if (!startDate) {
                 throw new Error("Start date is required.");
             }
-            if (!payload) {
-                throw new Error(error);
-            }
 
             const plan = await createWorkoutPlan(payload);
-            await createWorkoutAssignment({
+            const assignment = await createWorkoutAssignment({
                 ...tenantPayload,
                 client: selectedClientId,
                 plan: plan.id,
@@ -179,16 +257,33 @@ export default function NewWorkoutPlanCreatePage() {
                 status: "active",
                 notes: assignmentNotes.trim(),
             });
-            return plan;
+            return assignment;
         },
-        onSuccess: async () => {
+        onSuccess: async (assignment) => {
+            setSavedAssignment(assignment);
+            setActionMessage("Plan saved and assigned to the selected client.");
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ["workout-plans"] }),
                 queryClient.invalidateQueries({ queryKey: ["workout-assignments"] }),
             ]);
-            router.push("/dashboard/workouts/planning");
         },
         onError: (error) => {
+            setActionMessage("");
+            setFormError(getErrorMessage(error));
+        },
+    });
+
+    const templateMutation = useMutation({
+        mutationFn: async () => {
+            const { payload } = buildPlanPayloadOrThrow();
+            return createWorkoutPlan(payload);
+        },
+        onSuccess: async () => {
+            setActionMessage("Template saved. You can reuse it from Use Template.");
+            await queryClient.invalidateQueries({ queryKey: ["workout-plans"] });
+        },
+        onError: (error) => {
+            setActionMessage("");
             setFormError(getErrorMessage(error));
         },
     });
@@ -356,10 +451,31 @@ export default function NewWorkoutPlanCreatePage() {
         }));
     };
 
-    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+    };
+
+    const handlePreview = () => {
         setFormError("");
-        createMutation.mutate();
+        setActionMessage("");
+        try {
+            buildPlanPayloadOrThrow();
+            setPreviewDays(buildPreviewDays(planForm, exerciseById));
+        } catch (error) {
+            setFormError(getErrorMessage(error));
+        }
+    };
+
+    const handleSave = () => {
+        setFormError("");
+        setActionMessage("");
+        saveMutation.mutate();
+    };
+
+    const handleSaveTemplate = () => {
+        setFormError("");
+        setActionMessage("");
+        templateMutation.mutate();
     };
 
     const handleClientSearchChange = (value: string) => {
@@ -368,6 +484,7 @@ export default function NewWorkoutPlanCreatePage() {
 
         if (selectedClient && value !== selectedClientLabel) {
             setSelectedClientId("");
+            setSavedAssignment(null);
         }
     };
 
@@ -375,10 +492,49 @@ export default function NewWorkoutPlanCreatePage() {
         setSelectedClientId(client.id);
         setClientSearch(getClientLabel(client));
         setIsClientSearchOpen(false);
+        setSavedAssignment(null);
     };
 
-    const isLoading = clientsQuery.isLoading || muscleGroupsQuery.isLoading || musclesQuery.isLoading || exercisesQuery.isLoading;
-    const pageError = clientsQuery.error || muscleGroupsQuery.error || musclesQuery.error || exercisesQuery.error;
+    const handleTemplateSelect = (template: WorkoutPlan) => {
+        setPlanForm({
+            title: template.title,
+            difficulty: template.difficulty,
+            goal: template.goal || "",
+            duration_weeks: String(template.duration_weeks || 12),
+            description: template.description || "",
+            is_active: template.is_active,
+            days: (template.template_days || []).length
+                ? [...(template.template_days || [])]
+                    .sort((a, b) => a.day_number - b.day_number)
+                    .map((day) => mapWorkoutDayToForm(day, exerciseById))
+                : [createPlanDay()],
+        });
+        setActionMessage(`Loaded template: ${template.title}`);
+        setFormError("");
+        setIsTemplatePickerOpen(false);
+        setSavedAssignment(null);
+    };
+
+    const handleCopyShareLink = async () => {
+        if (!shareUrl) return;
+
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            setActionMessage("Share link copied.");
+        } catch {
+            setFormError("Could not copy the share link.");
+        }
+    };
+
+    const isLoading = clientsQuery.isLoading || plansQuery.isLoading || muscleGroupsQuery.isLoading || musclesQuery.isLoading || exercisesQuery.isLoading;
+    const pageError = clientsQuery.error || plansQuery.error || muscleGroupsQuery.error || musclesQuery.error || exercisesQuery.error;
+    const isActionPending = saveMutation.isPending || templateMutation.isPending;
+    const emailHref = selectedClient?.user.email && shareMessage
+        ? `mailto:${selectedClient.user.email}?subject=${encodeURIComponent("Your workout plan")}&body=${encodeURIComponent(shareMessage)}`
+        : "";
+    const whatsappHref = whatsappPhone && shareMessage
+        ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(shareMessage)}`
+        : "";
 
     return (
         <div className="space-y-6">
@@ -392,8 +548,16 @@ export default function NewWorkoutPlanCreatePage() {
                         Workout Planning
                     </Link>
                     <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Create Workout Plan</h1>
-                    <p className="mt-1 text-sm text-zinc-500">Build a reusable template and assign it to a client.</p>
+                    <p className="mt-1 text-sm text-zinc-500">Build a reusable plan and assign it to a client.</p>
                 </div>
+                <button
+                    type="button"
+                    onClick={() => setIsTemplatePickerOpen(true)}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                >
+                    <SearchIcon className="h-4 w-4" />
+                    Use Template
+                </button>
             </div>
 
             {pageError && <ErrorText message={getErrorMessage(pageError)} />}
@@ -403,8 +567,13 @@ export default function NewWorkoutPlanCreatePage() {
                     <Loader2Icon className="h-8 w-8 animate-spin text-indigo-600" />
                 </div>
             ) : (
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleFormSubmit} className="space-y-5">
                     <ErrorText message={formError} />
+                    {actionMessage && (
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+                            {actionMessage}
+                        </div>
+                    )}
 
                     <section className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                         <div className="grid gap-4 md:grid-cols-2">
@@ -435,14 +604,12 @@ export default function NewWorkoutPlanCreatePage() {
                                             onFocus={() => setIsClientSearchOpen(true)}
                                             onBlur={() => setIsClientSearchOpen(false)}
                                             className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-9 py-2 text-sm text-zinc-900 outline-none transition focus:border-indigo-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
-                                            placeholder="Search clients by name, email, or public ID"
+                                            placeholder="Search clients by name, email, phone, or public ID"
                                             autoComplete="off"
                                         />
                                         {isSearchingClients && (
                                             <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
-                                                {clientsQuery.isLoading ? (
-                                                    <div className="px-3 py-2 text-sm text-zinc-500">Loading clients...</div>
-                                                ) : filteredClients.length > 0 ? (
+                                                {filteredClients.length > 0 ? (
                                                     filteredClients.map((client) => (
                                                         <button
                                                             key={client.id}
@@ -455,7 +622,7 @@ export default function NewWorkoutPlanCreatePage() {
                                                         >
                                                             <span className="block font-semibold text-zinc-900 dark:text-white">{clientName(client)}</span>
                                                             <span className="block text-xs text-zinc-500">
-                                                                {client.user.email}{client.user.public_id ? ` - ${client.user.public_id}` : ""}
+                                                                {client.user.email}{client.phone ? ` - ${client.phone}` : ""}{client.user.public_id ? ` - ${client.user.public_id}` : ""}
                                                             </span>
                                                         </button>
                                                     ))
@@ -494,21 +661,50 @@ export default function NewWorkoutPlanCreatePage() {
                         onCreateExerciseRequest={openExerciseModalForPlanDay}
                     />
 
-                    <div className="flex justify-end gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+                    <div className="flex flex-col gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800 md:flex-row md:items-center md:justify-between">
                         <Link
                             href="/dashboard/workouts/planning"
-                            className="rounded-lg px-4 py-2 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                            className="inline-flex justify-center rounded-lg px-4 py-2 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
                         >
                             Cancel
                         </Link>
-                        <button
-                            type="submit"
-                            disabled={createMutation.isPending}
-                            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-                        >
-                            {createMutation.isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}
-                            Create Plan
-                        </button>
+                        <div className="flex flex-wrap justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={handlePreview}
+                                className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                            >
+                                <EyeIcon className="h-4 w-4" />
+                                Preview
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSaveTemplate}
+                                disabled={isActionPending}
+                                className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:opacity-60 dark:border-indigo-500/30 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
+                            >
+                                {templateMutation.isPending ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <SaveIcon className="h-4 w-4" />}
+                                Save as Template
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSave}
+                                disabled={isActionPending}
+                                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                            >
+                                {saveMutation.isPending ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <SaveIcon className="h-4 w-4" />}
+                                Save
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsSendModalOpen(true)}
+                                disabled={!savedAssignment || !shareUrl}
+                                className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-5 py-2 text-sm font-bold text-white transition hover:bg-orange-700 disabled:opacity-50"
+                            >
+                                <SendIcon className="h-4 w-4" />
+                                Send
+                            </button>
+                        </div>
                     </div>
                 </form>
             )}
@@ -625,6 +821,116 @@ export default function NewWorkoutPlanCreatePage() {
                         </div>
                         <ModalActions loading={exerciseMutation.isPending} submitLabel="Create Exercise" onCancel={closeExerciseModal} />
                     </form>
+                </ModalFrame>
+            )}
+
+            {previewDays && (
+                <WorkoutPlanViewModal
+                    title="Preview Workout Plan"
+                    planLabel={planForm.title || "Untitled Plan"}
+                    statusLabel={planForm.is_active ? "active" : "inactive"}
+                    meta={[
+                        { label: "Client", value: selectedClient ? clientName(selectedClient) : "Not selected" },
+                        { label: "Difficulty", value: planForm.difficulty },
+                        { label: "Goal", value: planForm.goal || "-" },
+                        { label: "Duration", value: `${planForm.duration_weeks || "-"} weeks` },
+                    ]}
+                    notes={planForm.description || ""}
+                    days={previewDays}
+                    emptyText="No workout days found for this plan."
+                    onClose={() => setPreviewDays(null)}
+                />
+            )}
+
+            {isTemplatePickerOpen && (
+                <ModalFrame title="Use Template" onClose={() => setIsTemplatePickerOpen(false)} maxWidth="max-w-3xl">
+                    <div className="space-y-3 p-6">
+                        {plans.length === 0 ? (
+                            <div className="rounded-lg border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400 dark:border-zinc-800">
+                                No saved workout templates found.
+                            </div>
+                        ) : plans.map((plan) => (
+                            <button
+                                key={plan.id}
+                                type="button"
+                                onClick={() => handleTemplateSelect(plan)}
+                                className="block w-full rounded-lg border border-zinc-200 p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50 dark:border-zinc-800 dark:hover:border-indigo-500/40 dark:hover:bg-indigo-500/10"
+                            >
+                                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                        <div className="font-bold text-zinc-900 dark:text-white">{plan.title}</div>
+                                        <div className="mt-1 text-sm text-zinc-500">{plan.goal || "No goal set"}</div>
+                                    </div>
+                                    <div className="text-sm font-semibold capitalize text-zinc-500">
+                                        {plan.difficulty} - {plan.duration_weeks} weeks
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </ModalFrame>
+            )}
+
+            {isSendModalOpen && savedAssignment && (
+                <ModalFrame title="Send this plan" onClose={() => setIsSendModalOpen(false)}>
+                    <div className="space-y-5 p-6">
+                        <p className="text-sm text-zinc-500">Shares the last saved version. The client opens this link, no login needed.</p>
+                        <div>
+                            <div className="mb-1 text-xs font-bold uppercase text-zinc-500">Shareable link</div>
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                                <input
+                                    readOnly
+                                    value={shareUrl}
+                                    className="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm text-zinc-900 outline-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleCopyShareLink}
+                                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-orange-600 px-5 py-3 text-sm font-bold text-orange-600 transition hover:bg-orange-50 dark:hover:bg-orange-500/10"
+                                >
+                                    <CopyIcon className="h-4 w-4" />
+                                    Copy
+                                </button>
+                            </div>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <a
+                                href={whatsappHref || undefined}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-disabled={!whatsappHref}
+                                className={`inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-bold transition ${
+                                    whatsappHref
+                                        ? "bg-orange-600 text-white hover:bg-orange-700"
+                                        : "pointer-events-none bg-zinc-200 text-zinc-400 dark:bg-zinc-800"
+                                }`}
+                            >
+                                <MessageCircleIcon className="h-4 w-4" />
+                                Send on WhatsApp
+                            </a>
+                            <a
+                                href={emailHref || undefined}
+                                aria-disabled={!emailHref}
+                                className={`inline-flex items-center justify-center gap-2 rounded-lg border px-5 py-3 text-sm font-bold transition ${
+                                    emailHref
+                                        ? "border-orange-600 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-500/10"
+                                        : "pointer-events-none border-zinc-200 text-zinc-400 dark:border-zinc-800"
+                                }`}
+                            >
+                                <MailIcon className="h-4 w-4" />
+                                Email a copy
+                            </a>
+                        </div>
+                        <div className="border-t border-zinc-200 pt-5 dark:border-zinc-800">
+                            <button
+                                type="button"
+                                onClick={() => setIsSendModalOpen(false)}
+                                className="rounded-lg border border-orange-600 px-5 py-3 text-sm font-bold text-orange-600 transition hover:bg-orange-50 dark:hover:bg-orange-500/10"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
                 </ModalFrame>
             )}
         </div>

@@ -125,6 +125,7 @@ export interface WorkoutPlanAssignment {
     end_date: string | null;
     status: WorkoutAssignmentStatus;
     notes: string | null;
+    share_token?: string;
     created_at: string;
     updated_at: string;
     workout_days?: WorkoutDay[];

@@ -2,7 +2,9 @@ from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from workout.models.planning import (
     Exercise,
@@ -24,6 +26,7 @@ from .serializers import (
     WorkoutExerciseSerializer,
     WorkoutPlanAssignmentSerializer,
     WorkoutPlanSerializer,
+    SharedWorkoutPlanAssignmentSerializer,
 )
 
 
@@ -109,3 +112,22 @@ class WorkoutExerciseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return WorkoutExercise.objects.filter(workout_day__tenant=self.request.tenant)
+
+
+class SharedWorkoutPlanAssignmentView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        assignment = WorkoutPlanAssignment.objects.select_related(
+            'client__org_client__user',
+            'plan',
+        ).prefetch_related(
+            'workout_days__exercises__exercise__media',
+        ).filter(share_token=token).first()
+
+        if assignment is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = SharedWorkoutPlanAssignmentSerializer(assignment)
+        return Response(serializer.data, status=status.HTTP_200_OK)

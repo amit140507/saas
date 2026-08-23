@@ -28,7 +28,6 @@ import {
     createExercise,
     createMuscle,
     createMuscleGroup,
-    createWorkoutAssignment,
     createWorkoutPlan,
     deleteExercise,
     deleteMuscle,
@@ -351,7 +350,7 @@ function mapWorkoutExerciseToForm(row: WorkoutExercise, exerciseById: Map<string
     });
 }
 
-function mapWorkoutDayToForm(day: WorkoutDay, exerciseById: Map<string, Exercise>): PlanDayForm {
+export function mapWorkoutDayToForm(day: WorkoutDay, exerciseById: Map<string, Exercise>): PlanDayForm {
     const sortedExercises = [...(day.exercises || [])].sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
     return createPlanDay({
         name: day.name,
@@ -663,8 +662,8 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
     });
 
     const assignmentMutation = useMutation({
-        mutationFn: ({ mode, id, payload }: { mode: ModalMode; id?: string; payload: WorkoutPlanAssignmentPayload }) => (
-            mode === "add" ? createWorkoutAssignment(payload) : updateWorkoutAssignment(id || "", payload)
+        mutationFn: ({ id, payload }: { id: string; payload: WorkoutPlanAssignmentPayload }) => (
+            updateWorkoutAssignment(id, payload)
         ),
         onSuccess: async () => {
             await invalidateAssignments();
@@ -784,17 +783,17 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
         setMuscleItemModal({ mode, item });
     };
 
-    const openAssignmentModal = (mode: ModalMode, item: WorkoutPlanAssignment | null = null) => {
+    const openAssignmentModal = (item: WorkoutPlanAssignment) => {
         setFormError("");
-        setAssignmentForm(item ? {
+        setAssignmentForm({
             client: item.client,
             plan: item.plan,
             start_date: item.start_date,
             end_date: item.end_date || "",
             status: item.status,
             notes: item.notes || "",
-        } : emptyAssignmentForm);
-        setAssignmentModal({ mode, item });
+        });
+        setAssignmentModal({ mode: "edit", item });
     };
 
     const tenantPayload = tenantId ? { tenant: tenantId } : {};
@@ -980,14 +979,17 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
 
     const submitAssignment = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        if (!assignmentModal?.item) {
+            setFormError("Select an assignment to edit.");
+            return;
+        }
         if (!assignmentForm.client || !assignmentForm.plan || !assignmentForm.start_date) {
             setFormError("Client, plan, and start date are required.");
             return;
         }
 
         assignmentMutation.mutate({
-            mode: assignmentModal?.mode || "add",
-            id: assignmentModal?.item?.id,
+            id: assignmentModal.item.id,
             payload: {
                 ...tenantPayload,
                 client: assignmentForm.client,
@@ -1119,9 +1121,8 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                             clients={clients}
                             planById={planById}
                             clientById={clientById}
-                            onAdd={() => openAssignmentModal("add")}
                             onView={(assignment) => setAssignmentView(assignment)}
-                            onEdit={(assignment) => openAssignmentModal("edit", assignment)}
+                            onEdit={openAssignmentModal}
                             onDelete={(assignment) => setDeleteTarget({ type: "assignment", id: assignment.id, label: assignment.plan_title || planById.get(assignment.plan)?.title || "Assignment" })}
                             onDownload={handleDownloadAssignmentPdf}
                             onSend={handleSendAssignmentPdf}
@@ -1322,7 +1323,7 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
             )}
 
             {assignmentModal && (
-                <ModalFrame title={assignmentModal.mode === "add" ? "Assign Workout Plan" : "Edit Assignment"} onClose={() => setAssignmentModal(null)}>
+                <ModalFrame title="Edit Assignment" onClose={() => setAssignmentModal(null)}>
                     <form onSubmit={submitAssignment} className="space-y-4 p-6">
                         <ErrorText message={formError} />
                         <div className="grid gap-4 md:grid-cols-2">
@@ -1344,7 +1345,7 @@ export default function WorkoutManagementPage({ title, description, allowedTabs 
                             </SelectField>
                         </div>
                         <TextArea label="Notes" value={assignmentForm.notes} onChange={(value) => setAssignmentForm({ ...assignmentForm, notes: value })} />
-                        <ModalActions loading={assignmentMutation.isPending} submitLabel={assignmentModal.mode === "add" ? "Assign Plan" : createsAssignmentVersion ? "Save New Version" : "Save Changes"} onCancel={() => setAssignmentModal(null)} />
+                        <ModalActions loading={assignmentMutation.isPending} submitLabel={createsAssignmentVersion ? "Save New Version" : "Save Changes"} onCancel={() => setAssignmentModal(null)} />
                     </form>
                 </ModalFrame>
             )}
@@ -2091,7 +2092,6 @@ function AssignmentsTab({
     assignments,
     planById,
     clientById,
-    onAdd,
     onView,
     onEdit,
     onDelete,
@@ -2103,7 +2103,6 @@ function AssignmentsTab({
     clients: ClientData[];
     planById: Map<string, WorkoutPlan>;
     clientById: Map<string, ClientData>;
-    onAdd: () => void;
     onView: (assignment: WorkoutPlanAssignment) => void;
     onEdit: (assignment: WorkoutPlanAssignment) => void;
     onDelete: (assignment: WorkoutPlanAssignment) => void;
@@ -2118,7 +2117,7 @@ function AssignmentsTab({
     });
 
     return (
-        <Panel title="Client Plan Assignments" actionLabel="Assign Plan" onAction={onAdd}>
+        <Panel title="Client Plan Assignments">
             <DataTable emptyText="No workout assignments found." columns={["Status", "Client", "Plan", "Snapshot", "Dates", "Actions"]}>
                 {sortedAssignments.map((assignment) => {
                     const snapshotDays = assignment.workout_days?.length || 0;
@@ -2152,7 +2151,7 @@ function AssignmentsTab({
     );
 }
 
-function WorkoutPlanViewModal({
+export function WorkoutPlanViewModal({
     title,
     planLabel,
     statusLabel,
@@ -2272,15 +2271,17 @@ function WorkoutPlanViewModal({
     );
 }
 
-function Panel({ title, actionLabel, onAction, children }: { title: string; actionLabel: string; onAction: () => void; children: React.ReactNode }) {
+function Panel({ title, actionLabel, onAction, children }: { title: string; actionLabel?: string; onAction?: () => void; children: React.ReactNode }) {
     return (
         <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
             <div className="flex flex-col gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800 md:flex-row md:items-center md:justify-between">
                 <h2 className="font-bold text-zinc-900 dark:text-white">{title}</h2>
-                <button type="button" onClick={onAction} className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">
-                    <PlusIcon className="h-4 w-4" />
-                    {actionLabel}
-                </button>
+                {actionLabel && onAction && (
+                    <button type="button" onClick={onAction} className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">
+                        <PlusIcon className="h-4 w-4" />
+                        {actionLabel}
+                    </button>
+                )}
             </div>
             {children}
         </section>

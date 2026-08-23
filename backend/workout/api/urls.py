@@ -5,6 +5,7 @@ from .views import (
     ExerciseViewSet,
     MuscleViewSet,
     MuscleGroupViewSet,
+    SharedWorkoutPlanAssignmentView,
     WorkoutDayViewSet,
     WorkoutExerciseViewSet,
     WorkoutPlanAssignmentViewSet,
@@ -21,5 +22,6 @@ router.register(r'muscles', MuscleViewSet, basename='muscle')
 router.register(r'workout-exercises', WorkoutExerciseViewSet, basename='workoutexercise')
 
 urlpatterns = [
+    path('shared-assignments/<uuid:token>/', SharedWorkoutPlanAssignmentView.as_view(), name='shared-workout-assignment'),
     path('', include(router.urls)),
 ]

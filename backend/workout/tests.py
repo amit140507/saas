@@ -250,6 +250,34 @@ class WorkoutPlanVersioningTests(TestCase):
         self.assertEqual(snapshot_day.name, 'Day 1')
         self.assertEqual(snapshot_exercise.exercise, self.exercise)
         self.assertEqual(snapshot_exercise.sets, 3)
+        self.assertIsNotNone(assignment.share_token)
+
+    def test_shared_assignment_endpoint_returns_snapshot_without_auth(self):
+        assignment = assign_workout_plan(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan=self.plan,
+            assigned_by=None,
+            start_date=date(2026, 7, 1),
+        )
+        api_client = APIClient()
+
+        response = api_client.get(f'/api/v1/workout/shared-assignments/{assignment.share_token}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['plan_title'], self.plan.title)
+        self.assertEqual(response.data['client_name'], self.user.get_full_name())
+        self.assertEqual(response.data['start_date'], '2026-07-01')
+        self.assertEqual(len(response.data['workout_days']), 1)
+        self.assertEqual(response.data['workout_days'][0]['name'], 'Day 1')
+        self.assertEqual(response.data['workout_days'][0]['exercises'][0]['exercise_name'], 'Squat')
+
+    def test_shared_assignment_endpoint_returns_404_for_invalid_token(self):
+        api_client = APIClient()
+
+        response = api_client.get('/api/v1/workout/shared-assignments/00000000-0000-0000-0000-000000000000/')
+
+        self.assertEqual(response.status_code, 404)
 
     def test_template_updates_do_not_change_existing_assignment_snapshot(self):
         assignment = assign_workout_plan(

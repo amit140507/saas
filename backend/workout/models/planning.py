@@ -85,6 +85,7 @@ class WorkoutPlanAssignment(TenantAwareModel):
         default=StatusChoices.ACTIVE,
     )
     notes = models.TextField(null=True, blank=True)
+    share_token = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
