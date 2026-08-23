@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 import {
     ClipboardListIcon,
     DumbbellIcon,
@@ -21,6 +22,7 @@ interface StatCard {
     name: string;
     value: number | null;
     helper: string;
+    href: string;
     icon: LucideIcon;
     tone: string;
     isLoading: boolean;
@@ -33,7 +35,11 @@ function formatCount(value: number | null): string {
 
 function DashboardStatCard({ stat }: { stat: StatCard }) {
     return (
-        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white px-4 py-5 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-700/50 dark:bg-zinc-800/50 dark:hover:bg-zinc-800 sm:p-6">
+        <Link
+            href={stat.href}
+            className="block overflow-hidden rounded-xl border border-zinc-200 bg-white px-4 py-5 shadow-sm transition-colors hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:border-zinc-700/50 dark:bg-zinc-800/50 dark:hover:bg-zinc-800 sm:p-6"
+            aria-label={`Open ${stat.name}`}
+        >
             <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                     <dt className="truncate text-sm font-medium text-zinc-500 transition-colors dark:text-zinc-400">
@@ -54,7 +60,7 @@ function DashboardStatCard({ stat }: { stat: StatCard }) {
             <p className={cn("mt-4 text-sm", stat.isError ? "text-red-600 dark:text-red-400" : "text-zinc-500 dark:text-zinc-400")}>
                 {stat.isError ? "Unable to load this metric." : stat.helper}
             </p>
-        </div>
+        </Link>
     );
 }
 
@@ -96,6 +102,7 @@ export default function AdminDashboardPage() {
             name: "Active Clients",
             value: clientsError ? null : activeClients,
             helper: "Clients currently marked active.",
+            href: "/dashboard/clients",
             icon: UserCheckIcon,
             tone: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400",
             isLoading: clientsLoading,
@@ -105,6 +112,7 @@ export default function AdminDashboardPage() {
             name: "Total Clients",
             value: clientsError ? null : clients.length,
             helper: "All client profiles in this organization.",
+            href: "/dashboard/clients",
             icon: UsersIcon,
             tone: "bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400",
             isLoading: clientsLoading,
@@ -114,6 +122,7 @@ export default function AdminDashboardPage() {
             name: "Workout Plans",
             value: workoutPlansError ? null : workoutPlans.length,
             helper: "Workout plan templates created.",
+            href: "/dashboard/workouts/planning",
             icon: DumbbellIcon,
             tone: "bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400",
             isLoading: workoutPlansLoading,
@@ -123,6 +132,7 @@ export default function AdminDashboardPage() {
             name: "Diet Plans",
             value: dietPlansError ? null : dietPlans.length,
             helper: "Diet plan templates created.",
+            href: "/dashboard/diet-plans/planning",
             icon: ClipboardListIcon,
             tone: "bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400",
             isLoading: dietPlansLoading,
