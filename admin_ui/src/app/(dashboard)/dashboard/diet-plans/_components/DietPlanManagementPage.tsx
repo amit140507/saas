@@ -5,13 +5,16 @@ import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     CalculatorIcon,
-    DownloadIcon,
+    CopyIcon,
     EditIcon,
     EyeIcon,
     FileTextIcon,
     GripVerticalIcon,
     Loader2Icon,
+    MailIcon,
+    MessageCircleIcon,
     PlusIcon,
+    SaveIcon,
     SearchIcon,
     SendIcon,
     Trash2Icon,
@@ -20,7 +23,6 @@ import {
     UtensilsIcon,
     XIcon,
 } from "lucide-react";
-import type { AxiosError } from "axios";
 
 import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
 import { supplementsDb } from "@/lib/foodDb";
@@ -31,8 +33,6 @@ import {
     createDietPlanAssignment,
     deleteDietPlan,
     deleteDietPlanAssignment,
-    downloadDietPlanPdf,
-    generateDietPlanPdf,
     getDietPlanAssignments,
     getDietPlans,
     getFoodItems,
@@ -234,6 +234,87 @@ function buildInitialPdfMeal(): PdfMeal {
     return { id: createFormId(), time: "Breakfast", foods: [], supplements: [] };
 }
 
+const mealSlotOptions = [
+    { value: "breakfast", label: "Breakfast" },
+    { value: "morning_snack", label: "Morning Snack" },
+    { value: "lunch", label: "Lunch" },
+    { value: "evening_snack", label: "Evening Snack" },
+    { value: "dinner", label: "Dinner" },
+    { value: "pre_workout", label: "Pre Workout" },
+    { value: "post_workout", label: "Post Workout" },
+] as const;
+
+function getMealSlotLabel(value: string): string {
+    return mealSlotOptions.find((option) => option.value === value)?.label || value;
+}
+
+function normalizeMealSlot(value: string, index: number): string {
+    const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const matched = mealSlotOptions.find((option) => option.value === normalized || option.label.toLowerCase().replace(/\s+/g, "_") === normalized);
+    return matched?.value || mealSlotOptions[index % mealSlotOptions.length].value;
+}
+
+function getShareBaseUrl(): string {
+    const configuredUrl = process.env.NEXT_PUBLIC_USER_APP_URL?.trim().replace(/\/+$/, "");
+    if (configuredUrl) return configuredUrl;
+    if (typeof window !== "undefined") return window.location.origin;
+    return "";
+}
+
+function normalizeWhatsAppPhone(phone?: string | null): string {
+    return (phone || "").replace(/\D/g, "");
+}
+
+function planToBuilderMeals(plan: DietPlan): PdfMeal[] {
+    if (!plan.meals?.length) {
+        return [buildInitialPdfMeal()];
+    }
+
+    return [...plan.meals]
+        .sort((a, b) => a.day_number - b.day_number)
+        .map((meal) => ({
+            id: createFormId(),
+            time: meal.notes || getMealSlotLabel(meal.meal_slot),
+            foods: (meal.items || []).map((item) => ({
+                internalId: createFormId(),
+                id: item.food_item,
+                name: item.food_item_name || "",
+                amount: String(item.quantity_g || ""),
+                unit: "g",
+            })),
+            supplements: (meal.supplements || []).map((supplement) => ({
+                internalId: createFormId(),
+                id: supplement.supplement_id || "",
+                name: supplement.name,
+                amount: supplement.amount == null ? "" : String(supplement.amount),
+                unit: supplement.unit || "scoop",
+            })),
+        }));
+}
+
+function buildMealTemplates(meals: PdfMeal[]) {
+    return meals.map((meal, index) => ({
+        day_number: index + 1,
+        meal_slot: normalizeMealSlot(meal.time, index),
+        notes: meal.time.trim(),
+        items: meal.foods
+            .filter((food) => food.id && food.amount)
+            .map((food) => ({
+                food_item: food.id,
+                quantity_g: food.amount,
+                notes: "",
+            })),
+        supplements: meal.supplements
+            .filter((supplement) => supplement.name || supplement.id)
+            .map((supplement) => ({
+                supplement_id: supplement.id,
+                name: supplement.name || supplementsDb.find((item) => item.id === supplement.id)?.name || supplement.id,
+                amount: supplement.amount || null,
+                unit: supplement.unit,
+            })),
+    }));
+}
+
 function DietPlanManagementContent() {
     const queryClient = useQueryClient();
     const { tenantId } = useCurrentUserPermissions();
@@ -298,8 +379,8 @@ function DietPlanManagementContent() {
     });
 
     const assignmentMutation = useMutation({
-        mutationFn: ({ mode, id, payload }: { mode: ModalMode; id?: string; payload: DietPlanAssignmentPayload }) => (
-            mode === "add" ? createDietPlanAssignment(payload) : updateDietPlanAssignment(id || "", payload)
+        mutationFn: ({ id, payload }: { id: string; payload: DietPlanAssignmentPayload }) => (
+            updateDietPlanAssignment(id, payload)
         ),
         onSuccess: async () => {
             await invalidateAssignments();
@@ -334,10 +415,10 @@ function DietPlanManagementContent() {
         setPlanModal({ mode, item });
     };
 
-    const openAssignmentModal = (mode: ModalMode, item: DietPlanAssignment | null) => {
+    const openAssignmentModal = (item: DietPlanAssignment) => {
         setFormError("");
-        setAssignmentForm(item ? assignmentToForm(item) : emptyAssignmentForm);
-        setAssignmentModal({ mode, item });
+        setAssignmentForm(assignmentToForm(item));
+        setAssignmentModal({ mode: "edit", item });
     };
 
     const submitPlan = (event: FormEvent<HTMLFormElement>) => {
@@ -363,6 +444,10 @@ function DietPlanManagementContent() {
 
     const submitAssignment = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        if (!assignmentModal?.item) {
+            setFormError("Select an assignment to edit.");
+            return;
+        }
         if (!assignmentForm.client || !assignmentForm.plan || !assignmentForm.start_date) {
             setFormError("Client, plan, and start date are required.");
             return;
@@ -386,7 +471,7 @@ function DietPlanManagementContent() {
             adjustments,
         };
 
-        assignmentMutation.mutate({ mode: assignmentModal?.mode || "add", id: assignmentModal?.item?.id, payload });
+        assignmentMutation.mutate({ id: assignmentModal.item.id, payload });
     };
 
     return (
@@ -443,9 +528,8 @@ function DietPlanManagementContent() {
                     clients={clientById}
                     plans={planById}
                     loading={assignmentsQuery.isLoading || clientsQuery.isLoading || plansQuery.isLoading}
-                    onAdd={() => openAssignmentModal("add", null)}
                     onView={(assignment) => setAssignmentView(assignment)}
-                    onEdit={(assignment) => openAssignmentModal("edit", assignment)}
+                    onEdit={openAssignmentModal}
                     onDelete={(assignment) => setDeleteTarget({ type: "assignment", id: assignment.id, label: assignment.plan_title || planById.get(assignment.plan)?.title || assignment.id })}
                 />
             )}
@@ -477,7 +561,7 @@ function DietPlanManagementContent() {
             )}
 
             {assignmentModal && (
-                <ModalFrame title={assignmentModal.mode === "add" ? "Assign Diet Plan" : "Edit Diet Assignment"} onClose={() => setAssignmentModal(null)}>
+                <ModalFrame title="Edit Diet Assignment" onClose={() => setAssignmentModal(null)}>
                     <form onSubmit={submitAssignment} className="space-y-5 p-6">
                         <ErrorText message={formError} />
                         <SelectField label="Client" value={assignmentForm.client} onChange={(value) => setAssignmentForm({ ...assignmentForm, client: value })} required>
@@ -494,7 +578,7 @@ function DietPlanManagementContent() {
                         </div>
                         <TextArea label="Adjustments JSON" value={assignmentForm.adjustments} onChange={(value) => setAssignmentForm({ ...assignmentForm, adjustments: value })} />
                         <CheckboxField label="Active assignment" checked={assignmentForm.is_active} onChange={(checked) => setAssignmentForm({ ...assignmentForm, is_active: checked })} />
-                        <ModalActions loading={assignmentMutation.isPending} submitLabel={assignmentModal.mode === "add" ? "Create Assignment" : "Save Assignment"} onCancel={() => setAssignmentModal(null)} />
+                        <ModalActions loading={assignmentMutation.isPending} submitLabel="Save Assignment" onCancel={() => setAssignmentModal(null)} />
                     </form>
                 </ModalFrame>
             )}
@@ -592,7 +676,6 @@ function AssignmentsTab({
     clients,
     plans,
     loading,
-    onAdd,
     onView,
     onEdit,
     onDelete,
@@ -601,13 +684,12 @@ function AssignmentsTab({
     clients: Map<string, ClientData>;
     plans: Map<string, DietPlan>;
     loading: boolean;
-    onAdd: () => void;
     onView: (assignment: DietPlanAssignment) => void;
     onEdit: (assignment: DietPlanAssignment) => void;
     onDelete: (assignment: DietPlanAssignment) => void;
 }) {
     return (
-        <Panel title="Diet Plan Assignments" actionLabel="New Assignment" onAction={onAdd}>
+        <Panel title="Diet Plan Assignments">
             <DataTable emptyText={loading ? "Loading assignments..." : "No diet assignments found."} columns={["Status", "Client", "Plan", "Dates", "Adjustments", "Actions"]}>
                 {assignments.map((assignment) => (
                     <tr key={assignment.id} className="transition hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
@@ -625,11 +707,15 @@ function AssignmentsTab({
 }
 
 function PdfBuilder() {
+    const queryClient = useQueryClient();
     const searchParams = useSearchParams();
+    const { tenantId } = useCurrentUserPermissions();
+    const plansQuery = useQuery({ queryKey: ["diet-plans"], queryFn: getDietPlans });
     const clientsQuery = useQuery({ queryKey: ["clients-management"], queryFn: getClients });
     const foodItemsQuery = useQuery({ queryKey: ["food-items"], queryFn: getFoodItems });
 
     const [details, setDetails] = useState({
+        title: "",
         startDate: "",
         endDate: "",
         checkInDate: "",
@@ -649,9 +735,14 @@ function PdfBuilder() {
     const [foodPicker, setFoodPicker] = useState<FoodPickerState | null>(null);
     const [draggedMealId, setDraggedMealId] = useState<string | null>(null);
     const [navbarHeight, setNavbarHeight] = useState(64);
-    const [loading, setLoading] = useState(false);
-    const [downloading, setDownloading] = useState(false);
+    const [builderError, setBuilderError] = useState("");
+    const [builderMessage, setBuilderMessage] = useState("");
+    const [savedAssignment, setSavedAssignment] = useState<DietPlanAssignment | null>(null);
+    const [previewOpen, setPreviewOpen] = useState(false);
+    const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+    const [sendModalOpen, setSendModalOpen] = useState(false);
 
+    const plans = plansQuery.data ?? emptyPlans;
     const clients = clientsQuery.data ?? emptyClients;
     const foodItems = foodItemsQuery.data ?? emptyFoodItems;
     const foodItemById = useMemo(() => new Map(foodItems.map((foodItem) => [foodItem.id, foodItem])), [foodItems]);
@@ -663,6 +754,87 @@ function PdfBuilder() {
     const targetFat = Number(macroTargets.fat) || 0;
     const targetCarb = Number(macroTargets.carbs) || 0;
     const targetGain = Number(macroTargets.gain) || 0;
+    const shareUrl = savedAssignment?.share_token ? `${getShareBaseUrl()}/diet-plan/${savedAssignment.share_token}` : "";
+    const whatsappPhone = normalizeWhatsAppPhone(selectedClient?.phone);
+    const shareMessage = shareUrl ? `Your diet plan is ready: ${shareUrl}` : "";
+    const whatsappHref = whatsappPhone && shareMessage ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(shareMessage)}` : "";
+    const emailHref = selectedClient?.user.email && shareMessage
+        ? `mailto:${selectedClient.user.email}?subject=${encodeURIComponent("Your diet plan")}&body=${encodeURIComponent(shareMessage)}`
+        : "";
+
+    const invalidateDietPlanData = async () => {
+        await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["diet-plans"] }),
+            queryClient.invalidateQueries({ queryKey: ["diet-plan-assignments"] }),
+        ]);
+    };
+
+    const buildDietPlanPayload = (): DietPlanPayload => {
+        if (!details.title.trim()) {
+            throw new Error("Plan title is required.");
+        }
+
+        return {
+            tenant: tenantId,
+            title: details.title.trim(),
+            goal: selectedClient?.goal === "fat_loss" || selectedClient?.goal === "muscle_gain" || selectedClient?.goal === "maintenance"
+                ? selectedClient.goal
+                : null,
+            calories_target: targetCals || null,
+            protein_target: targetPro || null,
+            carbs_target: targetCarb || null,
+            fat_target: targetFat || null,
+            is_active: true,
+            meal_templates: buildMealTemplates(meals),
+        };
+    };
+
+    const saveMutation = useMutation({
+        mutationFn: async () => {
+            if (!selectedClientId) {
+                throw new Error("Client is required.");
+            }
+            if (!details.startDate) {
+                throw new Error("Period start is required.");
+            }
+
+            const plan = await createDietPlan(buildDietPlanPayload());
+            return createDietPlanAssignment({
+                tenant: tenantId,
+                client: selectedClientId,
+                plan: plan.id,
+                start_date: details.startDate,
+                end_date: details.endDate || null,
+                is_active: true,
+                adjustments: {
+                    checkInDate: details.checkInDate,
+                    totalCardio: details.totalCardio,
+                    weightGain: targetGain,
+                },
+            });
+        },
+        onSuccess: async (assignment) => {
+            setSavedAssignment(assignment);
+            setBuilderMessage("Diet plan saved and assigned to the selected client.");
+            await invalidateDietPlanData();
+        },
+        onError: (error) => {
+            setBuilderMessage("");
+            setBuilderError(getErrorMessage(error));
+        },
+    });
+
+    const templateMutation = useMutation({
+        mutationFn: async () => createDietPlan(buildDietPlanPayload()),
+        onSuccess: async () => {
+            setBuilderMessage("Diet template saved. You can reuse it from Use Template.");
+            await queryClient.invalidateQueries({ queryKey: ["diet-plans"] });
+        },
+        onError: (error) => {
+            setBuilderMessage("");
+            setBuilderError(getErrorMessage(error));
+        },
+    });
 
     useEffect(() => {
         const navbar = document.querySelector<HTMLElement>("[data-dashboard-navbar]");
@@ -696,12 +868,14 @@ function PdfBuilder() {
         setClientSearch(value);
         setSelectedClientId("");
         setIsClientSearchOpen(true);
+        setSavedAssignment(null);
     };
 
     const handleClientSelect = (client: ClientData) => {
         setSelectedClientId(client.id);
         setClientSearch(getClientLabel(client));
         setIsClientSearchOpen(false);
+        setSavedAssignment(null);
     };
 
     const updateMacroTarget = (field: keyof typeof macroTargets, value: string) => {
@@ -805,61 +979,66 @@ function PdfBuilder() {
         }));
     };
 
-    const buildPlanPayload = () => ({
-        ...details,
-        clientEmail: selectedClient?.user.email || "",
-        clientPhone: selectedClient?.phone || "",
-        calories: targetCals,
-        protein: targetPro,
-        fat: targetFat,
-        carbs: targetCarb,
-        weightGain: targetGain,
-        meals: meals.map((meal) => ({
-            time: meal.time,
-            foods: meal.foods.map((food) => ({ name: food.name, amount: food.amount, unit: food.unit })),
-            supplements: meal.supplements.map((supplement) => ({ name: supplement.name, amount: supplement.amount, unit: supplement.unit })),
-        })),
-    });
-
-    const getPdfErrorMessage = (e: unknown) => {
-        const error = e as AxiosError<{ error?: string }>;
-        return error.response?.data?.error || "Please try again.";
-    };
-
-    const generatePlan = async () => {
-        if (!selectedClient) {
-            alert("Please select a client before generating and sending the plan.");
-            return;
-        }
-        if (!selectedClient.user.email) {
-            alert("Selected client does not have an email address.");
-            return;
-        }
-
-        setLoading(true);
+    const handlePreview = () => {
+        setBuilderError("");
+        setBuilderMessage("");
         try {
-            await generateDietPlanPdf(buildPlanPayload());
-            alert("Plan generated and sent successfully.");
-        } catch (e: unknown) {
-            alert(`Failed to generate plan. ${getPdfErrorMessage(e)}`);
-        } finally {
-            setLoading(false);
+            buildDietPlanPayload();
+            setPreviewOpen(true);
+        } catch (error) {
+            setBuilderError(getErrorMessage(error));
         }
     };
 
-    const downloadPlan = async () => {
-        setDownloading(true);
+    const handleSave = () => {
+        setBuilderError("");
+        setBuilderMessage("");
+        saveMutation.mutate();
+    };
+
+    const handleSaveTemplate = () => {
+        setBuilderError("");
+        setBuilderMessage("");
+        templateMutation.mutate();
+    };
+
+    const handleTemplateSelect = (plan: DietPlan) => {
+        setDetails((current) => ({
+            ...current,
+            title: plan.title,
+        }));
+        setMacroTargets((current) => ({
+            ...current,
+            calories: plan.calories_target == null ? "" : String(plan.calories_target),
+            protein: plan.protein_target == null ? "" : String(plan.protein_target),
+            fat: plan.fat_target == null ? "" : String(plan.fat_target),
+            carbs: plan.carbs_target == null ? "" : String(plan.carbs_target),
+        }));
+        setMeals(planToBuilderMeals(plan));
+        setBuilderError("");
+        setBuilderMessage(`Loaded template: ${plan.title}`);
+        setTemplatePickerOpen(false);
+        setSavedAssignment(null);
+    };
+
+    const handleCopyShareLink = async () => {
+        if (!shareUrl) return;
         try {
-            await downloadDietPlanPdf(buildPlanPayload());
-        } catch (e: unknown) {
-            alert(`Failed to download plan. ${getPdfErrorMessage(e)}`);
-        } finally {
-            setDownloading(false);
+            await navigator.clipboard.writeText(shareUrl);
+            setBuilderMessage("Share link copied.");
+        } catch {
+            setBuilderError("Could not copy the share link.");
         }
     };
 
     return (
         <div className="space-y-6">
+            <ErrorText message={builderError} />
+            {builderMessage && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+                    {builderMessage}
+                </div>
+            )}
             <div
                 className="sticky z-30 grid grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-950 sm:grid-cols-2 lg:grid-cols-4"
                 style={{ top: navbarHeight }}
@@ -916,7 +1095,15 @@ function PdfBuilder() {
                 <div className="mb-4 flex items-center gap-2">
                     <CalculatorIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
                     <h2 className="font-bold text-zinc-900 dark:text-white">Diet Plan Builder Details</h2>
-                    <label className="ml-auto flex items-center gap-2 text-xs font-bold uppercase text-zinc-500">
+                    <button
+                        type="button"
+                        onClick={() => setTemplatePickerOpen(true)}
+                        className="ml-auto inline-flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    >
+                        <SearchIcon className="h-4 w-4" />
+                        Use Template
+                    </button>
+                    <label className="flex items-center gap-2 text-xs font-bold uppercase text-zinc-500">
                         Gain/Loss %
                         <input
                             type="number"
@@ -928,6 +1115,7 @@ function PdfBuilder() {
                     </label>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <TextField label="Plan Title" value={details.title} onChange={(value) => setDetails({ ...details, title: value })} required />
                     <TextField label="Period Start" type="date" value={details.startDate} onChange={(value) => setDetails({ ...details, startDate: value })} />
                     <TextField label="Period End" type="date" value={details.endDate} onChange={(value) => setDetails({ ...details, endDate: value })} />
                     <TextField label="Check-in Date" type="date" value={details.checkInDate} onChange={(value) => setDetails({ ...details, checkInDate: value })} />
@@ -1091,21 +1279,38 @@ function PdfBuilder() {
             <div className="flex flex-col justify-end gap-3 border-t border-zinc-200 pt-5 dark:border-zinc-800 sm:flex-row">
                 <button
                     type="button"
-                    disabled={downloading || loading}
-                    onClick={downloadPlan}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-300 px-6 py-2.5 font-bold text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                    onClick={handlePreview}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-300 px-6 py-2.5 font-bold text-zinc-700 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
                 >
-                    {downloading ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <DownloadIcon className="h-4 w-4" />}
-                    {downloading ? "Downloading..." : "Download PDF"}
+                    <EyeIcon className="h-4 w-4" />
+                    Preview
                 </button>
                 <button
                     type="button"
-                    disabled={loading}
-                    onClick={generatePlan}
+                    disabled={saveMutation.isPending || templateMutation.isPending}
+                    onClick={handleSaveTemplate}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-300 px-6 py-2.5 font-bold text-indigo-700 shadow-sm transition hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-500/30 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
+                >
+                    {templateMutation.isPending ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <SaveIcon className="h-4 w-4" />}
+                    Save as Template
+                </button>
+                <button
+                    type="button"
+                    disabled={saveMutation.isPending || templateMutation.isPending}
+                    onClick={handleSave}
                     className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-2.5 font-bold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
                 >
-                    {loading ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <SendIcon className="h-4 w-4" />}
-                    {loading ? "Generating..." : "Generate PDF & Send"}
+                    {saveMutation.isPending ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <SaveIcon className="h-4 w-4" />}
+                    Save
+                </button>
+                <button
+                    type="button"
+                    disabled={!savedAssignment || !shareUrl}
+                    onClick={() => setSendModalOpen(true)}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-6 py-2.5 font-bold text-white shadow-sm transition hover:bg-orange-700 disabled:opacity-50"
+                >
+                    <SendIcon className="h-4 w-4" />
+                    Send
                 </button>
             </div>
 
@@ -1120,7 +1325,218 @@ function PdfBuilder() {
                     onClose={closeFoodPicker}
                 />
             )}
+
+            {templatePickerOpen && (
+                <DietTemplatePickerModal
+                    plans={plans}
+                    isLoading={plansQuery.isLoading}
+                    onSelect={handleTemplateSelect}
+                    onClose={() => setTemplatePickerOpen(false)}
+                />
+            )}
+
+            {previewOpen && (
+                <DietBuilderPreviewModal
+                    title={details.title || "Untitled Diet Plan"}
+                    clientLabel={selectedClient ? clientName(selectedClient) : "Not selected"}
+                    startDate={details.startDate || "-"}
+                    endDate={details.endDate || "No end date"}
+                    checkInDate={details.checkInDate || "-"}
+                    totalCardio={details.totalCardio || "0"}
+                    macros={{ calories: targetCals, protein: targetPro, carbs: targetCarb, fat: targetFat, gain: targetGain }}
+                    meals={meals}
+                    onClose={() => setPreviewOpen(false)}
+                />
+            )}
+
+            {sendModalOpen && savedAssignment && (
+                <DietSendModal
+                    shareUrl={shareUrl}
+                    whatsappHref={whatsappHref}
+                    emailHref={emailHref}
+                    onCopy={handleCopyShareLink}
+                    onClose={() => setSendModalOpen(false)}
+                />
+            )}
         </div>
+    );
+}
+
+function DietTemplatePickerModal({
+    plans,
+    isLoading,
+    onSelect,
+    onClose,
+}: {
+    plans: DietPlan[];
+    isLoading: boolean;
+    onSelect: (plan: DietPlan) => void;
+    onClose: () => void;
+}) {
+    return (
+        <ModalFrame title="Use Diet Template" onClose={onClose} maxWidth="max-w-3xl">
+            <div className="space-y-3 p-6">
+                {isLoading ? (
+                    <div className="rounded-lg border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400 dark:border-zinc-800">Loading templates...</div>
+                ) : plans.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400 dark:border-zinc-800">No saved diet templates found.</div>
+                ) : plans.map((plan) => (
+                    <button
+                        key={plan.id}
+                        type="button"
+                        onClick={() => onSelect(plan)}
+                        className="block w-full rounded-lg border border-zinc-200 p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50 dark:border-zinc-800 dark:hover:border-indigo-500/40 dark:hover:bg-indigo-500/10"
+                    >
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <div>
+                                <div className="font-bold text-zinc-900 dark:text-white">{plan.title}</div>
+                                <div className="mt-1 text-sm capitalize text-zinc-500">{goalLabel(plan.goal)}</div>
+                            </div>
+                            <div className="text-sm font-semibold text-zinc-500">
+                                {plan.calories_target ?? "-"} kcal / {plan.meals?.length || 0} meals
+                            </div>
+                        </div>
+                    </button>
+                ))}
+            </div>
+        </ModalFrame>
+    );
+}
+
+function DietBuilderPreviewModal({
+    title,
+    clientLabel,
+    startDate,
+    endDate,
+    checkInDate,
+    totalCardio,
+    macros,
+    meals,
+    onClose,
+}: {
+    title: string;
+    clientLabel: string;
+    startDate: string;
+    endDate: string;
+    checkInDate: string;
+    totalCardio: string;
+    macros: { calories: number; protein: number; carbs: number; fat: number; gain: number };
+    meals: PdfMeal[];
+    onClose: () => void;
+}) {
+    return (
+        <ModalFrame title="Preview Diet Plan" onClose={onClose} maxWidth="max-w-5xl">
+            <div className="space-y-5 p-6">
+                <div>
+                    <h3 className="text-lg font-bold text-zinc-900 dark:text-white">{title}</h3>
+                    <p className="mt-1 text-sm text-zinc-500">{clientLabel}</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <InfoTile label="Dates" value={`${startDate} - ${endDate}`} />
+                    <InfoTile label="Check-in" value={checkInDate} />
+                    <InfoTile label="Cardio" value={`${totalCardio} min`} />
+                    <InfoTile label="Gain/Loss" value={`${macros.gain}%`} />
+                    <InfoTile label="Calories" value={`${macros.calories} kcal`} />
+                    <InfoTile label="Protein" value={`${macros.protein} g`} />
+                    <InfoTile label="Carbs" value={`${macros.carbs} g`} />
+                    <InfoTile label="Fat" value={`${macros.fat} g`} />
+                </div>
+                <div className="space-y-4">
+                    {meals.map((meal, index) => (
+                        <section key={meal.id} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+                            <h4 className="font-bold text-zinc-900 dark:text-white">Meal {index + 1}: {meal.time || "Untitled meal"}</h4>
+                            <div className="mt-3 grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <div className="mb-2 text-xs font-bold uppercase text-zinc-500">Foods</div>
+                                    {meal.foods.length === 0 ? (
+                                        <p className="text-sm text-zinc-400">No foods added.</p>
+                                    ) : meal.foods.map((food) => (
+                                        <div key={food.internalId} className="text-sm text-zinc-700 dark:text-zinc-300">{food.name || "Food"} - {food.amount || "0"} {food.unit}</div>
+                                    ))}
+                                </div>
+                                <div>
+                                    <div className="mb-2 text-xs font-bold uppercase text-zinc-500">Supplements</div>
+                                    {meal.supplements.length === 0 ? (
+                                        <p className="text-sm text-zinc-400">No supplements added.</p>
+                                    ) : meal.supplements.map((supplement) => (
+                                        <div key={supplement.internalId} className="text-sm text-zinc-700 dark:text-zinc-300">{supplement.name || "Supplement"} - {supplement.amount || "0"} {supplement.unit}</div>
+                                    ))}
+                                </div>
+                            </div>
+                        </section>
+                    ))}
+                </div>
+            </div>
+        </ModalFrame>
+    );
+}
+
+function DietSendModal({
+    shareUrl,
+    whatsappHref,
+    emailHref,
+    onCopy,
+    onClose,
+}: {
+    shareUrl: string;
+    whatsappHref: string;
+    emailHref: string;
+    onCopy: () => void;
+    onClose: () => void;
+}) {
+    return (
+        <ModalFrame title="Send this plan" onClose={onClose}>
+            <div className="space-y-5 p-6">
+                <p className="text-sm text-zinc-500">Shares the last saved version. The client opens this link, no login needed.</p>
+                <div>
+                    <div className="mb-1 text-xs font-bold uppercase text-zinc-500">Shareable link</div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        <input
+                            readOnly
+                            value={shareUrl}
+                            className="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm text-zinc-900 outline-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
+                        />
+                        <button
+                            type="button"
+                            onClick={onCopy}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-orange-600 px-5 py-3 text-sm font-bold text-orange-600 transition hover:bg-orange-50 dark:hover:bg-orange-500/10"
+                        >
+                            <CopyIcon className="h-4 w-4" />
+                            Copy
+                        </button>
+                    </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                    <a
+                        href={whatsappHref || undefined}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-disabled={!whatsappHref}
+                        className={`inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-bold transition ${
+                            whatsappHref ? "bg-orange-600 text-white hover:bg-orange-700" : "pointer-events-none bg-zinc-200 text-zinc-400 dark:bg-zinc-800"
+                        }`}
+                    >
+                        <MessageCircleIcon className="h-4 w-4" />
+                        Send on WhatsApp
+                    </a>
+                    <a
+                        href={emailHref || undefined}
+                        aria-disabled={!emailHref}
+                        className={`inline-flex items-center justify-center gap-2 rounded-lg border px-5 py-3 text-sm font-bold transition ${
+                            emailHref ? "border-orange-600 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-500/10" : "pointer-events-none border-zinc-200 text-zinc-400 dark:border-zinc-800"
+                        }`}
+                    >
+                        <MailIcon className="h-4 w-4" />
+                        Email a copy
+                    </a>
+                </div>
+                <div className="border-t border-zinc-200 pt-5 dark:border-zinc-800">
+                    <button type="button" onClick={onClose} className="rounded-lg border border-orange-600 px-5 py-3 text-sm font-bold text-orange-600 transition hover:bg-orange-50 dark:hover:bg-orange-500/10">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </ModalFrame>
     );
 }
 
@@ -1490,15 +1906,17 @@ function InfoTile({ label, value }: { label: string; value: string }) {
     );
 }
 
-function Panel({ title, actionLabel, onAction, children }: { title: string; actionLabel: string; onAction: () => void; children: React.ReactNode }) {
+function Panel({ title, actionLabel, onAction, children }: { title: string; actionLabel?: string; onAction?: () => void; children: React.ReactNode }) {
     return (
         <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
             <div className="flex flex-col gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800 md:flex-row md:items-center md:justify-between">
                 <h2 className="font-bold text-zinc-900 dark:text-white">{title}</h2>
-                <button type="button" onClick={onAction} className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">
-                    <PlusIcon className="h-4 w-4" />
-                    {actionLabel}
-                </button>
+                {actionLabel && onAction && (
+                    <button type="button" onClick={onAction} className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">
+                        <PlusIcon className="h-4 w-4" />
+                        {actionLabel}
+                    </button>
+                )}
             </div>
             {children}
         </section>

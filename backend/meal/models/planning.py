@@ -96,6 +96,7 @@ class DietPlanAssignment(TenantAwareModel):
 
     # Custom adjustments for this specific client
     adjustments = models.JSONField(default=dict, blank=True)
+    share_token = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True, editable=False)
 
     class Meta:
         verbose_name = 'Diet Plan Assignment'
@@ -150,3 +151,23 @@ class PlannedMealItem(TenantAwareModel):
 
     def __str__(self):
         return f"{self.food_item.name} ({self.quantity_g}g)"
+
+
+class PlannedMealSupplement(TenantAwareModel):
+    """
+    A structured supplement entry within a planned meal.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    meal = models.ForeignKey(
+        PlannedMeal, on_delete=models.CASCADE, related_name='supplements')
+    supplement_id = models.CharField(max_length=100, blank=True, default='')
+    name = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    unit = models.CharField(max_length=50, blank=True, default='')
+
+    class Meta:
+        verbose_name = 'Planned Meal Supplement'
+        verbose_name_plural = 'Planned Meal Supplements'
+
+    def __str__(self):
+        return f"{self.name} ({self.amount or ''} {self.unit})".strip()

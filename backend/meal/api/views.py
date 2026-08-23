@@ -1,14 +1,15 @@
 from rest_framework import viewsets, status
+from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404
 from ..models.planning import FoodItem, DietPlan, DietPlanAssignment, PlannedMeal, PlannedMealItem
 from ..models.tracking import Meal, MealItem, DietLog
 from .serializers import (
     FoodItemSerializer, DietPlanSerializer, DietPlanAssignmentSerializer,
     PlannedMealSerializer, PlannedMealItemSerializer,
-    MealSerializer, MealItemSerializer, DietLogSerializer
+    MealSerializer, MealItemSerializer, DietLogSerializer,
+    SharedDietPlanAssignmentSerializer,
 )
 from ..services.pdf_service import create_diet_plan_pdf, send_diet_plan_email
 
@@ -30,10 +31,22 @@ class DietPlanViewSet(TenantScopedViewSet):
     model = DietPlan
     serializer_class = DietPlanSerializer
 
+    def get_queryset(self):
+        return DietPlan.objects.filter(tenant=self.request.tenant).prefetch_related(
+            'meals__items__food_item',
+            'meals__supplements',
+        )
+
 
 class DietPlanAssignmentViewSet(TenantScopedViewSet):
     model = DietPlanAssignment
     serializer_class = DietPlanAssignmentSerializer
+
+    def get_queryset(self):
+        return DietPlanAssignment.objects.filter(tenant=self.request.tenant).select_related(
+            'client__org_client__user',
+            'plan',
+        )
 
 
 class PlannedMealViewSet(TenantScopedViewSet):
@@ -90,3 +103,23 @@ class DownloadDietPlanPDFView(APIView):
                 {"error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class SharedDietPlanAssignmentView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        assignment = DietPlanAssignment.objects.select_related(
+            'client__org_client__user',
+            'plan',
+        ).prefetch_related(
+            'plan__meals__items__food_item',
+            'plan__meals__supplements',
+        ).filter(share_token=token).first()
+
+        if assignment is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = SharedDietPlanAssignmentSerializer(assignment)
+        return Response(serializer.data, status=status.HTTP_200_OK)

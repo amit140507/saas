@@ -35,6 +35,16 @@ export interface PlannedMealItem {
     notes: string | null;
 }
 
+export interface PlannedMealSupplement {
+    id: string;
+    tenant?: string;
+    meal: string;
+    supplement_id: string;
+    name: string;
+    amount: string | null;
+    unit: string;
+}
+
 export interface PlannedMeal {
     id: string;
     tenant?: string;
@@ -43,6 +53,7 @@ export interface PlannedMeal {
     meal_slot: string;
     notes: string | null;
     items?: PlannedMealItem[];
+    supplements?: PlannedMealSupplement[];
 }
 
 export interface DietPlan {
@@ -68,6 +79,24 @@ export interface DietPlanPayload {
     carbs_target: number | null;
     fat_target: number | null;
     is_active: boolean;
+    meal_templates?: PlannedMealTemplatePayload[];
+}
+
+export interface PlannedMealTemplatePayload {
+    day_number: number;
+    meal_slot: string;
+    notes: string;
+    items: Array<{
+        food_item: string;
+        quantity_g: string;
+        notes: string;
+    }>;
+    supplements: Array<{
+        supplement_id: string;
+        name: string;
+        amount: string | null;
+        unit: string;
+    }>;
 }
 
 export interface DietPlanAssignment {
@@ -81,6 +110,7 @@ export interface DietPlanAssignment {
     end_date: string | null;
     is_active: boolean;
     adjustments: Record<string, unknown>;
+    share_token?: string;
 }
 
 export interface DietPlanAssignmentPayload {

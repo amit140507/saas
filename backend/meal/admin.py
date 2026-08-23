@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models.planning import FoodItem, DietPlan, DietPlanAssignment, PlannedMeal, PlannedMealItem
+from .models.planning import FoodItem, DietPlan, DietPlanAssignment, PlannedMeal, PlannedMealItem, PlannedMealSupplement
 from .models.tracking import Meal, MealItem, DietLog
 
 @admin.register(FoodItem)
@@ -23,11 +23,15 @@ class PlannedMealItemInline(admin.TabularInline):
     model = PlannedMealItem
     extra = 1
 
+class PlannedMealSupplementInline(admin.TabularInline):
+    model = PlannedMealSupplement
+    extra = 1
+
 @admin.register(PlannedMeal)
 class PlannedMealAdmin(admin.ModelAdmin):
     list_display = ('plan', 'day_number', 'meal_slot')
     list_filter = ('day_number', 'meal_slot')
-    inlines = [PlannedMealItemInline]
+    inlines = [PlannedMealItemInline, PlannedMealSupplementInline]
 
 class MealItemInline(admin.TabularInline):
     model = MealItem
