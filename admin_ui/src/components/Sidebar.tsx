@@ -70,8 +70,8 @@ const navigation: NavigationItem[] = [
         icon: PackageIcon,
         permission: PERMISSIONS.MANAGE_DIET,
         children: [
-            { name: "Planning", href: "/dashboard/diet-plans/planning" },
             { name: "Food DB", href: "/dashboard/diet-plans/food-db" },
+            { name: "Planning", href: "/dashboard/diet-plans/planning" },
             { name: "Tracking", href: "/dashboard/diet-plans/tracking" },
         ],
     },

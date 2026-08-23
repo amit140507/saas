@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useMemo, useState, useSyncExternalStore } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -9,6 +9,7 @@ import {
     EditIcon,
     EyeIcon,
     FileTextIcon,
+    GripVerticalIcon,
     Loader2Icon,
     PlusIcon,
     SearchIcon,
@@ -22,7 +23,7 @@ import {
 import type { AxiosError } from "axios";
 
 import { ResponsiveTableFromRows } from "@/components/ui/responsive-table";
-import { foodDb, supplementsDb } from "@/lib/foodDb";
+import { supplementsDb } from "@/lib/foodDb";
 import { useCurrentUserPermissions } from "@/lib/permissions";
 import { getClients } from "@/services/client.service";
 import {
@@ -34,6 +35,7 @@ import {
     generateDietPlanPdf,
     getDietPlanAssignments,
     getDietPlans,
+    getFoodItems,
     updateDietPlan,
     updateDietPlanAssignment,
 } from "@/services/diet-plan.service";
@@ -44,11 +46,13 @@ import type {
     DietPlanAssignment,
     DietPlanAssignmentPayload,
     DietPlanPayload,
+    FoodItem,
 } from "@/types/diet-plan.type";
 
 type TabId = "plans" | "assignments" | "pdf";
 type ModalMode = "add" | "edit";
 type DeleteTarget = { type: "plan"; id: string; label: string } | { type: "assignment"; id: string; label: string };
+type FoodPickerState = { mealId: string; rowId?: string; search: string };
 
 interface ApiErrorShape {
     response?: {
@@ -131,6 +135,7 @@ const emptyAssignmentForm: AssignmentForm = {
 const emptyPlans: DietPlan[] = [];
 const emptyAssignments: DietPlanAssignment[] = [];
 const emptyClients: ClientData[] = [];
+const emptyFoodItems: FoodItem[] = [];
 
 function createFormId(): string {
     return `form-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -184,6 +189,11 @@ function optionalNumber(value: string): number | null {
 
     const parsed = Number(trimmed);
     return Number.isFinite(parsed) ? parsed : null;
+}
+
+function foodMacroNumber(value: string): number {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function goalLabel(goal?: DietGoal | null): string {
@@ -617,6 +627,7 @@ function AssignmentsTab({
 function PdfBuilder() {
     const searchParams = useSearchParams();
     const clientsQuery = useQuery({ queryKey: ["clients-management"], queryFn: getClients });
+    const foodItemsQuery = useQuery({ queryKey: ["food-items"], queryFn: getFoodItems });
 
     const [details, setDetails] = useState({
         startDate: "",
@@ -625,20 +636,25 @@ function PdfBuilder() {
         totalCardio: "",
     });
     const [macroTargets, setMacroTargets] = useState({
-        calories: searchParams.get("calories") || "",
-        protein: searchParams.get("protein") || "",
-        fat: searchParams.get("fat") || "",
-        carbs: searchParams.get("carbs") || "",
-        gain: searchParams.get("gain") || "",
+        calories: searchParams.get("calories") || "2020",
+        protein: searchParams.get("protein") || "176",
+        fat: searchParams.get("fat") || "80",
+        carbs: searchParams.get("carbs") || "149",
+        gain: searchParams.get("gain") || "0",
     });
     const [selectedClientId, setSelectedClientId] = useState("");
     const [clientSearch, setClientSearch] = useState("");
     const [isClientSearchOpen, setIsClientSearchOpen] = useState(false);
     const [meals, setMeals] = useState<PdfMeal[]>([buildInitialPdfMeal()]);
+    const [foodPicker, setFoodPicker] = useState<FoodPickerState | null>(null);
+    const [draggedMealId, setDraggedMealId] = useState<string | null>(null);
+    const [navbarHeight, setNavbarHeight] = useState(64);
     const [loading, setLoading] = useState(false);
     const [downloading, setDownloading] = useState(false);
 
     const clients = clientsQuery.data ?? emptyClients;
+    const foodItems = foodItemsQuery.data ?? emptyFoodItems;
+    const foodItemById = useMemo(() => new Map(foodItems.map((foodItem) => [foodItem.id, foodItem])), [foodItems]);
     const selectedClient = clients.find((client) => client.id === selectedClientId);
     const selectedClientLabel = selectedClient ? getClientLabel(selectedClient) : "";
     const isSearchingClients = isClientSearchOpen && clientSearch.trim().length > 0 && clientSearch !== selectedClientLabel;
@@ -647,6 +663,25 @@ function PdfBuilder() {
     const targetFat = Number(macroTargets.fat) || 0;
     const targetCarb = Number(macroTargets.carbs) || 0;
     const targetGain = Number(macroTargets.gain) || 0;
+
+    useEffect(() => {
+        const navbar = document.querySelector<HTMLElement>("[data-dashboard-navbar]");
+        if (!navbar) return;
+
+        const updateNavbarHeight = () => {
+            setNavbarHeight(navbar.getBoundingClientRect().height);
+        };
+
+        updateNavbarHeight();
+        const resizeObserver = new ResizeObserver(updateNavbarHeight);
+        resizeObserver.observe(navbar);
+        window.addEventListener("resize", updateNavbarHeight);
+
+        return () => {
+            resizeObserver.disconnect();
+            window.removeEventListener("resize", updateNavbarHeight);
+        };
+    }, []);
 
     const filteredClients = useMemo(() => {
         const query = clientSearch.trim().toLowerCase();
@@ -681,19 +716,20 @@ function PdfBuilder() {
 
         meals.forEach((meal) => {
             meal.foods.forEach((food) => {
-                const item = foodDb.find((db) => db.id === food.id);
-                if (item && food.amount) {
-                    const multiplier = Number(food.amount) / 100;
-                    pro += item.protein * multiplier;
-                    fat += item.fat * multiplier;
-                    carb += item.carbs * multiplier;
-                    cal += item.calories * multiplier;
+                const item = foodItemById.get(food.id);
+                const amount = Number(food.amount);
+                if (item && Number.isFinite(amount) && amount > 0) {
+                    const multiplier = amount / 100;
+                    pro += foodMacroNumber(item.protein_g) * multiplier;
+                    fat += foodMacroNumber(item.fat_g) * multiplier;
+                    carb += foodMacroNumber(item.carbs_g) * multiplier;
+                    cal += foodMacroNumber(item.calories_per_100g) * multiplier;
                 }
             });
         });
 
         return { cal, pro, fat, carb };
-    }, [meals]);
+    }, [foodItemById, meals]);
 
     const macroSummaries = [
         { name: "Calories", field: "calories" as const, consumedValue: consumed.cal, targetValue: targetCals, tolerance: 50, unit: "kcal" },
@@ -706,11 +742,60 @@ function PdfBuilder() {
         setMeals((items) => items.map((meal) => (meal.id === mealId ? updater(meal) : meal)));
     };
 
-    const addFood = (mealId: string) => {
-        updateMeal(mealId, (meal) => ({
-            ...meal,
-            foods: [...meal.foods, { internalId: createFormId(), id: "", name: "", amount: "", unit: "g" }],
-        }));
+    const openAddFoodPicker = (mealId: string) => {
+        setFoodPicker({ mealId, search: "" });
+    };
+
+    const openReplaceFoodPicker = (mealId: string, rowId: string) => {
+        setFoodPicker({ mealId, rowId, search: "" });
+    };
+
+    const closeFoodPicker = () => {
+        setFoodPicker(null);
+    };
+
+    const selectFoodItem = (foodItem: FoodItem) => {
+        if (!foodPicker) return;
+
+        updateMeal(foodPicker.mealId, (meal) => {
+            const selectedFood = {
+                id: foodItem.id,
+                name: foodItem.name,
+                unit: "g",
+            };
+
+            if (foodPicker.rowId) {
+                return {
+                    ...meal,
+                    foods: meal.foods.map((food) => (
+                        food.internalId === foodPicker.rowId
+                            ? { ...food, ...selectedFood }
+                            : food
+                    )),
+                };
+            }
+
+            return {
+                ...meal,
+                foods: [...meal.foods, { internalId: createFormId(), amount: "", ...selectedFood }],
+            };
+        });
+        closeFoodPicker();
+    };
+
+    const moveMeal = (draggedId: string, targetId: string) => {
+        if (draggedId === targetId) return;
+
+        setMeals((items) => {
+            const fromIndex = items.findIndex((meal) => meal.id === draggedId);
+            const toIndex = items.findIndex((meal) => meal.id === targetId);
+            if (fromIndex === -1 || toIndex === -1) return items;
+
+            const nextMeals = [...items];
+            const [movedMeal] = nextMeals.splice(fromIndex, 1);
+            nextMeals.splice(toIndex, 0, movedMeal);
+            return nextMeals;
+        });
     };
 
     const addSupplement = (mealId: string) => {
@@ -775,7 +860,10 @@ function PdfBuilder() {
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-950 sm:grid-cols-2 lg:grid-cols-4">
+            <div
+                className="sticky z-30 grid grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-950 sm:grid-cols-2 lg:grid-cols-4"
+                style={{ top: navbarHeight }}
+            >
                 {macroSummaries.map((macro) => {
                     const status = getMacroStatus(macro.consumedValue, macro.targetValue, macro.tolerance, macro.unit);
                     const progressValue = macro.targetValue > 0 ? Math.min(Math.round((macro.consumedValue / macro.targetValue) * 100), 100) : 0;
@@ -898,8 +986,37 @@ function PdfBuilder() {
 
             <div className="space-y-5">
                 {meals.map((meal) => (
-                    <section key={meal.id} className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                    <section
+                        key={meal.id}
+                        onDragOver={(event) => {
+                            if (!draggedMealId) return;
+                            event.preventDefault();
+                        }}
+                        onDrop={(event) => {
+                            if (!draggedMealId) return;
+                            event.preventDefault();
+                            moveMeal(draggedMealId, meal.id);
+                            setDraggedMealId(null);
+                        }}
+                        className={`rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition dark:border-zinc-800 dark:bg-zinc-950 ${draggedMealId === meal.id ? "opacity-50" : ""}`}
+                    >
                         <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-100 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-900">
+                            <button
+                                type="button"
+                                draggable={meals.length > 1}
+                                disabled={meals.length === 1}
+                                onDragStart={(event) => {
+                                    if (meals.length === 1) return;
+                                    event.dataTransfer.effectAllowed = "move";
+                                    setDraggedMealId(meal.id);
+                                }}
+                                onDragEnd={() => setDraggedMealId(null)}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 transition hover:bg-indigo-50 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-indigo-950 dark:hover:text-indigo-300"
+                                title="Drag meal to reorder"
+                                aria-label="Drag meal to reorder"
+                            >
+                                <GripVerticalIcon className="h-4 w-4" />
+                            </button>
                             <input
                                 type="text"
                                 value={meal.time}
@@ -912,30 +1029,20 @@ function PdfBuilder() {
                             </button>
                         </div>
 
-                        <div className="mt-5 grid gap-6 lg:grid-cols-2">
-                            <MealRows
+                        <div className="mt-5 grid gap-6">
+                            <FoodRows
                                 title="Foods"
                                 emptyText="No foods added."
                                 buttonLabel="Add Food"
                                 accentClass="text-indigo-600 dark:text-indigo-300"
                                 rows={meal.foods}
-                                options={foodDb}
-                                onAdd={() => addFood(meal.id)}
-                                onUpdate={(rowId, field, value) => {
+                                foodItemById={foodItemById}
+                                onAdd={() => openAddFoodPicker(meal.id)}
+                                onOpenPicker={(rowId) => openReplaceFoodPicker(meal.id, rowId)}
+                                onUpdateAmount={(rowId, value) => {
                                     updateMeal(meal.id, (item) => ({
                                         ...item,
-                                        foods: item.foods.map((food) => {
-                                            if (food.internalId !== rowId) return food;
-                                            const next = { ...food, [field]: value };
-                                            if (field === "id") {
-                                                const dbItem = foodDb.find((db) => db.id === value);
-                                                if (dbItem) {
-                                                    next.name = dbItem.name;
-                                                    next.unit = dbItem.defaultUnit;
-                                                }
-                                            }
-                                            return next;
-                                        }),
+                                        foods: item.foods.map((food) => (food.internalId === rowId ? { ...food, amount: value } : food)),
                                     }));
                                 }}
                                 onRemove={(rowId) => updateMeal(meal.id, (item) => ({ ...item, foods: item.foods.filter((food) => food.internalId !== rowId) }))}
@@ -1001,6 +1108,188 @@ function PdfBuilder() {
                     {loading ? "Generating..." : "Generate PDF & Send"}
                 </button>
             </div>
+
+            {foodPicker && (
+                <FoodPickerModal
+                    foodItems={foodItems}
+                    isLoading={foodItemsQuery.isLoading}
+                    isError={foodItemsQuery.isError}
+                    search={foodPicker.search}
+                    onSearchChange={(searchValue) => setFoodPicker((current) => (current ? { ...current, search: searchValue } : current))}
+                    onSelect={selectFoodItem}
+                    onClose={closeFoodPicker}
+                />
+            )}
+        </div>
+    );
+}
+
+function FoodRows({
+    title,
+    emptyText,
+    buttonLabel,
+    accentClass,
+    rows,
+    foodItemById,
+    onAdd,
+    onOpenPicker,
+    onUpdateAmount,
+    onRemove,
+}: {
+    title: string;
+    emptyText: string;
+    buttonLabel: string;
+    accentClass: string;
+    rows: PdfMealFood[];
+    foodItemById: Map<string, FoodItem>;
+    onAdd: () => void;
+    onOpenPicker: (rowId: string) => void;
+    onUpdateAmount: (rowId: string, value: string) => void;
+    onRemove: (rowId: string) => void;
+}) {
+    return (
+        <div className="space-y-2">
+            <h3 className="text-sm font-bold text-zinc-700 dark:text-zinc-300">{title}</h3>
+            {rows.length === 0 && <p className="text-xs italic text-zinc-400">{emptyText}</p>}
+            {rows.map((row) => {
+                const foodItem = foodItemById.get(row.id);
+                const amount = Number(row.amount);
+                const multiplier = foodItem && Number.isFinite(amount) && amount > 0 ? amount / 100 : 0;
+                const calories = foodItem ? foodMacroNumber(foodItem.calories_per_100g) * multiplier : 0;
+                const protein = foodItem ? foodMacroNumber(foodItem.protein_g) * multiplier : 0;
+                const carbs = foodItem ? foodMacroNumber(foodItem.carbs_g) * multiplier : 0;
+                const fat = foodItem ? foodMacroNumber(foodItem.fat_g) * multiplier : 0;
+
+                return (
+                    <div key={row.internalId} className="grid grid-cols-[minmax(0,1fr)_5rem_4rem_minmax(8rem,auto)_2rem] items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => onOpenPicker(row.internalId)}
+                            className="min-w-0 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-left text-sm text-zinc-900 outline-none transition hover:border-indigo-500 focus:border-indigo-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
+                            title="Select food"
+                        >
+                            <span className="block truncate">{row.name || "Select food..."}</span>
+                        </button>
+                        <input
+                            type="number"
+                            value={row.amount}
+                            onChange={(event) => onUpdateAmount(row.internalId, event.target.value)}
+                            placeholder="Amt"
+                            className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-sm text-zinc-900 outline-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
+                        />
+                        <input type="text" value={row.unit} disabled className="bg-transparent text-center text-xs text-zinc-500 outline-none" />
+                        <div className="truncate text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                            {Math.round(calories)} kcal · P{Math.round(protein)} C{Math.round(carbs)} F{Math.round(fat)}
+                        </div>
+                        <button type="button" onClick={() => onRemove(row.internalId)} className="rounded-md p-1 text-zinc-400 transition hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10" title="Remove row">
+                            <TrashIcon className="h-4 w-4" />
+                        </button>
+                    </div>
+                );
+            })}
+            <button type="button" onClick={onAdd} className={`inline-flex items-center gap-1 text-xs font-semibold ${accentClass}`}>
+                <PlusIcon className="h-3 w-3" />
+                {buttonLabel}
+            </button>
+        </div>
+    );
+}
+
+function FoodPickerModal({
+    foodItems,
+    isLoading,
+    isError,
+    search,
+    onSearchChange,
+    onSelect,
+    onClose,
+}: {
+    foodItems: FoodItem[];
+    isLoading: boolean;
+    isError: boolean;
+    search: string;
+    onSearchChange: (value: string) => void;
+    onSelect: (foodItem: FoodItem) => void;
+    onClose: () => void;
+}) {
+    const query = search.trim().toLowerCase();
+    const filteredFoodItems = useMemo(() => {
+        if (!query) return foodItems;
+
+        return foodItems.filter((foodItem) => (
+            foodItem.name.toLowerCase().includes(query) ||
+            (foodItem.brand || "").toLowerCase().includes(query)
+        ));
+    }, [foodItems, query]);
+
+    return (
+        <ModalFrame title="Select Food" onClose={onClose} maxWidth="max-w-4xl">
+            <div className="space-y-4 p-6">
+                <div className="relative">
+                    <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                    <input
+                        type="search"
+                        value={search}
+                        onChange={(event) => onSearchChange(event.target.value)}
+                        className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-9 py-2 text-sm text-zinc-900 outline-none transition focus:border-indigo-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
+                        placeholder="Search foods by name or brand"
+                        autoFocus
+                    />
+                </div>
+
+                {isLoading ? (
+                    <div className="rounded-lg border border-dashed border-zinc-200 px-4 py-10 text-center text-sm font-medium text-zinc-500 dark:border-zinc-800">
+                        Loading foods...
+                    </div>
+                ) : isError ? (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-6 text-center text-sm font-medium text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+                        Unable to load foods.
+                    </div>
+                ) : filteredFoodItems.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-zinc-200 px-4 py-10 text-center text-sm font-medium text-zinc-500 dark:border-zinc-800">
+                        {foodItems.length === 0 ? "No food items found." : "No matching foods."}
+                    </div>
+                ) : (
+                    <div className="grid max-h-[60vh] gap-3 overflow-y-auto pr-1 md:grid-cols-2">
+                        {filteredFoodItems.map((foodItem) => (
+                            <button
+                                key={foodItem.id}
+                                type="button"
+                                onClick={() => onSelect(foodItem)}
+                                className="rounded-lg border border-zinc-200 bg-white p-4 text-left shadow-sm transition hover:border-indigo-500 hover:bg-indigo-50/40 focus:border-indigo-500 focus:outline-none dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-indigo-950/20"
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="truncate text-sm font-bold text-zinc-900 dark:text-white">{foodItem.name}</div>
+                                        <div className="mt-1 truncate text-xs text-zinc-500">{foodItem.brand || "No brand"}</div>
+                                    </div>
+                                    {foodItem.is_verified && (
+                                        <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300">
+                                            Verified
+                                        </Badge>
+                                    )}
+                                </div>
+                                <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
+                                    <FoodMacroTile label="Calories" value={`${foodMacroNumber(foodItem.calories_per_100g).toLocaleString("en-IN", { maximumFractionDigits: 2 })} kcal`} />
+                                    <FoodMacroTile label="Protein" value={`${foodMacroNumber(foodItem.protein_g).toLocaleString("en-IN", { maximumFractionDigits: 2 })}g`} />
+                                    <FoodMacroTile label="Carbs" value={`${foodMacroNumber(foodItem.carbs_g).toLocaleString("en-IN", { maximumFractionDigits: 2 })}g`} />
+                                    <FoodMacroTile label="Fat" value={`${foodMacroNumber(foodItem.fat_g).toLocaleString("en-IN", { maximumFractionDigits: 2 })}g`} />
+                                    <FoodMacroTile label="Fiber" value={`${foodMacroNumber(foodItem.fiber_g).toLocaleString("en-IN", { maximumFractionDigits: 2 })}g`} />
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </ModalFrame>
+    );
+}
+
+function FoodMacroTile({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-md bg-zinc-50 px-2 py-1.5 dark:bg-zinc-900">
+            <div className="font-bold uppercase text-zinc-500">{label}</div>
+            <div className="mt-0.5 font-semibold text-zinc-900 dark:text-white">{value}</div>
         </div>
     );
 }
@@ -1031,7 +1320,7 @@ function MealRows({
             <h3 className="text-sm font-bold text-zinc-700 dark:text-zinc-300">{title}</h3>
             {rows.length === 0 && <p className="text-xs italic text-zinc-400">{emptyText}</p>}
             {rows.map((row) => (
-                <div key={row.internalId} className="grid grid-cols-[minmax(0,1fr)_5rem_4rem_2rem] items-center gap-2">
+                <div key={row.internalId} className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_5rem_4rem_2rem]">
                     <select
                         value={row.id}
                         onChange={(event) => onUpdate(row.internalId, "id", event.target.value)}
