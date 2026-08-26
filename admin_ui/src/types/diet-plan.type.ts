@@ -122,3 +122,57 @@ export interface DietPlanAssignmentPayload {
     is_active: boolean;
     adjustments: Record<string, unknown>;
 }
+
+export type MealAdherenceStatus = "completed" | "modified" | "skipped";
+
+export interface MealAdherenceLog {
+    id: string;
+    tenant?: string;
+    client: string;
+    plan_assignment: string;
+    planned_meal: string;
+    planned_meal_slot?: string;
+    planned_meal_notes?: string | null;
+    log_date: string;
+    status: MealAdherenceStatus;
+    notes: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface MealAdherenceSummary {
+    planned_count: number;
+    tracked_count: number;
+    completed_count: number;
+    modified_count: number;
+    skipped_count: number;
+    strict_adherence_percent: number;
+    flexible_adherence_percent: number;
+}
+
+export interface CurrentDietPlanTracking {
+    client: string;
+    date: string;
+    assignment: DietPlanAssignment | null;
+    day_number: number | null;
+    meals: PlannedMeal[];
+    logs: MealAdherenceLog[];
+    adherence: MealAdherenceSummary;
+}
+
+export interface WeeklyMealAdherence {
+    client: string;
+    week_start: string;
+    week_end: string;
+    summary: MealAdherenceSummary;
+    days: Array<{
+        date: string;
+        planned_count: number;
+        tracked_count: number;
+        completed_count: number;
+        modified_count: number;
+        skipped_count: number;
+        strict_adherence_percent: number;
+        flexible_adherence_percent: number;
+    }>;
+}

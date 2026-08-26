@@ -1,3 +1,5 @@
+import api from "@/lib/api";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1/";
 
 export interface SharedDietMealItem {
@@ -25,6 +27,8 @@ export interface SharedDietMeal {
     supplements?: SharedDietMealSupplement[];
 }
 
+export type MealAdherenceStatus = "completed" | "modified" | "skipped";
+
 export interface SharedDietAssignment {
     id: string;
     plan_title: string;
@@ -39,6 +43,38 @@ export interface SharedDietAssignment {
     carbs_target: number | null;
     fat_target: number | null;
     meals?: SharedDietMeal[];
+}
+
+export interface MealAdherenceLog {
+    id: string;
+    client: string;
+    plan_assignment: string;
+    planned_meal: string;
+    planned_meal_slot?: string;
+    planned_meal_notes?: string | null;
+    log_date: string;
+    status: MealAdherenceStatus;
+    notes: string;
+}
+
+export interface MealAdherenceSummary {
+    planned_count: number;
+    tracked_count: number;
+    completed_count: number;
+    modified_count: number;
+    skipped_count: number;
+    strict_adherence_percent: number;
+    flexible_adherence_percent: number;
+}
+
+export interface CurrentDietPlanTracking {
+    client: string;
+    date: string;
+    assignment: SharedDietAssignment | null;
+    day_number: number | null;
+    meals: SharedDietMeal[];
+    logs: MealAdherenceLog[];
+    adherence: MealAdherenceSummary;
 }
 
 function normalizeApiUrl(value: string): string {
@@ -59,4 +95,19 @@ export async function getSharedDietAssignment(token: string): Promise<SharedDiet
     }
 
     return response.json() as Promise<SharedDietAssignment>;
+}
+
+export async function getMyCurrentDietPlan(date: string): Promise<CurrentDietPlanTracking> {
+    const response = await api.get<CurrentDietPlanTracking>("meal/my-plan/current/", {
+        params: { date },
+    });
+    return response.data;
+}
+
+export async function saveMyMealLog(
+    clientId: string,
+    payload: { planned_meal: string; log_date: string; status: MealAdherenceStatus; notes?: string },
+): Promise<MealAdherenceLog> {
+    const response = await api.post<MealAdherenceLog>(`meal/clients/${clientId}/meal-logs/`, payload);
+    return response.data;
 }

@@ -1,7 +1,7 @@
 from django.db import transaction
 from rest_framework import serializers
 from ..models.planning import FoodItem, DietPlan, DietPlanAssignment, PlannedMeal, PlannedMealItem, PlannedMealSupplement
-from ..models.tracking import Meal, MealItem, DietLog
+from ..models.tracking import Meal, MealItem, DietLog, MealAdherenceLog
 
 
 class FoodItemSerializer(serializers.ModelSerializer):
@@ -184,3 +184,33 @@ class DietLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = DietLog
         fields = '__all__'
+
+
+class MealAdherenceLogSerializer(serializers.ModelSerializer):
+    planned_meal_slot = serializers.ReadOnlyField(source='planned_meal.meal_slot')
+    planned_meal_notes = serializers.ReadOnlyField(source='planned_meal.notes')
+
+    class Meta:
+        model = MealAdherenceLog
+        fields = [
+            'id',
+            'tenant',
+            'client',
+            'plan_assignment',
+            'planned_meal',
+            'planned_meal_slot',
+            'planned_meal_notes',
+            'log_date',
+            'status',
+            'notes',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['tenant', 'client', 'plan_assignment', 'created_at', 'updated_at']
+
+
+class MealAdherenceLogUpsertSerializer(serializers.Serializer):
+    planned_meal = serializers.PrimaryKeyRelatedField(queryset=PlannedMeal.objects.all())
+    log_date = serializers.DateField(required=False)
+    status = serializers.ChoiceField(choices=MealAdherenceLog.StatusChoices.choices)
+    notes = serializers.CharField(required=False, allow_blank=True)

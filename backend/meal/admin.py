@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models.planning import FoodItem, DietPlan, DietPlanAssignment, PlannedMeal, PlannedMealItem, PlannedMealSupplement
-from .models.tracking import Meal, MealItem, DietLog
+from .models.tracking import Meal, MealItem, DietLog, MealAdherenceLog
 
 @admin.register(FoodItem)
 class FoodItemAdmin(admin.ModelAdmin):
@@ -47,3 +47,15 @@ class MealAdmin(admin.ModelAdmin):
 class DietLogAdmin(admin.ModelAdmin):
     list_display = ('client', 'log_date', 'total_calories', 'water_ml')
     list_filter = ('log_date',)
+
+
+@admin.register(MealAdherenceLog)
+class MealAdherenceLogAdmin(admin.ModelAdmin):
+    list_display = ('client', 'planned_meal', 'log_date', 'status')
+    list_filter = ('log_date', 'status')
+    search_fields = (
+        'client__org_client__user__first_name',
+        'client__org_client__user__last_name',
+        'client__org_client__user__email',
+        'planned_meal__notes',
+    )

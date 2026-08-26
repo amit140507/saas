@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
 from core.tenants.models import TenantAwareModel
-from .planning import FoodItem, MealSlot, DietPlanAssignment
+from .planning import FoodItem, MealSlot, DietPlanAssignment, PlannedMeal
 
 
 class Meal(TenantAwareModel):
@@ -104,3 +104,50 @@ class DietLog(TenantAwareModel):
 
     def __str__(self):
         return f"Diet Log — {self.client} on {self.log_date}"
+
+
+class MealAdherenceLog(TenantAwareModel):
+    """Checkbox-style tracking against a planned meal."""
+
+    class StatusChoices(models.TextChoices):
+        COMPLETED = 'completed', 'Completed'
+        MODIFIED = 'modified', 'Modified'
+        SKIPPED = 'skipped', 'Skipped'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    client = models.ForeignKey(
+        'clients.ClientProfile',
+        on_delete=models.CASCADE,
+        related_name='meal_adherence_logs',
+    )
+    plan_assignment = models.ForeignKey(
+        DietPlanAssignment,
+        on_delete=models.CASCADE,
+        related_name='meal_adherence_logs',
+    )
+    planned_meal = models.ForeignKey(
+        PlannedMeal,
+        on_delete=models.CASCADE,
+        related_name='adherence_logs',
+    )
+    log_date = models.DateField()
+    status = models.CharField(max_length=20, choices=StatusChoices.choices)
+    notes = models.TextField(blank=True, default='')
+
+    class Meta:
+        verbose_name = 'Meal Adherence Log'
+        verbose_name_plural = 'Meal Adherence Logs'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['client', 'log_date', 'planned_meal'],
+                name='unique_meal_adherence_per_client_date_meal',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['tenant', 'client', 'log_date']),
+            models.Index(fields=['tenant', 'plan_assignment', 'log_date']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"{self.client} - {self.planned_meal} - {self.log_date}: {self.status}"

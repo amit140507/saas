@@ -12,7 +12,7 @@ from rest_framework.test import APIClient
 from core.clients.models import ClientProfile
 from core.tenants.models import Organization, OrganizationMember
 from meal.api.serializers import DietPlanSerializer
-from meal.models import DietPlan, DietPlanAssignment, FoodItem, PlannedMealSupplement
+from meal.models import DietPlan, DietPlanAssignment, FoodItem, MealAdherenceLog, PlannedMealSupplement
 from meal.services.pdf_service import _brand_color, _format_date, create_diet_plan_pdf
 
 
@@ -205,6 +205,143 @@ class DietPlanBuilderPersistenceTests(TestCase):
         response = api_client.get('/api/v1/meal/shared-assignments/00000000-0000-0000-0000-000000000000/')
 
         self.assertEqual(response.status_code, 404)
+
+    def test_meal_adherence_upsert_updates_existing_log(self):
+        plan = DietPlan.objects.create(
+            tenant=self.tenant,
+            title='Tracking Plan',
+            goal=DietPlan.GoalChoices.FAT_LOSS,
+            is_active=True,
+        )
+        meal = plan.meals.create(
+            tenant=self.tenant,
+            day_number=1,
+            meal_slot='breakfast',
+            notes='Oats and eggs',
+        )
+        DietPlanAssignment.objects.create(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan=plan,
+            start_date=date(2026, 8, 1),
+        )
+        api_client = APIClient()
+        api_client.force_authenticate(self.user)
+
+        first_response = api_client.post(
+            f'/api/v1/meal/clients/{self.client_profile.id}/meal-logs/',
+            {
+                'planned_meal': str(meal.id),
+                'log_date': '2026-08-26',
+                'status': 'completed',
+            },
+            format='json',
+            HTTP_X_TENANT_ID=str(self.tenant.id),
+        )
+        second_response = api_client.post(
+            f'/api/v1/meal/clients/{self.client_profile.id}/meal-logs/',
+            {
+                'planned_meal': str(meal.id),
+                'log_date': '2026-08-26',
+                'status': 'modified',
+                'notes': 'Replaced oats with poha',
+            },
+            format='json',
+            HTTP_X_TENANT_ID=str(self.tenant.id),
+        )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(MealAdherenceLog.objects.count(), 1)
+        log = MealAdherenceLog.objects.get()
+        self.assertEqual(log.status, 'modified')
+        self.assertEqual(log.notes, 'Replaced oats with poha')
+
+    def test_current_plan_endpoint_returns_strict_and_flexible_adherence(self):
+        plan = DietPlan.objects.create(
+            tenant=self.tenant,
+            title='Adherence Plan',
+            goal=DietPlan.GoalChoices.FAT_LOSS,
+            is_active=True,
+        )
+        breakfast = plan.meals.create(tenant=self.tenant, day_number=1, meal_slot='breakfast', notes='Breakfast')
+        lunch = plan.meals.create(tenant=self.tenant, day_number=1, meal_slot='lunch', notes='Lunch')
+        dinner = plan.meals.create(tenant=self.tenant, day_number=1, meal_slot='dinner', notes='Dinner')
+        snack = plan.meals.create(tenant=self.tenant, day_number=1, meal_slot='evening_snack', notes='Snack')
+        assignment = DietPlanAssignment.objects.create(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan=plan,
+            start_date=date(2026, 8, 1),
+        )
+        MealAdherenceLog.objects.create(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan_assignment=assignment,
+            planned_meal=breakfast,
+            log_date=date(2026, 8, 26),
+            status='completed',
+        )
+        MealAdherenceLog.objects.create(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan_assignment=assignment,
+            planned_meal=lunch,
+            log_date=date(2026, 8, 26),
+            status='completed',
+        )
+        MealAdherenceLog.objects.create(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan_assignment=assignment,
+            planned_meal=dinner,
+            log_date=date(2026, 8, 26),
+            status='modified',
+        )
+        MealAdherenceLog.objects.create(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan_assignment=assignment,
+            planned_meal=snack,
+            log_date=date(2026, 8, 26),
+            status='skipped',
+        )
+        api_client = APIClient()
+        api_client.force_authenticate(self.user)
+
+        response = api_client.get(
+            f'/api/v1/meal/clients/{self.client_profile.id}/plans/current/?date=2026-08-26',
+            HTTP_X_TENANT_ID=str(self.tenant.id),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['adherence']['strict_adherence_percent'], 50)
+        self.assertEqual(response.data['adherence']['flexible_adherence_percent'], 62.5)
+
+    def test_client_cannot_access_another_client_meal_tracking(self):
+        other_user = get_user_model().objects.create_user(
+            username='other@example.com',
+            email='other@example.com',
+            password='testpass123',
+            first_name='Other',
+            last_name='Client',
+        )
+        other_member = OrganizationMember.objects.create(user=other_user, tenant=self.tenant)
+        other_client = ClientProfile.objects.create(
+            tenant=self.tenant,
+            org_client=other_member,
+            status=ClientProfile.StatusChoices.ACTIVE,
+        )
+        api_client = APIClient()
+        api_client.force_authenticate(other_user)
+
+        response = api_client.get(
+            f'/api/v1/meal/clients/{self.client_profile.id}/plans/current/?date=2026-08-26',
+            HTTP_X_TENANT_ID=str(self.tenant.id),
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertNotEqual(other_client.id, self.client_profile.id)
 
     def test_diet_pdf_formats_dates_for_display(self):
         self.assertEqual(_format_date(date(2026, 8, 1)), '01/08/2026')

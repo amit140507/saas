@@ -7,7 +7,11 @@ import type {
     DietPlanPayload,
     FoodItem,
     FoodItemPayload,
+    CurrentDietPlanTracking,
+    MealAdherenceLog,
+    MealAdherenceStatus,
     PlannedMeal,
+    WeeklyMealAdherence,
 } from "@/types/diet-plan.type";
 
 type PaginatedResponse<T> = {
@@ -136,4 +140,26 @@ export async function deleteFoodItem(id: string): Promise<void> {
 export async function getPlannedMeals(): Promise<PlannedMeal[]> {
     const response = await api.get<ListResponse<PlannedMeal>>(API_ENDPOINTS.meal.plannedMeals);
     return normalizeList(response.data);
+}
+
+export async function getClientCurrentDietPlan(clientId: string, date: string): Promise<CurrentDietPlanTracking> {
+    const response = await api.get<CurrentDietPlanTracking>(API_ENDPOINTS.meal.clientCurrentPlan(clientId), {
+        params: { date },
+    });
+    return response.data;
+}
+
+export async function saveClientMealLog(
+    clientId: string,
+    payload: { planned_meal: string; log_date: string; status: MealAdherenceStatus; notes?: string },
+): Promise<MealAdherenceLog> {
+    const response = await api.post<MealAdherenceLog>(API_ENDPOINTS.meal.clientMealLogs(clientId), payload);
+    return response.data;
+}
+
+export async function getClientMealAdherence(clientId: string, week: string): Promise<WeeklyMealAdherence> {
+    const response = await api.get<WeeklyMealAdherence>(API_ENDPOINTS.meal.clientMealAdherence(clientId), {
+        params: { week },
+    });
+    return response.data;
 }

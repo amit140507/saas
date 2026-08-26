@@ -1,5 +1,5 @@
 from .planning import FoodItem, MealSlot, DietPlan, DietPlanAssignment, PlannedMeal, PlannedMealItem, PlannedMealSupplement
-from .tracking import Meal, MealItem, DietLog
+from .tracking import Meal, MealItem, DietLog, MealAdherenceLog
 
 __all__ = [
     'FoodItem',
@@ -12,4 +12,5 @@ __all__ = [
     'Meal',
     'MealItem',
     'DietLog',
+    'MealAdherenceLog',
 ]
