@@ -107,6 +107,7 @@ interface PdfSupplement {
 interface PdfMeal {
     id: string;
     time: string;
+    notes: string;
     foods: PdfMealFood[];
     supplements: PdfSupplement[];
 }
@@ -260,7 +261,7 @@ function assignmentToForm(assignment: DietPlanAssignment): AssignmentForm {
 }
 
 function buildInitialPdfMeal(): PdfMeal {
-    return { id: createFormId(), time: "Breakfast", foods: [], supplements: [] };
+    return { id: createFormId(), time: "Breakfast", notes: "", foods: [], supplements: [] };
 }
 
 const mealSlotOptions = [
@@ -303,7 +304,8 @@ function planToBuilderMeals(plan: DietPlan): PdfMeal[] {
         .sort((a, b) => a.day_number - b.day_number)
         .map((meal) => ({
             id: createFormId(),
-            time: meal.notes || getMealSlotLabel(meal.meal_slot),
+            time: getMealSlotLabel(meal.meal_slot),
+            notes: meal.notes || "",
             foods: (meal.items || []).map((item) => ({
                 internalId: createFormId(),
                 id: item.food_item,
@@ -325,7 +327,7 @@ function buildMealTemplates(meals: PdfMeal[]) {
     return meals.map((meal, index) => ({
         day_number: index + 1,
         meal_slot: normalizeMealSlot(meal.time, index),
-        notes: meal.time.trim(),
+        notes: meal.notes.trim(),
         items: meal.foods
             .filter((food) => food.id && food.amount)
             .map((food) => ({
@@ -1024,6 +1026,7 @@ function PdfBuilder() {
                 const mealMacros = calculateMealMacros(meal, foodItemById);
                 return {
                     time: meal.time,
+                    notes: meal.notes.trim(),
                     calories: Math.round(mealMacros.calories),
                     protein: Math.round(mealMacros.protein),
                     fat: Math.round(mealMacros.fat),
@@ -1312,6 +1315,13 @@ function PdfBuilder() {
                                 <TrashIcon className="h-4 w-4" />
                             </button>
                         </div>
+                        <textarea
+                            value={meal.notes}
+                            onChange={(event) => updateMeal(meal.id, (item) => ({ ...item, notes: event.target.value }))}
+                            rows={2}
+                            placeholder="Optional notes for this meal"
+                            className="mt-3 w-full resize-y rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-indigo-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
+                        />
 
                         <div className="mt-5 grid gap-6">
                             <FoodRows
@@ -1365,7 +1375,7 @@ function PdfBuilder() {
 
             <button
                 type="button"
-                onClick={() => setMeals((items) => [...items, { id: createFormId(), time: `Meal ${items.length + 1}`, foods: [], supplements: [] }])}
+                onClick={() => setMeals((items) => [...items, { id: createFormId(), time: `Meal ${items.length + 1}`, notes: "", foods: [], supplements: [] }])}
                 className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-300 py-3 font-semibold text-zinc-500 transition hover:border-indigo-500 hover:text-indigo-500 dark:border-zinc-700 dark:text-zinc-400"
             >
                 <PlusIcon className="h-5 w-5" />
@@ -1559,6 +1569,7 @@ function DietBuilderPreviewModal({
                     {meals.map((meal, index) => (
                         <section key={meal.id} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
                             <h4 className="font-bold text-zinc-900 dark:text-white">Meal {index + 1}: {meal.time || "Untitled meal"}</h4>
+                            {meal.notes.trim() && <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-500">{meal.notes.trim()}</p>}
                             <div className="mt-3 grid gap-4 md:grid-cols-2">
                                 <div>
                                     <div className="mb-2 text-xs font-bold uppercase text-zinc-500">Foods</div>

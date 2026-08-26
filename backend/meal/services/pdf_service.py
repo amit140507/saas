@@ -256,6 +256,13 @@ def _write_meals(pdf, data, accent):
         pdf.cell(0, 6, _clean_text(_meal_macro_summary(meal)), align="R", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(4)
 
+        notes = str(meal.get("notes") or "").strip()
+        if notes:
+            pdf.set_font("helvetica", "", 9)
+            _set_rgb(pdf, "set_text_color", TEXT_MUTED)
+            _write_wrapped_line(pdf, notes, height=5, indent=5)
+            pdf.ln(2)
+
         foods = meal.get("foods", [])
         supplements = meal.get("supplements", [])
         if not foods and not supplements:

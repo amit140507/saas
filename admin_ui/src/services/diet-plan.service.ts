@@ -52,6 +52,7 @@ export interface GenerateDietPlanPayload {
     weightGain: number;
     meals: Array<{
         time: string;
+        notes?: string;
         calories: number;
         protein: number;
         fat: number;

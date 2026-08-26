@@ -74,11 +74,12 @@ export default async function SharedDietPlanPage({ params }: SharedDietPlanPageP
                             <div className="border-b border-zinc-200 bg-zinc-100 px-5 py-4">
                                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                                     <div>
-                                        <h2 className="text-lg font-bold">Meal {index + 1}: {meal.notes || meal.meal_slot.replace(/_/g, " ")}</h2>
+                                        <h2 className="text-lg font-bold">Meal {index + 1}: {meal.meal_slot.replace(/_/g, " ")}</h2>
                                         <p className="mt-1 inline-flex items-center gap-2 text-sm text-zinc-500">
                                             <CalendarDaysIcon className="h-4 w-4" />
                                             Day {meal.day_number}
                                         </p>
+                                        {meal.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-600">{meal.notes}</p>}
                                     </div>
                                     <span className="text-sm font-semibold text-zinc-500">{foods.length} foods</span>
                                 </div>
