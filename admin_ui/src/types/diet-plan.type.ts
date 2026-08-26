@@ -31,7 +31,8 @@ export interface PlannedMealItem {
     meal: string;
     food_item: string;
     food_item_name?: string;
-    quantity_g: string;
+    quantity: string;
+    quantity_unit: "g" | "ml";
     notes: string | null;
 }
 
@@ -88,7 +89,8 @@ export interface PlannedMealTemplatePayload {
     notes: string;
     items: Array<{
         food_item: string;
-        quantity_g: string;
+        quantity: string;
+        quantity_unit: "g" | "ml";
         notes: string;
     }>;
     supplements: Array<{

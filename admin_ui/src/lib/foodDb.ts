@@ -61,8 +61,8 @@ export const supplementsDb = [
     { id: "creatine_monohydrate", name: "Creatine Monohydrate", defaultUnit: "g" },
     { id: "pre_workout", name: "Pre-Workout", defaultUnit: "scoop" },
     { id: "bcaa", name: "BCAAs", defaultUnit: "scoop" },
-    { id: "multi_vitamin", name: "Multivitamin", defaultUnit: "tab" },
-    { id: "fish_oil", name: "Fish Oil / Omega-3", defaultUnit: "cap" },
-    { id: "zma", name: "ZMA", defaultUnit: "cap" },
-    { id: "vitamin_d3", name: "Vitamin D3", defaultUnit: "cap" }
+    { id: "multi_vitamin", name: "Multivitamin", defaultUnit: "tablet" },
+    { id: "fish_oil", name: "Fish Oil / Omega-3", defaultUnit: "capsule" },
+    { id: "zma", name: "ZMA", defaultUnit: "capsule" },
+    { id: "vitamin_d3", name: "Vitamin D3", defaultUnit: "capsule" }
 ];

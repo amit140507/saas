@@ -58,7 +58,8 @@ class DietPlanBuilderPersistenceTests(TestCase):
                 'notes': 'Breakfast',
                 'items': [{
                     'food_item': self.food.id,
-                    'quantity_g': '150.00',
+                    'quantity': '150.00',
+                    'quantity_unit': 'ml',
                     'notes': '',
                 }],
                 'supplements': [{
@@ -77,6 +78,7 @@ class DietPlanBuilderPersistenceTests(TestCase):
         meal = plan.meals.get()
         self.assertEqual(meal.items.count(), 1)
         self.assertEqual(meal.items.get().food_item, self.food)
+        self.assertEqual(meal.items.get().quantity_unit, 'ml')
         self.assertEqual(meal.supplements.count(), 1)
         self.assertEqual(meal.supplements.get().name, 'Whey Protein')
 
@@ -169,7 +171,8 @@ class DietPlanBuilderPersistenceTests(TestCase):
         meal.items.create(
             tenant=self.tenant,
             food_item=self.food,
-            quantity_g='150.00',
+            quantity='150.00',
+            quantity_unit='g',
             notes='',
         )
         PlannedMealSupplement.objects.create(
@@ -197,6 +200,8 @@ class DietPlanBuilderPersistenceTests(TestCase):
         self.assertEqual(response.data['start_date'], '2026-08-01')
         self.assertEqual(response.data['calories_target'], 1800)
         self.assertEqual(response.data['meals'][0]['items'][0]['food_item_name'], 'Rice')
+        self.assertEqual(response.data['meals'][0]['items'][0]['quantity'], '150.00')
+        self.assertEqual(response.data['meals'][0]['items'][0]['quantity_unit'], 'g')
         self.assertEqual(response.data['meals'][0]['supplements'][0]['name'], 'Whey Protein')
 
     def test_shared_assignment_endpoint_returns_404_for_invalid_token(self):

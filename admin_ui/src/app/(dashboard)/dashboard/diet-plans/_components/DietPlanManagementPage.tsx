@@ -57,6 +57,8 @@ type TabId = "plans" | "assignments" | "pdf";
 type ModalMode = "add" | "edit";
 type DeleteTarget = { type: "plan"; id: string; label: string } | { type: "assignment"; id: string; label: string };
 type FoodPickerState = { mealId: string; rowId?: string; search: string };
+type FoodQuantityUnit = "g" | "ml";
+type SupplementUnit = "scoop" | "tablet" | "capsule" | "g";
 
 interface ApiErrorShape {
     response?: {
@@ -93,7 +95,7 @@ interface PdfMealFood {
     id: string;
     name: string;
     amount: string;
-    unit: string;
+    unit: FoodQuantityUnit;
 }
 
 interface PdfSupplement {
@@ -101,7 +103,7 @@ interface PdfSupplement {
     id: string;
     name: string;
     amount: string;
-    unit: string;
+    unit: SupplementUnit;
 }
 
 interface PdfMeal {
@@ -124,6 +126,9 @@ const tabs: Array<{ id: TabId; label: string; icon: typeof UtensilsIcon }> = [
     { id: "plans", label: "Plans", icon: UtensilsIcon },
     { id: "assignments", label: "Assignments", icon: UsersIcon },
 ];
+
+const foodQuantityUnits: FoodQuantityUnit[] = ["g", "ml"];
+const supplementUnits: SupplementUnit[] = ["scoop", "tablet", "capsule", "g"];
 
 const emptyPlanForm: PlanForm = {
     title: "",
@@ -284,6 +289,16 @@ function normalizeMealSlot(value: string, index: number): string {
     return matched?.value || mealSlotOptions[index % mealSlotOptions.length].value;
 }
 
+function normalizeFoodQuantityUnit(value?: string | null): FoodQuantityUnit {
+    return value === "ml" ? "ml" : "g";
+}
+
+function normalizeSupplementUnit(value?: string | null): SupplementUnit {
+    if (value === "tab") return "tablet";
+    if (value === "cap") return "capsule";
+    return supplementUnits.includes(value as SupplementUnit) ? value as SupplementUnit : "scoop";
+}
+
 function getShareBaseUrl(): string {
     const configuredUrl = process.env.NEXT_PUBLIC_USER_APP_URL?.trim().replace(/\/+$/, "");
     if (configuredUrl) return configuredUrl;
@@ -310,15 +325,15 @@ function planToBuilderMeals(plan: DietPlan): PdfMeal[] {
                 internalId: createFormId(),
                 id: item.food_item,
                 name: item.food_item_name || "",
-                amount: String(item.quantity_g || ""),
-                unit: "g",
+                amount: String(item.quantity || ""),
+                unit: normalizeFoodQuantityUnit(item.quantity_unit),
             })),
             supplements: (meal.supplements || []).map((supplement) => ({
                 internalId: createFormId(),
                 id: supplement.supplement_id || "",
                 name: supplement.name,
                 amount: supplement.amount == null ? "" : String(supplement.amount),
-                unit: supplement.unit || "scoop",
+                unit: normalizeSupplementUnit(supplement.unit),
             })),
         }));
 }
@@ -332,7 +347,8 @@ function buildMealTemplates(meals: PdfMeal[]) {
             .filter((food) => food.id && food.amount)
             .map((food) => ({
                 food_item: food.id,
-                quantity_g: food.amount,
+                quantity: food.amount,
+                quantity_unit: food.unit,
                 notes: "",
             })),
         supplements: meal.supplements
@@ -953,7 +969,7 @@ function PdfBuilder() {
         if (!foodPicker) return;
 
         updateMeal(foodPicker.mealId, (meal) => {
-            const selectedFood = {
+            const selectedFood: Pick<PdfMealFood, "id" | "name" | "unit"> = {
                 id: foodItem.id,
                 name: foodItem.name,
                 unit: "g",
@@ -1339,6 +1355,12 @@ function PdfBuilder() {
                                         foods: item.foods.map((food) => (food.internalId === rowId ? { ...food, amount: value } : food)),
                                     }));
                                 }}
+                                onUpdateUnit={(rowId, value) => {
+                                    updateMeal(meal.id, (item) => ({
+                                        ...item,
+                                        foods: item.foods.map((food) => (food.internalId === rowId ? { ...food, unit: value } : food)),
+                                    }));
+                                }}
                                 onRemove={(rowId) => updateMeal(meal.id, (item) => ({ ...item, foods: item.foods.filter((food) => food.internalId !== rowId) }))}
                             />
                             <MealRows
@@ -1359,7 +1381,7 @@ function PdfBuilder() {
                                                 const dbItem = supplementsDb.find((db) => db.id === value);
                                                 if (dbItem) {
                                                     next.name = dbItem.name;
-                                                    next.unit = dbItem.defaultUnit;
+                                                    next.unit = normalizeSupplementUnit(dbItem.defaultUnit);
                                                 }
                                             }
                                             return next;
@@ -1675,6 +1697,7 @@ function FoodRows({
     onAdd,
     onOpenPicker,
     onUpdateAmount,
+    onUpdateUnit,
     onRemove,
 }: {
     title: string;
@@ -1686,6 +1709,7 @@ function FoodRows({
     onAdd: () => void;
     onOpenPicker: (rowId: string) => void;
     onUpdateAmount: (rowId: string, value: string) => void;
+    onUpdateUnit: (rowId: string, value: FoodQuantityUnit) => void;
     onRemove: (rowId: string) => void;
 }) {
     return (
@@ -1702,7 +1726,7 @@ function FoodRows({
                 const fat = foodItem ? foodMacroNumber(foodItem.fat_g) * multiplier : 0;
 
                 return (
-                    <div key={row.internalId} className="grid grid-cols-[minmax(0,1fr)_5rem_4rem_minmax(8rem,auto)_2rem] items-center gap-2">
+                    <div key={row.internalId} className="grid grid-cols-[minmax(0,1fr)_5rem_4.5rem_minmax(8rem,auto)_2rem] items-center gap-2">
                         <button
                             type="button"
                             onClick={() => onOpenPicker(row.internalId)}
@@ -1718,7 +1742,14 @@ function FoodRows({
                             placeholder="Amt"
                             className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-sm text-zinc-900 outline-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
                         />
-                        <input type="text" value={row.unit} disabled className="bg-transparent text-center text-xs text-zinc-500 outline-none" />
+                        <select
+                            value={row.unit}
+                            onChange={(event) => onUpdateUnit(row.internalId, normalizeFoodQuantityUnit(event.target.value))}
+                            className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs text-zinc-700 outline-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200"
+                            title="Food unit"
+                        >
+                            {foodQuantityUnits.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                        </select>
                         <div className="truncate text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400">
                             {Math.round(calories)} kcal · P{Math.round(protein)} C{Math.round(carbs)} F{Math.round(fat)}
                         </div>
@@ -1853,7 +1884,7 @@ function MealRows({
     rows: Array<PdfMealFood | PdfSupplement>;
     options: Array<{ id: string; name: string }>;
     onAdd: () => void;
-    onUpdate: (rowId: string, field: "id" | "amount", value: string) => void;
+    onUpdate: (rowId: string, field: "id" | "amount" | "unit", value: string) => void;
     onRemove: (rowId: string) => void;
 }) {
     return (
@@ -1861,7 +1892,7 @@ function MealRows({
             <h3 className="text-sm font-bold text-zinc-700 dark:text-zinc-300">{title}</h3>
             {rows.length === 0 && <p className="text-xs italic text-zinc-400">{emptyText}</p>}
             {rows.map((row) => (
-                <div key={row.internalId} className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_5rem_4rem_2rem]">
+                <div key={row.internalId} className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_5rem_6rem_2rem]">
                     <select
                         value={row.id}
                         onChange={(event) => onUpdate(row.internalId, "id", event.target.value)}
@@ -1877,7 +1908,14 @@ function MealRows({
                         placeholder="Amt"
                         className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-sm text-zinc-900 outline-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
                     />
-                    <input type="text" value={row.unit} disabled className="bg-transparent text-center text-xs text-zinc-500 outline-none" />
+                    <select
+                        value={normalizeSupplementUnit(row.unit)}
+                        onChange={(event) => onUpdate(row.internalId, "unit", normalizeSupplementUnit(event.target.value))}
+                        className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs text-zinc-700 outline-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200"
+                        title="Supplement unit"
+                    >
+                        {supplementUnits.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                    </select>
                     <button type="button" onClick={() => onRemove(row.internalId)} className="rounded-md p-1 text-zinc-400 transition hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10" title="Remove row">
                         <TrashIcon className="h-4 w-4" />
                     </button>
@@ -1974,7 +2012,7 @@ function DietPlanViewModal({
                                 {(meal.items || []).map((item) => (
                                     <tr key={item.id} className="transition hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
                                         <td className="px-6 py-4 font-semibold text-zinc-900 dark:text-white">{item.food_item_name || item.food_item}</td>
-                                        <td className="px-6 py-4">{item.quantity_g} g</td>
+                                        <td className="px-6 py-4">{item.quantity} {item.quantity_unit || "g"}</td>
                                         <td className="px-6 py-4"><div className="max-w-80 truncate">{item.notes || "-"}</div></td>
                                     </tr>
                                 ))}

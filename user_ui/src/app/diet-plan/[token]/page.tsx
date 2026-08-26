@@ -94,7 +94,7 @@ export default async function SharedDietPlanPage({ params }: SharedDietPlanPageP
                                             {foods.map((item) => (
                                                 <div key={item.id} className="py-3">
                                                     <div className="font-bold">{item.food_item_name || item.food_item}</div>
-                                                    <div className="mt-1 text-sm text-zinc-500">{item.quantity_g} g{item.notes ? ` - ${item.notes}` : ""}</div>
+                                                    <div className="mt-1 text-sm text-zinc-500">{item.quantity} {item.quantity_unit || "g"}{item.notes ? ` - ${item.notes}` : ""}</div>
                                                 </div>
                                             ))}
                                         </div>

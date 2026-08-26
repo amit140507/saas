@@ -6,7 +6,8 @@ export interface SharedDietMealItem {
     id: string | number;
     food_item: string;
     food_item_name?: string;
-    quantity_g: string;
+    quantity: string;
+    quantity_unit: "g" | "ml";
     notes: string | null;
 }
 

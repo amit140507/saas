@@ -35,7 +35,8 @@ class PlannedMealSerializer(serializers.ModelSerializer):
 
 class PlannedMealItemPayloadSerializer(serializers.Serializer):
     food_item = serializers.PrimaryKeyRelatedField(queryset=FoodItem.objects.all())
-    quantity_g = serializers.DecimalField(max_digits=7, decimal_places=2)
+    quantity = serializers.DecimalField(max_digits=7, decimal_places=2)
+    quantity_unit = serializers.ChoiceField(choices=['g', 'ml'], default='g', required=False)
     notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
 
@@ -108,7 +109,8 @@ class DietPlanSerializer(serializers.ModelSerializer):
                     tenant=plan.tenant,
                     meal=meal,
                     food_item=item['food_item'],
-                    quantity_g=item['quantity_g'],
+                    quantity=item['quantity'],
+                    quantity_unit=item.get('quantity_unit') or 'g',
                     notes=item.get('notes') or '',
                 )
                 for item in items
