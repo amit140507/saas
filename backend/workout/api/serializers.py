@@ -127,8 +127,17 @@ class WorkoutExerciseTemplatePayloadSerializer(serializers.Serializer):
 class WorkoutDayTemplatePayloadSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=100)
     day_number = serializers.IntegerField(min_value=1)
+    day_type = serializers.ChoiceField(choices=WorkoutDay.DayType.choices, default=WorkoutDay.DayType.TRAINING)
     notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     exercises = WorkoutExerciseTemplatePayloadSerializer(many=True, required=False)
+
+    def validate(self, attrs):
+        exercises = attrs.get('exercises') or []
+        if attrs.get('day_type') == WorkoutDay.DayType.OFF and exercises:
+            raise serializers.ValidationError({
+                'exercises': 'Off days cannot include exercises.',
+            })
+        return attrs
 
 
 class WorkoutPlanSerializer(serializers.ModelSerializer):
@@ -187,6 +196,7 @@ class WorkoutPlanSerializer(serializers.ModelSerializer):
                 plan=plan,
                 name=day_data['name'],
                 day_number=day_data.get('day_number') or index,
+                day_type=day_data.get('day_type') or WorkoutDay.DayType.TRAINING,
                 notes=day_data.get('notes') or '',
             )
             workout_days.append((workout_day, exercises))

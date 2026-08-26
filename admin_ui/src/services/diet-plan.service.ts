@@ -38,6 +38,7 @@ export interface GenerateDietPlanPayload {
     endDate: string;
     checkInDate: string;
     totalCardio: string;
+    clientName: string;
     clientEmail: string;
     clientPhone: string;
     calories: number;
@@ -47,6 +48,10 @@ export interface GenerateDietPlanPayload {
     weightGain: number;
     meals: Array<{
         time: string;
+        calories: number;
+        protein: number;
+        fat: number;
+        carbs: number;
         foods: Array<{ name: string; amount: string; unit: string }>;
         supplements: Array<{ name: string; amount: string; unit: string }>;
     }>;

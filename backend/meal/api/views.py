@@ -71,7 +71,7 @@ class GenerateDietPlanPDFView(APIView):
     def post(self, request):
         try:
             data = request.data
-            pdf_bytes = create_diet_plan_pdf(data)
+            pdf_bytes = create_diet_plan_pdf(data, tenant=request.tenant)
             
             email = data.get('clientEmail') or data.get('client_email')
             if email:
@@ -94,7 +94,7 @@ class DownloadDietPlanPDFView(APIView):
     """
     def post(self, request):
         try:
-            pdf_bytes = create_diet_plan_pdf(request.data)
+            pdf_bytes = create_diet_plan_pdf(request.data, tenant=request.tenant)
             response = HttpResponse(pdf_bytes, content_type='application/pdf')
             response['Content-Disposition'] = 'attachment; filename="diet_plan.pdf"'
             return response

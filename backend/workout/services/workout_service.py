@@ -112,6 +112,7 @@ def snapshot_workout_plan_for_assignment(assignment):
             plan_assignment=assignment,
             name=template_day.name,
             day_number=template_day.day_number,
+            day_type=template_day.day_type,
             notes=template_day.notes,
         )
         day_pairs.append((template_day, assignment_day))

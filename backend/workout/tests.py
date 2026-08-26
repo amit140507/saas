@@ -1,13 +1,18 @@
 from datetime import date
+import io
+import shutil
+import tempfile
 
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.core.files.base import ContentFile
 from django.test import TestCase, override_settings
+from PIL import Image
 from rest_framework.test import APIClient
 
 from core.clients.models import ClientProfile
 from core.tenants.models import Organization, OrganizationMember
-from workout.api.serializers import ExerciseSerializer, WorkoutPlanAssignmentSerializer
+from workout.api.serializers import ExerciseSerializer, WorkoutPlanAssignmentSerializer, WorkoutPlanSerializer
 from workout.models import (
     Exercise,
     ExerciseMedia,
@@ -20,6 +25,7 @@ from workout.models import (
     WorkoutPlanAssignment,
 )
 from workout.services import assign_workout_plan, replace_client_workout_assignment
+from workout.services.pdf_service import _brand_color, _format_date, create_workout_plan_pdf
 
 
 class ExerciseSerializerTests(TestCase):
@@ -345,6 +351,105 @@ class WorkoutPlanVersioningTests(TestCase):
 
         self.assertEqual(assignment.workout_days.count(), 1)
 
+    def test_plan_serializer_accepts_active_recovery_and_off_days(self):
+        serializer = WorkoutPlanSerializer(data={
+            'tenant': self.tenant.id,
+            'title': 'Mixed Week',
+            'difficulty': WorkoutPlan.DifficultyLevel.BEGINNER,
+            'duration_weeks': 4,
+            'is_active': True,
+            'days': [
+                {
+                    'name': 'Training Day',
+                    'day_number': 1,
+                    'day_type': WorkoutDay.DayType.TRAINING,
+                    'notes': '',
+                    'exercises': [{
+                        'exercise': self.exercise.id,
+                        'sequence': 1,
+                        'body_part': 'Legs',
+                        'sets': 3,
+                        'reps': '8-10',
+                        'rest': 90,
+                        'notes': '',
+                    }],
+                },
+                {
+                    'name': 'Mobility',
+                    'day_number': 2,
+                    'day_type': WorkoutDay.DayType.ACTIVE_RECOVERY,
+                    'notes': 'Walk and stretch.',
+                    'exercises': [],
+                },
+                {
+                    'name': 'Rest',
+                    'day_number': 3,
+                    'day_type': WorkoutDay.DayType.OFF,
+                    'notes': '',
+                    'exercises': [],
+                },
+            ],
+        })
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        plan = serializer.save()
+
+        day_types = list(plan.template_days.order_by('day_number').values_list('day_type', flat=True))
+        self.assertEqual(day_types, [
+            WorkoutDay.DayType.TRAINING,
+            WorkoutDay.DayType.ACTIVE_RECOVERY,
+            WorkoutDay.DayType.OFF,
+        ])
+
+    def test_plan_serializer_rejects_off_day_with_exercises(self):
+        serializer = WorkoutPlanSerializer(data={
+            'tenant': self.tenant.id,
+            'title': 'Invalid Rest Day',
+            'difficulty': WorkoutPlan.DifficultyLevel.BEGINNER,
+            'duration_weeks': 4,
+            'is_active': True,
+            'days': [{
+                'name': 'Rest',
+                'day_number': 1,
+                'day_type': WorkoutDay.DayType.OFF,
+                'notes': '',
+                'exercises': [{
+                    'exercise': self.exercise.id,
+                    'sequence': 1,
+                    'body_part': 'Legs',
+                    'sets': 3,
+                    'reps': '8-10',
+                    'rest': 90,
+                    'notes': '',
+                }],
+            }],
+        })
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('days', serializer.errors)
+
+    def test_active_recovery_day_type_is_copied_to_assignment_snapshot(self):
+        recovery_day = WorkoutDay.objects.create(
+            tenant=self.tenant,
+            plan=self.plan,
+            name='Mobility',
+            day_number=2,
+            day_type=WorkoutDay.DayType.ACTIVE_RECOVERY,
+            notes='Walk and stretch.',
+        )
+
+        assignment = assign_workout_plan(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan=self.plan,
+            assigned_by=None,
+            start_date=date(2026, 7, 1),
+        )
+
+        snapshot_recovery_day = assignment.workout_days.get(day_number=recovery_day.day_number)
+        self.assertEqual(snapshot_recovery_day.day_type, WorkoutDay.DayType.ACTIVE_RECOVERY)
+        self.assertEqual(snapshot_recovery_day.notes, 'Walk and stretch.')
+
     def test_assignment_pdf_download_returns_pdf(self):
         assignment = assign_workout_plan(
             tenant=self.tenant,
@@ -444,3 +549,51 @@ class WorkoutPlanVersioningTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data['error'], 'Assigned client does not have an email address.')
         self.assertEqual(len(mail.outbox), 0)
+
+    def test_workout_pdf_formats_dates_for_display(self):
+        self.assertEqual(_format_date(date(2026, 7, 1)), '01/07/2026')
+        self.assertEqual(_format_date(None), 'No end date')
+
+    def test_workout_pdf_uses_safe_brand_color_fallback(self):
+        self.tenant.brand_color = 'tomato'
+        self.assertEqual(_brand_color(self.tenant), (79, 70, 229))
+
+        self.tenant.brand_color = '#22C55E'
+        self.assertEqual(_brand_color(self.tenant), (34, 197, 94))
+
+    def test_workout_pdf_generates_without_organization_logo(self):
+        assignment = assign_workout_plan(
+            tenant=self.tenant,
+            client=self.client_profile,
+            plan=self.plan,
+            assigned_by=None,
+            start_date=date(2026, 7, 1),
+        )
+
+        pdf_bytes = create_workout_plan_pdf(assignment)
+
+        self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+
+    def test_workout_pdf_generates_with_organization_logo(self):
+        media_root = tempfile.mkdtemp()
+        try:
+            with self.settings(MEDIA_ROOT=media_root):
+                image = Image.new('RGB', (20, 20), color=(34, 197, 94))
+                image_bytes = io.BytesIO()
+                image.save(image_bytes, format='PNG')
+                self.tenant.logo.save('logo.png', ContentFile(image_bytes.getvalue()), save=True)
+
+                assignment = assign_workout_plan(
+                    tenant=self.tenant,
+                    client=self.client_profile,
+                    plan=self.plan,
+                    assigned_by=None,
+                    start_date=date(2026, 7, 1),
+                    end_date=date(2026, 8, 1),
+                )
+
+                pdf_bytes = create_workout_plan_pdf(assignment)
+
+                self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+        finally:
+            shutil.rmtree(media_root, ignore_errors=True)

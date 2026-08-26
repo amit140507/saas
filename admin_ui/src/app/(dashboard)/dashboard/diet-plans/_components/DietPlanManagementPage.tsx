@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     CalculatorIcon,
     CopyIcon,
+    DownloadIcon,
     EditIcon,
     EyeIcon,
     FileTextIcon,
@@ -33,12 +34,15 @@ import {
     createDietPlanAssignment,
     deleteDietPlan,
     deleteDietPlanAssignment,
+    downloadDietPlanPdf,
+    generateDietPlanPdf,
     getDietPlanAssignments,
     getDietPlans,
     getFoodItems,
     updateDietPlan,
     updateDietPlanAssignment,
 } from "@/services/diet-plan.service";
+import type { GenerateDietPlanPayload } from "@/services/diet-plan.service";
 import type { ClientData } from "@/types/client.type";
 import type {
     DietGoal,
@@ -105,6 +109,13 @@ interface PdfMeal {
     time: string;
     foods: PdfMealFood[];
     supplements: PdfSupplement[];
+}
+
+interface MealMacroSummary {
+    calories: number;
+    protein: number;
+    fat: number;
+    carbs: number;
 }
 
 const tabs: Array<{ id: TabId; label: string; icon: typeof UtensilsIcon }> = [
@@ -194,6 +205,24 @@ function optionalNumber(value: string): number | null {
 function foodMacroNumber(value: string): number {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function calculateMealMacros(meal: PdfMeal, foodItemById: Map<string, FoodItem>): MealMacroSummary {
+    return meal.foods.reduce<MealMacroSummary>((summary, food) => {
+        const item = foodItemById.get(food.id);
+        const amount = Number(food.amount);
+        if (!item || !Number.isFinite(amount) || amount <= 0) {
+            return summary;
+        }
+
+        const multiplier = amount / 100;
+        return {
+            calories: summary.calories + foodMacroNumber(item.calories_per_100g) * multiplier,
+            protein: summary.protein + foodMacroNumber(item.protein_g) * multiplier,
+            fat: summary.fat + foodMacroNumber(item.fat_g) * multiplier,
+            carbs: summary.carbs + foodMacroNumber(item.carbs_g) * multiplier,
+        };
+    }, { calories: 0, protein: 0, fat: 0, carbs: 0 });
 }
 
 function goalLabel(goal?: DietGoal | null): string {
@@ -741,6 +770,7 @@ function PdfBuilder() {
     const [previewOpen, setPreviewOpen] = useState(false);
     const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
     const [sendModalOpen, setSendModalOpen] = useState(false);
+    const [pdfAction, setPdfAction] = useState<"download" | "email" | null>(null);
 
     const plans = plansQuery.data ?? emptyPlans;
     const clients = clientsQuery.data ?? emptyClients;
@@ -883,26 +913,15 @@ function PdfBuilder() {
     };
 
     const consumed = useMemo(() => {
-        let pro = 0;
-        let fat = 0;
-        let carb = 0;
-        let cal = 0;
-
-        meals.forEach((meal) => {
-            meal.foods.forEach((food) => {
-                const item = foodItemById.get(food.id);
-                const amount = Number(food.amount);
-                if (item && Number.isFinite(amount) && amount > 0) {
-                    const multiplier = amount / 100;
-                    pro += foodMacroNumber(item.protein_g) * multiplier;
-                    fat += foodMacroNumber(item.fat_g) * multiplier;
-                    carb += foodMacroNumber(item.carbs_g) * multiplier;
-                    cal += foodMacroNumber(item.calories_per_100g) * multiplier;
-                }
-            });
-        });
-
-        return { cal, pro, fat, carb };
+        return meals.reduce((summary, meal) => {
+            const mealMacros = calculateMealMacros(meal, foodItemById);
+            return {
+                cal: summary.cal + mealMacros.calories,
+                pro: summary.pro + mealMacros.protein,
+                fat: summary.fat + mealMacros.fat,
+                carb: summary.carb + mealMacros.carbs,
+            };
+        }, { cal: 0, pro: 0, fat: 0, carb: 0 });
     }, [foodItemById, meals]);
 
     const macroSummaries = [
@@ -977,6 +996,83 @@ function PdfBuilder() {
             ...meal,
             supplements: [...meal.supplements, { internalId: createFormId(), id: "", name: "", amount: "", unit: "scoop" }],
         }));
+    };
+
+    const buildPdfPayload = (): GenerateDietPlanPayload => {
+        buildDietPlanPayload();
+        if (!selectedClient) {
+            throw new Error("Client is required.");
+        }
+        if (!details.startDate) {
+            throw new Error("Period start is required.");
+        }
+
+        return {
+            startDate: details.startDate,
+            endDate: details.endDate,
+            checkInDate: details.checkInDate,
+            totalCardio: details.totalCardio,
+            clientName: clientName(selectedClient),
+            clientEmail: selectedClient.user.email,
+            clientPhone: selectedClient.phone || "",
+            calories: targetCals,
+            protein: targetPro,
+            fat: targetFat,
+            carbs: targetCarb,
+            weightGain: targetGain,
+            meals: meals.map((meal) => {
+                const mealMacros = calculateMealMacros(meal, foodItemById);
+                return {
+                    time: meal.time,
+                    calories: Math.round(mealMacros.calories),
+                    protein: Math.round(mealMacros.protein),
+                    fat: Math.round(mealMacros.fat),
+                    carbs: Math.round(mealMacros.carbs),
+                    foods: meal.foods
+                        .filter((food) => food.name || food.amount)
+                        .map((food) => ({ name: food.name || "Food", amount: food.amount, unit: food.unit })),
+                    supplements: meal.supplements
+                        .filter((supplement) => supplement.name || supplement.id || supplement.amount)
+                        .map((supplement) => ({
+                            name: supplement.name || supplementsDb.find((item) => item.id === supplement.id)?.name || supplement.id || "Supplement",
+                            amount: supplement.amount,
+                            unit: supplement.unit,
+                        })),
+                };
+            }),
+        };
+    };
+
+    const handleDownloadPdf = async () => {
+        setBuilderError("");
+        setBuilderMessage("");
+        setPdfAction("download");
+        try {
+            await downloadDietPlanPdf(buildPdfPayload());
+            setBuilderMessage("Diet PDF downloaded.");
+        } catch (error) {
+            setBuilderError(getErrorMessage(error));
+        } finally {
+            setPdfAction(null);
+        }
+    };
+
+    const handleEmailPdf = async () => {
+        setBuilderError("");
+        setBuilderMessage("");
+        setPdfAction("email");
+        try {
+            const payload = buildPdfPayload();
+            if (!payload.clientEmail) {
+                throw new Error("Selected client does not have an email address.");
+            }
+            await generateDietPlanPdf(payload);
+            setBuilderMessage("Diet PDF emailed to the selected client.");
+        } catch (error) {
+            setBuilderError(getErrorMessage(error));
+        } finally {
+            setPdfAction(null);
+        }
     };
 
     const handlePreview = () => {
@@ -1284,6 +1380,24 @@ function PdfBuilder() {
                 >
                     <EyeIcon className="h-4 w-4" />
                     Preview
+                </button>
+                <button
+                    type="button"
+                    disabled={pdfAction !== null || saveMutation.isPending || templateMutation.isPending}
+                    onClick={handleDownloadPdf}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-300 px-6 py-2.5 font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-500/30 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
+                >
+                    {pdfAction === "download" ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <DownloadIcon className="h-4 w-4" />}
+                    Download PDF
+                </button>
+                <button
+                    type="button"
+                    disabled={pdfAction !== null || saveMutation.isPending || templateMutation.isPending}
+                    onClick={handleEmailPdf}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-orange-300 px-6 py-2.5 font-bold text-orange-700 shadow-sm transition hover:bg-orange-50 disabled:opacity-50 dark:border-orange-500/30 dark:text-orange-300 dark:hover:bg-orange-500/10"
+                >
+                    {pdfAction === "email" ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <MailIcon className="h-4 w-4" />}
+                    Email PDF
                 </button>
                 <button
                     type="button"

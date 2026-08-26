@@ -101,6 +101,11 @@ class WorkoutPlanAssignment(TenantAwareModel):
 
 
 class WorkoutDay(TenantAwareModel):
+    class DayType(models.TextChoices):
+        TRAINING = 'training', 'Training'
+        ACTIVE_RECOVERY = 'active_recovery', 'Active Recovery'
+        OFF = 'off', 'Off Day'
+
     plan = models.ForeignKey(
         WorkoutPlan,
         on_delete=models.CASCADE,
@@ -117,6 +122,11 @@ class WorkoutDay(TenantAwareModel):
     )
     name = models.CharField(max_length=100)
     day_number = models.PositiveSmallIntegerField()
+    day_type = models.CharField(
+        max_length=20,
+        choices=DayType.choices,
+        default=DayType.TRAINING,
+    )
     notes = models.TextField(blank=True, null=True)
 
     class Meta:

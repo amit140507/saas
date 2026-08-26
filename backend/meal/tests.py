@@ -1,13 +1,19 @@
 from datetime import date
+import io
+import shutil
+import tempfile
 
 from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
 from django.test import TestCase
+from PIL import Image
 from rest_framework.test import APIClient
 
 from core.clients.models import ClientProfile
 from core.tenants.models import Organization, OrganizationMember
 from meal.api.serializers import DietPlanSerializer
 from meal.models import DietPlan, DietPlanAssignment, FoodItem, PlannedMealSupplement
+from meal.services.pdf_service import _brand_color, _format_date, create_diet_plan_pdf
 
 
 class DietPlanBuilderPersistenceTests(TestCase):
@@ -199,3 +205,79 @@ class DietPlanBuilderPersistenceTests(TestCase):
         response = api_client.get('/api/v1/meal/shared-assignments/00000000-0000-0000-0000-000000000000/')
 
         self.assertEqual(response.status_code, 404)
+
+    def test_diet_pdf_formats_dates_for_display(self):
+        self.assertEqual(_format_date(date(2026, 8, 1)), '01/08/2026')
+        self.assertEqual(_format_date('2026-08-07'), '07/08/2026')
+        self.assertEqual(_format_date(None), 'No end date')
+
+    def test_diet_pdf_uses_safe_brand_color_fallback(self):
+        self.tenant.brand_color = 'tomato'
+        self.assertEqual(_brand_color(self.tenant), (79, 70, 229))
+
+        self.tenant.brand_color = '#22C55E'
+        self.assertEqual(_brand_color(self.tenant), (34, 197, 94))
+
+    def test_diet_pdf_generates_without_organization_logo(self):
+        payload = {
+            'clientName': 'Client One',
+            'startDate': '2026-08-01',
+            'endDate': '',
+            'checkInDate': '2026-08-07',
+            'totalCardio': '120',
+            'calories': 1800,
+            'protein': 140,
+            'fat': 55,
+            'carbs': 180,
+            'weightGain': 0,
+            'meals': [{
+                'time': 'Breakfast',
+                'calories': 195,
+                'protein': 4,
+                'fat': 0,
+                'carbs': 42,
+                'foods': [{'name': 'Rice', 'amount': '150', 'unit': 'g'}],
+                'supplements': [{'name': 'Whey Protein', 'amount': '1', 'unit': 'scoop'}],
+            }],
+        }
+
+        pdf_bytes = create_diet_plan_pdf(payload, tenant=self.tenant)
+
+        self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+
+    def test_diet_pdf_generates_with_organization_logo(self):
+        media_root = tempfile.mkdtemp()
+        try:
+            with self.settings(MEDIA_ROOT=media_root):
+                image = Image.new('RGB', (20, 20), color=(34, 197, 94))
+                image_bytes = io.BytesIO()
+                image.save(image_bytes, format='PNG')
+                self.tenant.logo.save('logo.png', ContentFile(image_bytes.getvalue()), save=True)
+
+                payload = {
+                    'clientName': 'Client One',
+                    'startDate': '2026-08-01',
+                    'endDate': '2026-08-31',
+                    'checkInDate': '2026-08-07',
+                    'totalCardio': '120',
+                    'calories': 1800,
+                    'protein': 140,
+                    'fat': 55,
+                    'carbs': 180,
+                    'weightGain': 0,
+                    'meals': [{
+                        'time': 'Breakfast',
+                        'calories': 195,
+                        'protein': 4,
+                        'fat': 0,
+                        'carbs': 42,
+                        'foods': [{'name': 'Rice', 'amount': '150', 'unit': 'g'}],
+                        'supplements': [],
+                    }],
+                }
+
+                pdf_bytes = create_diet_plan_pdf(payload, tenant=self.tenant)
+
+                self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+        finally:
+            shutil.rmtree(media_root, ignore_errors=True)
