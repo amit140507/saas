@@ -236,6 +236,8 @@ class WorkoutPlanVersioningTests(TestCase):
             sets=3,
             reps='10',
             rest=90,
+            set_method=WorkoutExercise.SetMethod.SUPERSET,
+            superset_group='A',
             notes='Original exercise',
         )
 
@@ -256,6 +258,8 @@ class WorkoutPlanVersioningTests(TestCase):
         self.assertEqual(snapshot_day.name, 'Day 1')
         self.assertEqual(snapshot_exercise.exercise, self.exercise)
         self.assertEqual(snapshot_exercise.sets, 3)
+        self.assertEqual(snapshot_exercise.set_method, WorkoutExercise.SetMethod.SUPERSET)
+        self.assertEqual(snapshot_exercise.superset_group, 'A')
         self.assertIsNotNone(assignment.share_token)
 
     def test_shared_assignment_endpoint_returns_snapshot_without_auth(self):
@@ -277,6 +281,8 @@ class WorkoutPlanVersioningTests(TestCase):
         self.assertEqual(len(response.data['workout_days']), 1)
         self.assertEqual(response.data['workout_days'][0]['name'], 'Day 1')
         self.assertEqual(response.data['workout_days'][0]['exercises'][0]['exercise_name'], 'Squat')
+        self.assertEqual(response.data['workout_days'][0]['exercises'][0]['set_method'], WorkoutExercise.SetMethod.SUPERSET)
+        self.assertEqual(response.data['workout_days'][0]['exercises'][0]['superset_group'], 'A')
 
     def test_shared_assignment_endpoint_returns_404_for_invalid_token(self):
         api_client = APIClient()
@@ -300,6 +306,8 @@ class WorkoutPlanVersioningTests(TestCase):
         self.template_day.save()
         self.template_exercise.exercise = self.updated_exercise
         self.template_exercise.sets = 5
+        self.template_exercise.set_method = WorkoutExercise.SetMethod.DROP_SET
+        self.template_exercise.superset_group = ''
         self.template_exercise.save()
 
         snapshot_day.refresh_from_db()
@@ -308,6 +316,8 @@ class WorkoutPlanVersioningTests(TestCase):
         self.assertEqual(snapshot_day.name, 'Day 1')
         self.assertEqual(snapshot_exercise.exercise, self.exercise)
         self.assertEqual(snapshot_exercise.sets, 3)
+        self.assertEqual(snapshot_exercise.set_method, WorkoutExercise.SetMethod.SUPERSET)
+        self.assertEqual(snapshot_exercise.superset_group, 'A')
 
     def test_replacing_assignment_closes_old_one_and_snapshots_updated_template(self):
         old_assignment = assign_workout_plan(
@@ -334,6 +344,8 @@ class WorkoutPlanVersioningTests(TestCase):
         self.assertEqual(new_assignment.start_date, date(2026, 7, 8))
         self.assertEqual(new_assignment.workout_days.get().exercises.get().exercise, self.updated_exercise)
         self.assertEqual(new_assignment.workout_days.get().exercises.get().sets, 5)
+        self.assertEqual(new_assignment.workout_days.get().exercises.get().set_method, WorkoutExercise.SetMethod.SUPERSET)
+        self.assertEqual(new_assignment.workout_days.get().exercises.get().superset_group, 'A')
 
     def test_assignment_serializer_create_snapshots_template_days(self):
         serializer = WorkoutPlanAssignmentSerializer(data={
@@ -371,6 +383,8 @@ class WorkoutPlanVersioningTests(TestCase):
                         'sets': 3,
                         'reps': '8-10',
                         'rest': 90,
+                        'set_method': WorkoutExercise.SetMethod.SUPERSET,
+                        'superset_group': 'A',
                         'notes': '',
                     }],
                 },
@@ -400,6 +414,9 @@ class WorkoutPlanVersioningTests(TestCase):
             WorkoutDay.DayType.ACTIVE_RECOVERY,
             WorkoutDay.DayType.OFF,
         ])
+        workout_exercise = plan.template_days.get(day_number=1).exercises.get()
+        self.assertEqual(workout_exercise.set_method, WorkoutExercise.SetMethod.SUPERSET)
+        self.assertEqual(workout_exercise.superset_group, 'A')
 
     def test_plan_serializer_rejects_off_day_with_exercises(self):
         serializer = WorkoutPlanSerializer(data={

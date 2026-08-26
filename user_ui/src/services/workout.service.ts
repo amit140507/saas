@@ -1,6 +1,7 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1/";
 
 export type SharedWorkoutDayType = "training" | "active_recovery" | "off";
+export type SharedWorkoutSetMethod = "normal" | "superset" | "drop_set";
 
 export interface SharedWorkoutExercise {
     id: string | number;
@@ -13,6 +14,8 @@ export interface SharedWorkoutExercise {
     sets: number;
     reps: string;
     rest: number;
+    set_method: SharedWorkoutSetMethod;
+    superset_group: string | null;
     notes: string | null;
     exercise_type: 1 | 2 | 3;
 }

@@ -173,6 +173,8 @@ function buildPreviewDays(planForm: PlanForm, exerciseById: Map<string, Exercise
                 sets: Number(row.sets) || 1,
                 reps: row.reps.trim(),
                 rest: Number(row.rest) || 0,
+                set_method: row.set_method,
+                superset_group: row.set_method === "superset" ? row.superset_group.trim() || null : null,
                 notes: row.notes.trim(),
                 exercise_type: exercise?.exercise_type || 3,
             };

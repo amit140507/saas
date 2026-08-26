@@ -179,6 +179,150 @@ def _write_exercise_summary_line(pdf, workout_exercise):
     pdf.cell(0, 6, _clean_text(muscle), align="R", new_x="LMARGIN", new_y="NEXT")
 
 
+def _set_method_label(workout_exercise):
+    if workout_exercise.set_method == workout_exercise.SetMethod.SUPERSET:
+        if workout_exercise.superset_group:
+            return f"Superset {workout_exercise.superset_group}"
+        return "Superset"
+    if workout_exercise.set_method == workout_exercise.SetMethod.DROP_SET:
+        return "Drop Set"
+    return ""
+
+
+def _group_label(workout_exercise):
+    return (workout_exercise.superset_group or "").strip() or str(workout_exercise.sequence)
+
+
+def _group_exercises_for_display(exercises):
+    blocks = []
+    for exercise in exercises:
+        if exercise.set_method != exercise.SetMethod.SUPERSET:
+            blocks.append({"kind": "single", "exercise": exercise})
+            continue
+
+        group = _group_label(exercise)
+        previous_block = blocks[-1] if blocks else None
+        if previous_block and previous_block["kind"] == "superset" and previous_block["group"] == group:
+            previous_block["exercises"].append(exercise)
+        else:
+            blocks.append({"kind": "superset", "group": group, "exercises": [exercise]})
+    return blocks
+
+
+def _exercise_video_url(workout_exercise):
+    return workout_exercise.video_url or next(
+        (media.youtube_url for media in workout_exercise.exercise.media.all() if media.youtube_url),
+        "",
+    )
+
+
+def _exercise_prescription(workout_exercise, include_method=True):
+    parts = [
+        f"{workout_exercise.sets} sets",
+        f"x {workout_exercise.reps} reps",
+        f"Rest {workout_exercise.rest}s",
+    ]
+    if include_method:
+        method_label = _set_method_label(workout_exercise)
+        if method_label:
+            parts.append(method_label)
+    return "  ".join(parts)
+
+
+def _ensure_space(pdf, height):
+    if pdf.get_y() + height > pdf.h - pdf.b_margin:
+        pdf.add_page()
+
+
+def _write_single_exercise_block(pdf, exercise):
+    _ensure_space(pdf, 26)
+    video_url = _exercise_video_url(exercise)
+    exercise_y = pdf.get_y()
+    _set_rgb(pdf, "set_draw_color", BORDER_MUTED)
+    pdf.line(pdf.l_margin, exercise_y, pdf.w - pdf.r_margin, exercise_y)
+    pdf.ln(3)
+
+    _write_exercise_summary_line(pdf, exercise)
+    pdf.set_font("helvetica", "", 9)
+    _set_rgb(pdf, "set_text_color", TEXT_MUTED)
+    _write_wrapped_line(pdf, _exercise_prescription(exercise), height=5, indent=5)
+    if video_url:
+        _write_key_link_line(pdf, "Video", video_url, height=5, indent=5, font_size=9)
+    if exercise.notes:
+        _write_key_value_line(pdf, "Notes", exercise.notes, height=5, indent=5, font_size=9)
+    pdf.ln(2)
+
+
+def _write_superset_exercise_row(pdf, exercise, item_label, width, accent, is_first):
+    if not is_first:
+        _set_rgb(pdf, "set_draw_color", BORDER_MUTED)
+        divider_y = pdf.get_y()
+        pdf.line(pdf.l_margin + 6, divider_y, pdf.l_margin + width - 4, divider_y)
+        pdf.ln(3)
+
+    row_left = pdf.l_margin + 6
+    row_width = width - 12
+    pdf.set_x(row_left)
+    pdf.set_font("helvetica", "B", 10)
+    _set_rgb(pdf, "set_text_color", accent)
+    label_width = pdf.get_string_width(item_label) + 2
+    pdf.cell(label_width, 6, _clean_text(item_label))
+
+    _set_rgb(pdf, "set_text_color", TEXT_DARK)
+    exercise_name = _clean_text(exercise.exercise.name)
+    exercise_width = min(pdf.get_string_width(exercise_name) + 2, row_width * 0.58)
+    pdf.cell(exercise_width, 6, exercise_name)
+
+    _set_rgb(pdf, "set_text_color", TEXT_MUTED)
+    pdf.set_font("helvetica", "B", 8)
+    pdf.cell(0, 6, _clean_text(_primary_muscle_label(exercise)), new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_x(row_left)
+    pdf.set_font("helvetica", "B", 8)
+    _set_rgb(pdf, "set_text_color", TEXT_MUTED)
+    pdf.multi_cell(row_width, 5, _clean_text(_exercise_prescription(exercise, include_method=False)), new_x="LMARGIN", new_y="NEXT")
+
+    video_url = _exercise_video_url(exercise)
+    if video_url:
+        _write_key_link_line(pdf, "Video", video_url, height=5, indent=6, font_size=8)
+    if exercise.notes:
+        _write_key_value_line(pdf, "Notes", exercise.notes, height=5, indent=6, font_size=8)
+
+
+def _write_superset_block(pdf, group, exercises, accent):
+    card_w = _content_width(pdf)
+    estimated_height = 12 + (len(exercises) * 18)
+    _ensure_space(pdf, estimated_height)
+
+    card_x = pdf.l_margin
+    card_y = pdf.get_y()
+    _set_rgb(pdf, "set_fill_color", SURFACE_SOFT)
+    _set_rgb(pdf, "set_draw_color", BORDER_MUTED)
+    pdf.rect(card_x, card_y, card_w, estimated_height, style="DF")
+    _set_rgb(pdf, "set_fill_color", accent)
+    pdf.rect(card_x, card_y, 1.6, estimated_height, style="F")
+
+    pdf.set_xy(card_x + 6, card_y + 4)
+    pdf.set_font("helvetica", "B", 8)
+    _set_rgb(pdf, "set_text_color", accent)
+    pdf.cell(0, 5, _clean_text(f"SUPERSET {group}".upper()), new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(4)
+
+    for index, exercise in enumerate(exercises):
+        item_label = f"{group}{index + 1}" if len(group) <= 3 else str(exercise.sequence)
+        _write_superset_exercise_row(pdf, exercise, item_label, card_w, accent, index == 0)
+
+    bottom_y = pdf.get_y() + 3
+    if bottom_y > card_y + estimated_height:
+        _set_rgb(pdf, "set_draw_color", BORDER_MUTED)
+        pdf.rect(card_x, card_y, card_w, bottom_y - card_y, style="D")
+        _set_rgb(pdf, "set_fill_color", accent)
+        pdf.rect(card_x, card_y, 1.6, bottom_y - card_y, style="F")
+        pdf.set_y(bottom_y + 3)
+    else:
+        pdf.set_y(card_y + estimated_height + 4)
+
+
 def _empty_day_message(day, notes_already_shown=False):
     day_type = getattr(day, "day_type", "training")
     if day_type == "active_recovery":
@@ -357,28 +501,11 @@ def create_workout_plan_pdf(assignment):
             pdf.ln(3)
             continue
 
-        for exercise in exercises:
-            if pdf.get_y() > pdf.h - 30:
-                pdf.add_page()
-
-            video_url = exercise.video_url or next(
-                (media.youtube_url for media in exercise.exercise.media.all() if media.youtube_url),
-                "",
-            )
-            exercise_y = pdf.get_y()
-            _set_rgb(pdf, "set_draw_color", BORDER_MUTED)
-            pdf.line(pdf.l_margin, exercise_y, pdf.w - pdf.r_margin, exercise_y)
-            pdf.ln(3)
-
-            _write_exercise_summary_line(pdf, exercise)
-            pdf.set_font("helvetica", "", 9)
-            _set_rgb(pdf, "set_text_color", TEXT_MUTED)
-            _write_wrapped_line(pdf, f"{exercise.sets} sets x {exercise.reps} reps . Rest {exercise.rest}s", height=5, indent=5)
-            if video_url:
-                _write_key_link_line(pdf, "Video", video_url, height=5, indent=5, font_size=9)
-            if exercise.notes:
-                _write_key_value_line(pdf, "Notes", exercise.notes, height=5, indent=5, font_size=9)
-            pdf.ln(2)
+        for block in _group_exercises_for_display(exercises):
+            if block["kind"] == "superset":
+                _write_superset_block(pdf, block["group"], block["exercises"], accent)
+            else:
+                _write_single_exercise_block(pdf, block["exercise"])
 
         pdf.ln(3)
 

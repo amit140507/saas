@@ -129,6 +129,8 @@ def snapshot_workout_plan_for_assignment(assignment):
                 sets=template_exercise.sets,
                 reps=template_exercise.reps,
                 rest=template_exercise.rest,
+                set_method=template_exercise.set_method,
+                superset_group=template_exercise.superset_group,
                 notes=template_exercise.notes,
             )
             for template_exercise in template_day.exercises.all()

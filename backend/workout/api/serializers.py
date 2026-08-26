@@ -103,6 +103,14 @@ class WorkoutExerciseSerializer(serializers.ModelSerializer):
             if media.youtube_url
         ]
 
+    def validate(self, attrs):
+        set_method = attrs.get('set_method', getattr(self.instance, 'set_method', WorkoutExercise.SetMethod.NORMAL))
+        if set_method != WorkoutExercise.SetMethod.SUPERSET:
+            attrs['superset_group'] = None
+        elif 'superset_group' in attrs:
+            attrs['superset_group'] = (attrs.get('superset_group') or '').strip() or None
+        return attrs
+
 
 class WorkoutDaySerializer(serializers.ModelSerializer):
     exercises = WorkoutExerciseSerializer(many=True, read_only=True)
@@ -121,7 +129,20 @@ class WorkoutExerciseTemplatePayloadSerializer(serializers.Serializer):
     sets = serializers.IntegerField(min_value=1)
     reps = serializers.ChoiceField(choices=Exercise.RepsRange.choices)
     rest = serializers.ChoiceField(choices=Exercise.RestPeriod.choices)
+    set_method = serializers.ChoiceField(
+        choices=WorkoutExercise.SetMethod.choices,
+        default=WorkoutExercise.SetMethod.NORMAL,
+        required=False,
+    )
+    superset_group = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
     notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate(self, attrs):
+        if attrs.get('set_method') != WorkoutExercise.SetMethod.SUPERSET:
+            attrs['superset_group'] = None
+        else:
+            attrs['superset_group'] = (attrs.get('superset_group') or '').strip() or None
+        return attrs
 
 
 class WorkoutDayTemplatePayloadSerializer(serializers.Serializer):
@@ -213,6 +234,8 @@ class WorkoutPlanSerializer(serializers.ModelSerializer):
                     sets=exercise_data['sets'],
                     reps=exercise_data['reps'],
                     rest=exercise_data['rest'],
+                    set_method=exercise_data.get('set_method') or WorkoutExercise.SetMethod.NORMAL,
+                    superset_group=exercise_data.get('superset_group'),
                     notes=exercise_data.get('notes') or '',
                 )
                 for sequence, exercise_data in enumerate(exercises, start=1)

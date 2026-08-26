@@ -68,6 +68,6 @@ class ExerciseMediaAdmin(admin.ModelAdmin):
 
 @admin.register(WorkoutExercise)
 class WorkoutExerciseAdmin(admin.ModelAdmin):
-    list_display = ('workout_day', 'sequence', 'body_part', 'exercise', 'sets', 'reps', 'rest')
-    list_filter = ('workout_day',)
+    list_display = ('workout_day', 'sequence', 'body_part', 'exercise', 'sets', 'reps', 'rest', 'set_method', 'superset_group')
+    list_filter = ('workout_day', 'set_method')
     search_fields = ('workout_day__name', 'exercise__name')

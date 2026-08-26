@@ -303,6 +303,11 @@ class ExerciseMedia(models.Model):
 
 
 class WorkoutExercise(models.Model):
+    class SetMethod(models.TextChoices):
+        NORMAL = 'normal', 'Normal'
+        SUPERSET = 'superset', 'Superset'
+        DROP_SET = 'drop_set', 'Drop Set'
+
     workout_day = models.ForeignKey(
         WorkoutDay,
         on_delete=models.CASCADE,
@@ -320,6 +325,12 @@ class WorkoutExercise(models.Model):
     sets = models.IntegerField()
     reps = models.CharField(max_length=50, choices=Exercise.RepsRange.choices)
     rest = models.IntegerField(choices=Exercise.RestPeriod.choices, help_text='rest in seconds')
+    set_method = models.CharField(
+        max_length=20,
+        choices=SetMethod.choices,
+        default=SetMethod.NORMAL,
+    )
+    superset_group = models.CharField(max_length=50, blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
 
     class Meta:

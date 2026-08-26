@@ -6,6 +6,7 @@ export type WorkoutType = "push" | "pull" | "legs" | "";
 export type ExerciseType = 1 | 2 | 3;
 export type ExerciseRepsRange = "" | "4-6" | "6-8" | "8-10" | "10-12" | "12-15" | "15-20";
 export type ExerciseRestPeriod = 15 | 30 | 45 | 60 | 75 | 90 | 105 | 120;
+export type WorkoutSetMethod = "normal" | "superset" | "drop_set";
 
 export interface MuscleGroup {
     id: string | number;
@@ -155,6 +156,8 @@ export interface WorkoutExercise {
     sets: number;
     reps: string;
     rest: number;
+    set_method: WorkoutSetMethod;
+    superset_group: string | null;
     notes: string | null;
     exercise_type: ExerciseType;
 }
@@ -169,6 +172,8 @@ export interface WorkoutExercisePayload {
     sets: number;
     reps: string;
     rest: number;
+    set_method?: WorkoutSetMethod;
+    superset_group?: string | null;
     notes: string;
 }
 
@@ -203,6 +208,8 @@ export interface WorkoutExerciseTemplatePayload {
     sets: number;
     reps: string;
     rest: number;
+    set_method: WorkoutSetMethod;
+    superset_group: string | null;
     notes: string;
 }
 

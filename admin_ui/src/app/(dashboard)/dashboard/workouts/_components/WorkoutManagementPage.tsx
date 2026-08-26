@@ -66,6 +66,7 @@ import type {
     ExerciseRestPeriod,
     ExerciseTrainingLocation,
     WorkoutType,
+    WorkoutSetMethod,
     WorkoutExercise,
     WorkoutExerciseTemplatePayload,
     WorkoutPlan,
@@ -123,6 +124,8 @@ export interface PlanExerciseRowForm {
     sets: string;
     reps: string;
     rest: string;
+    set_method: WorkoutSetMethod;
+    superset_group: string;
     video_url: string;
     notes: string;
 }
@@ -183,6 +186,8 @@ export function createPlanExerciseRow(overrides: Partial<PlanExerciseRowForm> = 
         sets: "3",
         reps: "8-12",
         rest: "90",
+        set_method: "normal",
+        superset_group: "",
         video_url: "",
         notes: "",
         ...overrides,
@@ -254,6 +259,7 @@ const emptyClients: ClientData[] = [];
 
 export const repsOptions: ExerciseRepsRange[] = ["", "4-6", "6-8", "8-10", "10-12", "12-15", "15-20"];
 export const restOptions: Array<"" | ExerciseRestPeriod> = ["", 15, 30, 45, 60, 75, 90, 105, 120];
+export const setMethodOptions: WorkoutSetMethod[] = ["normal", "superset", "drop_set"];
 
 export function getErrorMessage(error: unknown): string {
     const apiError = error as ApiErrorShape;
@@ -351,6 +357,38 @@ function getWorkoutExerciseTypeLabel(type: ExerciseType): string {
     return "Free Weight";
 }
 
+function getSetMethodLabel(method?: WorkoutSetMethod | null, supersetGroup?: string | null): string {
+    if (method === "superset") {
+        return supersetGroup ? `Superset ${supersetGroup}` : "Superset";
+    }
+    if (method === "drop_set") return "Drop Set";
+    return "Normal";
+}
+
+type WorkoutExerciseBlock =
+    | { kind: "single"; exercise: WorkoutExercise }
+    | { kind: "superset"; group: string; exercises: WorkoutExercise[] };
+
+function groupWorkoutExercises(exercises: WorkoutExercise[]): WorkoutExerciseBlock[] {
+    return exercises
+        .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+        .reduce<WorkoutExerciseBlock[]>((blocks, exercise) => {
+            if (exercise.set_method !== "superset") {
+                blocks.push({ kind: "single", exercise });
+                return blocks;
+            }
+
+            const group = (exercise.superset_group || "").trim() || String(exercise.sequence);
+            const previousBlock = blocks[blocks.length - 1];
+            if (previousBlock?.kind === "superset" && previousBlock.group === group) {
+                previousBlock.exercises.push(exercise);
+            } else {
+                blocks.push({ kind: "superset", group, exercises: [exercise] });
+            }
+            return blocks;
+        }, []);
+}
+
 function getRestLabel(rest?: ExerciseRestPeriod | null): string {
     return rest ? `${rest}s` : "-";
 }
@@ -366,6 +404,8 @@ function mapWorkoutExerciseToForm(row: WorkoutExercise, exerciseById: Map<string
         sets: String(row.sets || 1),
         reps: row.reps || "",
         rest: String(row.rest || 0),
+        set_method: row.set_method || "normal",
+        superset_group: row.superset_group || "",
         video_url: row.video_url || row.exercise_video_urls?.[0] || "",
         notes: row.notes || "",
     });
@@ -438,6 +478,8 @@ export function buildWorkoutPlanPayload(
                 sets,
                 reps: row.reps.trim(),
                 rest,
+                set_method: row.set_method,
+                superset_group: row.set_method === "superset" ? row.superset_group.trim() || null : null,
                 notes: row.notes.trim(),
             });
         }
@@ -1770,6 +1812,11 @@ export function PlanTemplateEditor({
                                                     <span className="inline-flex rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-bold uppercase text-sky-800 dark:bg-sky-900/50 dark:text-sky-200">
                                                         {bodyPart}
                                                     </span>
+                                                    {row.set_method !== "normal" && (
+                                                        <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                                            {getSetMethodLabel(row.set_method, row.superset_group)}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-1">
@@ -1831,7 +1878,37 @@ export function PlanTemplateEditor({
                                                 </select>
                                             </label>
 
-                                            <label className="block sm:col-span-3 lg:col-span-3">
+                                            <label className="block">
+                                                <span className="mb-1 block text-[11px] font-black uppercase text-zinc-500">Method</span>
+                                                <select
+                                                    value={row.set_method}
+                                                    onChange={(event) => {
+                                                        const setMethod = event.target.value as WorkoutSetMethod;
+                                                        onUpdateRow(day.id, row.id, {
+                                                            set_method: setMethod,
+                                                            superset_group: setMethod === "superset" ? row.superset_group : "",
+                                                        });
+                                                    }}
+                                                    className="w-full rounded border border-zinc-300 px-2 py-2 text-center text-xs font-bold text-black outline-none focus:border-sky-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+                                                >
+                                                    {setMethodOptions.map((option) => (
+                                                        <option key={option} value={option}>{getSetMethodLabel(option)}</option>
+                                                    ))}
+                                                </select>
+                                            </label>
+
+                                            <label className="block">
+                                                <span className="mb-1 block text-[11px] font-black uppercase text-zinc-500">Superset</span>
+                                                <input
+                                                    value={row.superset_group}
+                                                    onChange={(event) => onUpdateRow(day.id, row.id, { superset_group: event.target.value })}
+                                                    disabled={row.set_method !== "superset"}
+                                                    className="w-full rounded border border-zinc-300 px-2 py-2 text-center text-xs font-bold text-black outline-none focus:border-sky-500 disabled:bg-zinc-100 disabled:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white dark:disabled:bg-zinc-900"
+                                                    placeholder="A"
+                                                />
+                                            </label>
+
+                                            <label className="block sm:col-span-3 lg:col-span-1">
                                                 <span className="mb-1 block text-[11px] font-black uppercase text-zinc-500">Video Link</span>
                                                 <input
                                                     list={videoListId}
@@ -2310,39 +2387,82 @@ export function WorkoutPlanViewModal({
                                     {day.day_type === "training" ? `${day.exercises?.length || 0} exercises` : getWorkoutDayTypeLabel(day.day_type)}
                                 </Badge>
                             </div>
-                            <DataTable emptyText="No exercises found for this day." columns={["Order", "Exercise", "Body Part", "Type", "Weight", "Sets", "Reps", "Rest", "Video", "Notes"]}>
-                                {day.day_type !== "training" ? (
-                                    <tr>
-                                        <td colSpan={10} className="px-6 py-8 text-center text-sm text-zinc-500">
-                                            {day.day_type === "active_recovery"
-                                                ? day.notes || "Active recovery day. Add walking, mobility, stretching, or cardio notes."
-                                                : day.notes || "Off day."}
-                                        </td>
-                                    </tr>
-                                ) : [...(day.exercises || [])]
-                                    .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
-                                    .map((exercise) => {
+                            {day.day_type !== "training" ? (
+                                <div className="px-6 py-8 text-center text-sm text-zinc-500">
+                                    {day.day_type === "active_recovery"
+                                        ? day.notes || "Active recovery day. Add walking, mobility, stretching, or cardio notes."
+                                        : day.notes || "Off day."}
+                                </div>
+                            ) : !day.exercises?.length ? (
+                                <div className="px-6 py-8 text-center text-sm text-zinc-500">
+                                    No exercises found for this day.
+                                </div>
+                            ) : (
+                                <div className="space-y-3 p-4">
+                                    {groupWorkoutExercises([...(day.exercises || [])]).map((block) => {
+                                        if (block.kind === "superset") {
+                                            return (
+                                                <div key={`superset-${block.group}-${block.exercises[0]?.id}`} className="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                                                    <div className="border-l-4 border-orange-500 px-4 py-3">
+                                                        <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-orange-600 dark:text-orange-300">
+                                                            Superset {block.group}
+                                                        </div>
+                                                        <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                                                            {block.exercises.map((exercise, index) => {
+                                                                const videoUrl = exercise.video_url || exercise.exercise_video_urls?.[0] || "";
+                                                                const itemLabel = block.group.length <= 3 ? `${block.group}${index + 1}` : `#${exercise.sequence}`;
+                                                                return (
+                                                                    <div key={exercise.id} className="py-3 first:pt-0 last:pb-0">
+                                                                        <div className="flex flex-wrap items-baseline gap-2">
+                                                                            <span className="text-sm font-black text-orange-600 dark:text-orange-300">{itemLabel}</span>
+                                                                            <span className="font-bold text-zinc-950 dark:text-white">{exercise.exercise_name || exercise.exercise}</span>
+                                                                            <span className="text-xs font-medium text-zinc-500">{exercise.body_part || "-"}</span>
+                                                                        </div>
+                                                                        <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-zinc-500">
+                                                                            <span>{exercise.sets} sets</span>
+                                                                            <span>x {exercise.reps} reps</span>
+                                                                            <span>Rest {exercise.rest}s</span>
+                                                                            <span>{getWorkoutExerciseTypeLabel(exercise.exercise_type)}</span>
+                                                                            {exercise.weight !== null && <span>{exercise.weight} kg</span>}
+                                                                            {videoUrl && <a className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-300" href={videoUrl} target="_blank" rel="noreferrer">Video</a>}
+                                                                        </div>
+                                                                        {exercise.notes && <div className="mt-1 text-xs text-zinc-500">{exercise.notes}</div>}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+
+                                        const exercise = block.exercise;
                                         const videoUrl = exercise.video_url || exercise.exercise_video_urls?.[0] || "";
+                                        const methodLabel = getSetMethodLabel(exercise.set_method, exercise.superset_group);
                                         return (
-                                            <tr key={exercise.id} className="transition hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
-                                                <td className="px-6 py-4">{exercise.sequence}</td>
-                                                <td className="px-6 py-4 font-semibold text-zinc-900 dark:text-white">{exercise.exercise_name || exercise.exercise}</td>
-                                                <td className="px-6 py-4">{exercise.body_part || "-"}</td>
-                                                <td className="px-6 py-4">{getWorkoutExerciseTypeLabel(exercise.exercise_type)}</td>
-                                                <td className="px-6 py-4">{exercise.weight ?? "-"}</td>
-                                                <td className="px-6 py-4">{exercise.sets}</td>
-                                                <td className="px-6 py-4">{exercise.reps}</td>
-                                                <td className="px-6 py-4">{exercise.rest}s</td>
-                                                <td className="px-6 py-4">
-                                                    {videoUrl ? (
-                                                        <a className="font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-300" href={videoUrl} target="_blank" rel="noreferrer">Open</a>
-                                                    ) : "-"}
-                                                </td>
-                                                <td className="px-6 py-4"><div className="max-w-64 truncate">{exercise.notes || "-"}</div></td>
-                                            </tr>
+                                            <div key={exercise.id} className="rounded-lg border border-zinc-200 bg-white px-4 py-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                                                <div className="flex flex-wrap items-baseline gap-2">
+                                                    <span className="text-sm font-bold text-zinc-500">#{exercise.sequence}</span>
+                                                    <span className="font-bold text-zinc-950 dark:text-white">{exercise.exercise_name || exercise.exercise}</span>
+                                                    {exercise.set_method !== "normal" && (
+                                                        <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{methodLabel}</span>
+                                                    )}
+                                                    <span className="text-xs font-medium text-zinc-500">{exercise.body_part || "-"}</span>
+                                                </div>
+                                                <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-zinc-500">
+                                                    <span>{exercise.sets} sets</span>
+                                                    <span>x {exercise.reps} reps</span>
+                                                    <span>Rest {exercise.rest}s</span>
+                                                    <span>{getWorkoutExerciseTypeLabel(exercise.exercise_type)}</span>
+                                                    {exercise.weight !== null && <span>{exercise.weight} kg</span>}
+                                                    {videoUrl && <a className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-300" href={videoUrl} target="_blank" rel="noreferrer">Video</a>}
+                                                </div>
+                                                {exercise.notes && <div className="mt-1 text-xs text-zinc-500">{exercise.notes}</div>}
+                                            </div>
                                         );
                                     })}
-                            </DataTable>
+                                </div>
+                            )}
                         </section>
                     ))}
                 </div>
