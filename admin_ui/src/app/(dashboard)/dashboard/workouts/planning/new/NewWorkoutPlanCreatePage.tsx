@@ -156,8 +156,9 @@ function buildPreviewDays(planForm: PlanForm, exerciseById: Map<string, Exercise
         plan_assignment: null,
         name: day.name.trim() || `Day ${dayIndex + 1}`,
         day_number: Number(day.day_number) || dayIndex + 1,
+        day_type: day.day_type,
         notes: day.notes.trim(),
-        exercises: day.exercises.map((row, rowIndex) => {
+        exercises: (day.day_type === "training" ? day.exercises : []).map((row, rowIndex) => {
             const exercise = exerciseById.get(row.exercise);
             return {
                 id: `preview-row-${row.id}`,

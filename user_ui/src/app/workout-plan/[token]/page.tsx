@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { DumbbellIcon, PlayCircleIcon } from "lucide-react";
 
-import { getSharedWorkoutAssignment } from "@/services/workout.service";
+import { getSharedWorkoutAssignment, type SharedWorkoutDayType } from "@/services/workout.service";
 
 interface SharedWorkoutPlanPageProps {
     params: Promise<{ token: string }>;
@@ -11,6 +11,18 @@ function exerciseTypeLabel(type: 1 | 2 | 3): string {
     if (type === 1) return "Body Weight";
     if (type === 2) return "Pin Loaded";
     return "Free Weight";
+}
+
+function dayTypeLabel(dayType?: SharedWorkoutDayType): string {
+    if (dayType === "active_recovery") return "Active Recovery";
+    if (dayType === "off") return "Off Day";
+    return "Training";
+}
+
+function dayTypeClassName(dayType?: SharedWorkoutDayType): string {
+    if (dayType === "active_recovery") return "bg-emerald-50 text-emerald-700";
+    if (dayType === "off") return "bg-zinc-200 text-zinc-700";
+    return "bg-orange-50 text-orange-700";
 }
 
 export default async function SharedWorkoutPlanPage({ params }: SharedWorkoutPlanPageProps) {
@@ -55,20 +67,34 @@ export default async function SharedWorkoutPlanPage({ params }: SharedWorkoutPla
                     </section>
                 ) : days.map((day) => {
                     const exercises = [...(day.exercises || [])].sort((a, b) => a.sequence - b.sequence);
+                    const dayType = day.day_type || "training";
 
                     return (
                         <section key={day.id} className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
                             <div className="border-b border-zinc-200 bg-zinc-100 px-5 py-4">
                                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                                     <div>
-                                        <h2 className="text-lg font-bold">Day {day.day_number}: {day.name}</h2>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h2 className="text-lg font-bold">Day {day.day_number}: {day.name}</h2>
+                                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${dayTypeClassName(dayType)}`}>
+                                                {dayTypeLabel(dayType)}
+                                            </span>
+                                        </div>
                                         {day.notes && <p className="mt-1 text-sm text-zinc-500">{day.notes}</p>}
                                     </div>
-                                    <span className="text-sm font-semibold text-zinc-500">{exercises.length} exercises</span>
+                                    <span className="text-sm font-semibold text-zinc-500">
+                                        {dayType === "training" ? `${exercises.length} exercises` : dayTypeLabel(dayType)}
+                                    </span>
                                 </div>
                             </div>
                             <div className="divide-y divide-zinc-100">
-                                {exercises.length === 0 ? (
+                                {dayType !== "training" ? (
+                                    <div className="px-5 py-8 text-center text-sm font-semibold text-zinc-500">
+                                        {dayType === "active_recovery"
+                                            ? day.notes || "Active recovery day. Keep the intensity light."
+                                            : day.notes || "Off day. Full rest."}
+                                    </div>
+                                ) : exercises.length === 0 ? (
                                     <div className="px-5 py-8 text-center text-sm text-zinc-500">No exercises for this day.</div>
                                 ) : exercises.map((exercise) => {
                                     const videoUrl = exercise.video_url || exercise.exercise_video_urls?.[0] || "";

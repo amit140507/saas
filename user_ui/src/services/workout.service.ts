@@ -1,5 +1,7 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1/";
 
+export type SharedWorkoutDayType = "training" | "active_recovery" | "off";
+
 export interface SharedWorkoutExercise {
     id: string | number;
     exercise_name?: string;
@@ -19,6 +21,7 @@ export interface SharedWorkoutDay {
     id: string | number;
     name: string;
     day_number: number;
+    day_type: SharedWorkoutDayType;
     notes: string | null;
     exercises?: SharedWorkoutExercise[];
 }

@@ -58,6 +58,7 @@ import type {
     MuscleGroupPayload,
     WorkoutAssignmentStatus,
     WorkoutDay,
+    WorkoutDayType,
     WorkoutDayTemplatePayload,
     WorkoutDifficulty,
     ExerciseType,
@@ -108,6 +109,7 @@ export interface PlanDayForm {
     id: string;
     name: string;
     day_number: string;
+    day_type: WorkoutDayType;
     notes: string;
     exercises: PlanExerciseRowForm[];
 }
@@ -192,6 +194,7 @@ export function createPlanDay(overrides: Partial<PlanDayForm> = {}): PlanDayForm
         id: createFormId(),
         name: "MONDAY: BACK, SHOULDERS & CORE",
         day_number: "1",
+        day_type: "training",
         notes: "",
         exercises: [],
         ...overrides,
@@ -296,6 +299,24 @@ function getWorkoutTypeLabel(workoutType?: WorkoutType | null): string {
     return "Not set";
 }
 
+function getWorkoutDayTypeLabel(dayType?: WorkoutDayType | null): string {
+    if (dayType === "active_recovery") return "Active Recovery";
+    if (dayType === "off") return "Off Day";
+    return "Training";
+}
+
+function dayTypeClasses(dayType?: WorkoutDayType | null): string {
+    if (dayType === "active_recovery") {
+        return "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300";
+    }
+
+    if (dayType === "off") {
+        return "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
+    }
+
+    return "bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200";
+}
+
 function compactStrings(values: string[]): string[] {
     return values.map((value) => value.trim()).filter(Boolean);
 }
@@ -355,6 +376,7 @@ export function mapWorkoutDayToForm(day: WorkoutDay, exerciseById: Map<string, E
     return createPlanDay({
         name: day.name,
         day_number: String(day.day_number),
+        day_type: day.day_type || "training",
         notes: day.notes || "",
         exercises: sortedExercises.map((row) => mapWorkoutExerciseToForm(row, exerciseById)),
     });
@@ -382,9 +404,12 @@ export function buildWorkoutPlanPayload(
         if (!Number.isInteger(dayNumber) || dayNumber < 1) {
             return { payload: null, error: "Each workout day needs a valid day number." };
         }
+        if (day.day_type === "off" && day.exercises.length > 0) {
+            return { payload: null, error: "Off days cannot include exercises." };
+        }
 
         const exercisesPayload: WorkoutExerciseTemplatePayload[] = [];
-        for (const [rowIndex, row] of day.exercises.entries()) {
+        for (const [rowIndex, row] of (day.day_type === "training" ? day.exercises : []).entries()) {
             const selectedExercise = exerciseById.get(row.exercise);
             const sets = Number(row.sets);
             const rest = Number(row.rest);
@@ -420,6 +445,7 @@ export function buildWorkoutPlanPayload(
         daysPayload.push({
             name: day.name.trim(),
             day_number: dayNumber || dayIndex + 1,
+            day_type: day.day_type,
             notes: day.notes.trim(),
             exercises: exercisesPayload,
         });
@@ -1449,6 +1475,10 @@ export function PlanTemplateEditor({
         const totals = new Map<string, number>();
 
         days.forEach((day) => {
+            if (day.day_type !== "training") {
+                return;
+            }
+
             day.exercises.forEach((row) => {
                 const sets = Number(row.sets);
                 if (!Number.isFinite(sets) || sets <= 0) {
@@ -1474,7 +1504,7 @@ export function PlanTemplateEditor({
         return Array.from(totals.entries()).map(([muscleName, totalSets]) => ({ muscleName, totalSets }));
     }, [days, exerciseById, muscleGroupById]);
     const hasSelectedExercise = useMemo(
-        () => days.some((day) => day.exercises.some((row) => Boolean(row.exercise))),
+        () => days.some((day) => day.day_type === "training" && day.exercises.some((row) => Boolean(row.exercise))),
         [days],
     );
     const [draggedRow, setDraggedRow] = useState<{ dayId: string; rowId: string } | null>(null);
@@ -1527,7 +1557,22 @@ export function PlanTemplateEditor({
         ));
     };
 
+    const handleDayTypeChange = (day: PlanDayForm, dayType: WorkoutDayType) => {
+        onUpdateDay(day.id, {
+            day_type: dayType,
+            exercises: dayType === "training" ? day.exercises : [],
+        });
+    };
+
     const getDaySummary = (day: PlanDayForm) => {
+        if (day.day_type === "active_recovery") {
+            return "Active recovery";
+        }
+
+        if (day.day_type === "off") {
+            return "Off day";
+        }
+
         const selectedRows = day.exercises.filter((row) => Boolean(row.exercise));
         const exerciseCount = selectedRows.length;
         const setCount = selectedRows.reduce((total, row) => {
@@ -1583,7 +1628,7 @@ export function PlanTemplateEditor({
                         className={`overflow-hidden rounded-xl border border-zinc-300 bg-white text-zinc-950 shadow-sm transition dark:border-zinc-800 dark:bg-zinc-950 ${draggedDayId === day.id ? "opacity-50" : ""}`}
                     >
                         <div className="border-b border-black  p-3 ">
-                            <div className="grid gap-3 md:grid-cols-[auto_1fr_120px_minmax(150px,auto)_auto] md:items-end">
+                            <div className="grid gap-3 md:grid-cols-[auto_1fr_120px_180px_minmax(150px,auto)_auto] md:items-end">
                                 {enableDayCardControls ? (
                                     <button
                                         type="button"
@@ -1619,6 +1664,18 @@ export function PlanTemplateEditor({
                                         onChange={(event) => onUpdateDay(day.id, { day_number: event.target.value })}
                                         className="w-full rounded-md border border-sky-300 bg-white px-3 py-2 text-sm font-bold text-zinc-950 outline-none focus:border-sky-600"
                                     />
+                                </label>
+                                <label className="block">
+                                    <span className="mb-1 block text-xs font-black uppercase text-black">Day Type</span>
+                                    <select
+                                        value={day.day_type}
+                                        onChange={(event) => handleDayTypeChange(day, event.target.value as WorkoutDayType)}
+                                        className="w-full rounded-md border border-sky-300 bg-white px-3 py-2 text-sm font-bold text-zinc-950 outline-none focus:border-sky-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+                                    >
+                                        <option value="training">Training</option>
+                                        <option value="active_recovery">Active Recovery</option>
+                                        <option value="off">Off</option>
+                                    </select>
                                 </label>
                                 {enableDayCardControls ? (
                                     <div className="self-end rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-center text-xs font-black uppercase text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
@@ -1664,6 +1721,15 @@ export function PlanTemplateEditor({
 
                         {!isCollapsed && (
                         <>
+                        {day.day_type !== "training" ? (
+                            <div className="p-3">
+                                <div className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50 px-4 py-6 text-center text-sm font-semibold text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+                                    {day.day_type === "active_recovery"
+                                        ? "Active recovery day. Add walking, mobility, stretching, or cardio notes."
+                                        : "Off day. Add optional rest-day notes."}
+                                </div>
+                            </div>
+                        ) : (
                         <div className="grid gap-3 p-3">
                             {day.exercises.length === 0 ? (
                                 <div className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50 px-4 py-6 text-center text-sm font-semibold text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
@@ -1793,6 +1859,7 @@ export function PlanTemplateEditor({
                                 );
                             })}
                         </div>
+                        )}
 
                         <div className="flex flex-col gap-3 border-t border-zinc-200 p-3 dark:border-zinc-800 md:items-start md:justify-between">
                             <input
@@ -1801,14 +1868,16 @@ export function PlanTemplateEditor({
                                 className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-sky-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white"
                                 placeholder="Optional notes for this day"
                             />
-                            <button
-                                type="button"
-                                onClick={() => openExercisePicker(day.id)}
-                                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-sky-200 px-4 py-2 text-sm font-bold text-sky-700 transition hover:bg-sky-50 dark:border-sky-900 dark:text-sky-300 dark:hover:bg-sky-950"
-                            >
-                                <PlusIcon className="h-4 w-4" />
-                                Add Exercise
-                            </button>
+                            {day.day_type === "training" && (
+                                <button
+                                    type="button"
+                                    onClick={() => openExercisePicker(day.id)}
+                                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-sky-200 px-4 py-2 text-sm font-bold text-sky-700 transition hover:bg-sky-50 dark:border-sky-900 dark:text-sky-300 dark:hover:bg-sky-950"
+                                >
+                                    <PlusIcon className="h-4 w-4" />
+                                    Add Exercise
+                                </button>
+                            )}
                         </div>
                         </>
                         )}
@@ -2231,15 +2300,26 @@ export function WorkoutPlanViewModal({
                         <section key={day.id} className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
                             <div className="flex flex-col gap-1 border-b border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950 md:flex-row md:items-center md:justify-between">
                                 <div>
-                                    <h3 className="font-bold text-zinc-900 dark:text-white">Day {day.day_number}: {day.name}</h3>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h3 className="font-bold text-zinc-900 dark:text-white">Day {day.day_number}: {day.name}</h3>
+                                        <Badge className={dayTypeClasses(day.day_type)}>{getWorkoutDayTypeLabel(day.day_type)}</Badge>
+                                    </div>
                                     {day.notes && <p className="mt-1 text-sm text-zinc-500">{day.notes}</p>}
                                 </div>
                                 <Badge className="bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                                    {day.exercises?.length || 0} exercises
+                                    {day.day_type === "training" ? `${day.exercises?.length || 0} exercises` : getWorkoutDayTypeLabel(day.day_type)}
                                 </Badge>
                             </div>
                             <DataTable emptyText="No exercises found for this day." columns={["Order", "Exercise", "Body Part", "Type", "Weight", "Sets", "Reps", "Rest", "Video", "Notes"]}>
-                                {[...(day.exercises || [])]
+                                {day.day_type !== "training" ? (
+                                    <tr>
+                                        <td colSpan={10} className="px-6 py-8 text-center text-sm text-zinc-500">
+                                            {day.day_type === "active_recovery"
+                                                ? day.notes || "Active recovery day. Add walking, mobility, stretching, or cardio notes."
+                                                : day.notes || "Off day."}
+                                        </td>
+                                    </tr>
+                                ) : [...(day.exercises || [])]
                                     .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
                                     .map((exercise) => {
                                         const videoUrl = exercise.video_url || exercise.exercise_video_urls?.[0] || "";

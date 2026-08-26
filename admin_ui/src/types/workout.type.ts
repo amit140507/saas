@@ -1,5 +1,6 @@
 export type WorkoutDifficulty = "beginner" | "intermediate" | "advanced";
 export type WorkoutAssignmentStatus = "active" | "completed" | "paused" | "cancelled";
+export type WorkoutDayType = "training" | "active_recovery" | "off";
 export type ExerciseTrainingLocation = "gym" | "home";
 export type WorkoutType = "push" | "pull" | "legs" | "";
 export type ExerciseType = 1 | 2 | 3;
@@ -178,6 +179,7 @@ export interface WorkoutDay {
     plan_assignment?: string | null;
     name: string;
     day_number: number;
+    day_type: WorkoutDayType;
     notes: string | null;
     exercises?: WorkoutExercise[];
 }
@@ -188,6 +190,7 @@ export interface WorkoutDayPayload {
     plan_assignment?: string | null;
     name: string;
     day_number: number;
+    day_type: WorkoutDayType;
     notes: string;
 }
 
@@ -206,6 +209,7 @@ export interface WorkoutExerciseTemplatePayload {
 export interface WorkoutDayTemplatePayload {
     name: string;
     day_number: number;
+    day_type: WorkoutDayType;
     notes: string;
     exercises: WorkoutExerciseTemplatePayload[];
 }
